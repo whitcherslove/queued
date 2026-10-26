@@ -1,0 +1,48 @@
+import { describe, expect, it } from 'vitest';
+import { matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../src/lib/logic';
+import type { LibItem, LogRow } from '../src/lib/types';
+
+const title = (id: string, name: string, extra: Partial<LibItem['title']> = {}) => ({
+  id: 't' + id, kind: 'movie' as const, source: 'tmdb', source_id: 's' + id, imdb_id: null, title: name, release_date: null, year: null, runtime: null,
+  directors: [], genres: [], overview: null, poster_url: null, backdrop_url: null, metascore: null, imdb_rating: null, data: {}, ...extra
+});
+const lib = (id: string, name: string, pos: number, upNext = false): LibItem => ({ id, title_id: 't' + id, section: 'movies', status: 'backlog', up_next: upNext, position: pos, tier: null, score: null, title: title(id, name) });
+
+describe('formatting', () => {
+  it('release date and runtime', () => {
+    expect(releaseText('2019-11-22', 2019)).toBe('22 Nov 2019');
+    expect(releaseText(null, 2010)).toBe('2010');
+    expect(runtimeText(103)).toBe('1h 43m');
+    expect(runtimeText(null)).toBe('');
+  });
+});
+
+describe('ordering', () => {
+  it('moves ids', () => {
+    expect(moveId(['a', 'b', 'c', 'd'], 'a', 'c')).toEqual(['b', 'c', 'a', 'd']);
+    expect(moveId(['a', 'b', 'c'], 'c', 'a')).toEqual(['c', 'a', 'b']);
+    expect(moveBy(['a', 'b', 'c'], 'b', -1)).toEqual(['b', 'a', 'c']);
+    expect(moveBy(['a', 'b', 'c'], 'c', 1)).toEqual(['a', 'b', 'c']);
+  });
+  it('splits backlog into up next and the rest by position', () => {
+    const r = splitBacklog([lib('1', 'A', 3), lib('2', 'B', 1, true), lib('3', 'C', 2)]);
+    expect(r.next.map((i) => i.id)).toEqual(['2']);
+    expect(r.rest.map((i) => i.id)).toEqual(['3', '1']);
+    expect(nextPosition([lib('1', 'A', 3), lib('2', 'B', 7)])).toBe(8);
+  });
+  it('sorts logs by date unless a custom order exists', () => {
+    const l = (id: string, d: string, p: number | null) => ({ id, watched_at: d, position: p } as LogRow);
+    expect(sortLogs([l('a', '2026-01-01', null), l('b', '2026-05-01', null)]).map((x) => x.id)).toEqual(['b', 'a']);
+    expect(sortLogs([l('a', '2026-01-01', 1), l('b', '2026-05-01', 2)]).map((x) => x.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('search', () => {
+  it('matches your lists and hides owned TMDB hits', () => {
+    const items = [lib('1', 'Frozen', 1), lib('2', 'Frozen II', 2)];
+    expect(matchLibrary(items, 'froz').length).toBe(2);
+    expect(matchLibrary(items, 'f').length).toBe(0);
+    const hits = [{ sourceId: 's1', title: 'Frozen', year: 2013, releaseDate: null, posterUrl: null }, { sourceId: 's9', title: 'Frozen Fever', year: 2015, releaseDate: null, posterUrl: null }];
+    expect(newHits(hits, items).map((h) => h.sourceId)).toEqual(['s9']);
+  });
+});

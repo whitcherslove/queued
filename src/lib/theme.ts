@@ -2,8 +2,9 @@ export type ThemeId = 'dark' | 'light';
 export type AccentId = 'blue' | 'violet' | 'teal' | 'coral' | 'amber';
 export type Scale = 5 | 10;
 
-export interface Settings { theme: ThemeId; accent: AccentId; scale: Scale }
-export const DEFAULT_SETTINGS: Settings = { theme: 'dark', accent: 'blue', scale: 5 };
+export type View = 'list' | 'grid';
+export interface Settings { theme: ThemeId; accent: AccentId; scale: Scale; view: View }
+export const DEFAULT_SETTINGS: Settings = { theme: 'dark', accent: 'blue', scale: 5, view: 'list' };
 
 export const THEMES: Record<ThemeId, Record<string, string>> = {
   dark: { bg: '#121214', surface: '#1C1C21', surface2: '#2A2A30', line: '#30303A', ink: '#F2EFE8', muted: '#A19D94' },

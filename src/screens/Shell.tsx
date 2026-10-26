@@ -4,6 +4,7 @@ import type { Settings } from '../lib/theme';
 import { IconMenu, IconMovie, IconPad, IconPc, IconRetro, IconSearch, IconTv } from '../components/Icons';
 import ProfileScreen from './ProfileScreen';
 import Avatar from '../components/Avatar';
+import Movies from './Movies';
 
 type SectionId = 'movies' | 'tv' | 'console' | 'pc' | 'retro';
 const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element; tabs: string[]; noun: string }[] = [
@@ -25,8 +26,38 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
 
   if (profileOpen) return <ProfileScreen profile={profile} onBack={() => setProfileOpen(false)} onProfile={onProfile} onSettings={onSettings} />;
 
+  const nav = (
+    <nav className="bottom" aria-label="Sections">
+      {SECTIONS.map((s) => (
+        <button key={s.id} aria-current={s.id === section ? 'page' : undefined} className={s.id === section ? 'on' : ''} onClick={() => { setSection(s.id); setTab(0); }}>
+          {s.icon}<span>{s.label}</span>
+        </button>
+      ))}
+    </nav>
+  );
+  const drawerEl = drawer && (
+    <div className="drawer-wrap">
+      <nav className="drawer" aria-label="Menu">
+        <button className="drawer-profile" onClick={() => { setDrawer(false); setProfileOpen(true); }}>
+          <Avatar url={profile.avatar_url} email={profile.email} size={48} />
+          <span className="drawer-who"><strong>Your profile</strong><span className="muted small">{profile.email}</span></span>
+        </button>
+        <button className="drawer-item" onClick={() => { setDrawer(false); setProfileOpen(true); }}>Profile and settings</button>
+        <span className="muted small drawer-foot">Queued · v0.2</span>
+      </nav>
+      <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
+    </div>
+  );
+
+  if (section === 'movies') return (
+    <div className="screen">
+      <Movies settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} />
+      {nav}{drawerEl}
+    </div>
+  );
+
   return (
-    <div className="app">
+    <div className="screen"><div className="app">
       <header className="top">
         <div className="title-row">
           <button className="icon-btn" aria-label="Open menu" onClick={() => setDrawer(true)}><IconMenu /></button>
@@ -47,31 +78,12 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
       <main className="content">
         <div className="empty">
           <p><strong>{sec.tabs[tab]}</strong> is empty for now.</p>
-          <p className="muted">Search and lists arrive in the next step — this build checks that sign-in, settings and deploy work.</p>
+          <p className="muted">This section arrives in a later update.</p>
         </div>
       </main>
 
-      <nav className="bottom" aria-label="Sections">
-        {SECTIONS.map((s) => (
-          <button key={s.id} aria-current={s.id === section ? 'page' : undefined} className={s.id === section ? 'on' : ''} onClick={() => { setSection(s.id); setTab(0); }}>
-            {s.icon}<span>{s.label}</span>
-          </button>
-        ))}
-      </nav>
-
-      {drawer && (
-        <div className="drawer-wrap">
-          <nav className="drawer" aria-label="Menu">
-            <button className="drawer-profile" onClick={() => { setDrawer(false); setProfileOpen(true); }}>
-              <Avatar url={profile.avatar_url} email={profile.email} size={48} />
-              <span className="drawer-who"><strong>Your profile</strong><span className="muted small">{profile.email}</span></span>
-            </button>
-            <button className="drawer-item" onClick={() => { setDrawer(false); setProfileOpen(true); }}>Profile and settings</button>
-            <span className="muted small drawer-foot">Queued · v0.1</span>
-          </nav>
-          <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
-        </div>
-      )}
+    </div>
+    {nav}{drawerEl}
     </div>
   );
 }
