@@ -1,0 +1,1 @@
+{"root":["./src/App.tsx","./src/main.tsx","./src/components/Avatar.tsx","./src/components/Icons.tsx","./src/lib/profile.ts","./src/lib/scores.ts","./src/lib/supabase.ts","./src/lib/theme.ts","./src/screens/Login.tsx","./src/screens/ProfileScreen.tsx","./src/screens/Shell.tsx","./tests/scores.test.ts"],"version":"5.9.3"}
