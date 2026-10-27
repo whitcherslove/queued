@@ -175,13 +175,9 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const lastSwipe = useRef(0);
   const sw = useRef<{ x: number; y: number; mode: '' | 'h' | 'v'; w: number; moved: boolean } | null>(null);
   const goTab = (i: number, dir: 'from-right' | 'from-left') => {
-    setPillTarget(i);
-    setAnim(dir === 'from-right' ? 'leave-left' : 'leave-right');
-    window.setTimeout(() => {
-      setTab(TABS[i]); setSwipeX(0); setPillTarget(null);
-      setAnim(dir === 'from-right' ? 'enter-right' : 'enter-left');
-      window.setTimeout(() => setAnim(''), 340);
-    }, 150);
+    setTab(TABS[i]); setSwipeX(0); setPillTarget(null);
+    setAnim(dir === 'from-right' ? 'enter-right' : 'enter-left');
+    window.setTimeout(() => setAnim(''), 220);
   };
   const swipeHandlers = {
     onPointerDown: (e: React.PointerEvent) => {

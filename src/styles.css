@@ -364,3 +364,9 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .card-swipe.leave-left { animation: pane-leave-left .15s ease-in forwards !important; }
 .card-swipe.leave-right { animation: pane-leave-right .15s ease-in forwards !important; }
 @media (prefers-reduced-motion: reduce) { .card-screen .card-swipe { animation: none !important; } }
+
+/* tabs: one short glide */
+.swipe-pane.enter-right { animation: tab-in-right .2s ease-out; }
+.swipe-pane.enter-left { animation: tab-in-left .2s ease-out; }
+@keyframes tab-in-right { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes tab-in-left { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
