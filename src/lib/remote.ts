@@ -57,6 +57,13 @@ export async function resetLogOrder(ids: string[]): Promise<void> {
   if (ids.length) await supabase.from('logs').update({ position: null }).in('id', ids);
 }
 
+export async function ensureTitleByImdb(imdbId: string, force = false): Promise<Title> {
+  const { data, error } = await supabase.functions.invoke('title', { body: { kind: 'movie', imdbId, force } });
+  if (error) throw error;
+  if (!data?.title) throw new Error(data?.error || 'Not found');
+  return data.title as Title;
+}
+
 export async function loadItem(id: string): Promise<LibItem> {
   const { data, error } = await supabase.from('library').select(LIB_FIELDS).eq('id', id).single();
   if (error) throw error;

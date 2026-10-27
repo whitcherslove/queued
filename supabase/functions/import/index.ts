@@ -76,11 +76,20 @@ async function fetchTitle(db: any, id: string) {
 
 async function importGroup(admin: any, user: any, uid: string, g: Group, basePos: number) {
   const r = await resolve(g);
+  if (!r.id && g.imdbId && (g as any).manual) {
+    const res = await fetch(Deno.env.get('SUPABASE_URL') + '/functions/v1/title', { method: 'POST', headers: { 'content-type': 'application/json', Authorization: 'Bearer ' + Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') }, body: JSON.stringify({ kind: 'movie', imdbId: g.imdbId }) });
+    const j = res.ok ? await res.json() : null;
+    if (j?.title) return finishGroup(admin, user, g, j.title, basePos);
+  }
   if (!r.id) {
     await user.from('import_reviews').insert({ section: 'movies', payload: g, candidates: r.candidates ?? [] });
     return { key: g.key, status: 'review' };
   }
   const t = await fetchTitle(admin, r.id);
+  return finishGroup(admin, user, g, t, basePos);
+}
+
+async function finishGroup(admin: any, user: any, g: Group, t: any, basePos: number) {
   const rows = g.rows.slice().sort((a, b) => String(a.watchedAt ?? '').localeCompare(String(b.watchedAt ?? '')));
   const watched = rows.filter((x) => x.rating && x.rating.toLowerCase() !== 'backlog' && x.watchedAt);
   const backlog = rows.filter((x) => !x.rating || x.rating.toLowerCase() === 'backlog');

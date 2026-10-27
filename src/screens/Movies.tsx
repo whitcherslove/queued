@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibItem, LogRow, SearchHit } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
-import { addToBacklog, deleteLog, ensureTitle, insertLog, loadLibrary, loadLogs, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
+import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, insertLog, loadLibrary, loadLogs, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import MovieCard from './MovieCard';
 import ScoreRing from '../components/ScoreRing';
 import { useBackLayer } from '../lib/back';
@@ -67,6 +67,14 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const fresh = useMemo(() => newHits(hits, items), [hits, items]);
   const customOrder = logs.some((l) => l.position !== null);
 
+  const imdbInQuery = (q.match(/tt\d{6,10}/) ?? [null])[0];
+  const addByImdb = async () => {
+    if (!imdbInQuery) return;
+    setAdding(imdbInQuery);
+    try { const t = await ensureTitleByImdb(imdbInQuery); if (!items.some((i) => i.title_id === t.id)) await addToBacklog(t.id, 'movies', nextPosition(items)); setQ(''); await refresh(); }
+    catch { setError('Nothing found for ' + imdbInQuery + ' on TMDB or IMDb.'); }
+    setAdding(null);
+  };
   const add = async (h: SearchHit) => {
     setAdding(h.sourceId);
     try { const t = await ensureTitle('movie', h.sourceId); await addToBacklog(t.id, 'movies', nextPosition(items)); await refresh(); }
@@ -201,7 +209,13 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
             {libMatches.length === 0 && <p className="muted small">Not in your lists yet.</p>}
             {libMatches.map((it) => backlogRow(it, 's'))}
             <div className="sec-head mt"><span className="h2">Add from TMDB</span><span className="muted small">{searching ? 'Searching…' : fresh.length || ''}</span></div>
-            {!searching && fresh.length === 0 && <p className="muted small">Nothing new found for “{q.trim()}”.</p>}
+            {imdbInQuery && (
+              <div className="hit">
+                <span className="row-text"><span className="row-title">Add by IMDb ID</span><span className="row-meta">{imdbInQuery} · works for titles TMDB doesn’t have</span></span>
+                <button className="add-btn" aria-label={'Add ' + imdbInQuery} disabled={adding === imdbInQuery} onClick={addByImdb}>{adding === imdbInQuery ? '…' : '+'}</button>
+              </div>
+            )}
+            {!searching && !imdbInQuery && fresh.length === 0 && <p className="muted small">Nothing new found for “{q.trim()}”. Not on TMDB? Paste the IMDb link here.</p>}
             {fresh.map((h) => (
               <div className="hit" key={h.sourceId}>
                 <Poster t={{ poster_url: h.posterUrl, title: h.title }} w={46} h={68} />

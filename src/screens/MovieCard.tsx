@@ -4,7 +4,7 @@ import type { Settings } from '../lib/theme';
 import { TIERS, displayScore, imdbColor, metascoreColor } from '../lib/scores';
 import { diffOverrides, latestLog, longDate, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import {
-  addToBacklog, askAi, deleteLog, ensureTitle, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
+  addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import { IconBack } from '../components/Icons';
@@ -316,7 +316,7 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
     const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im };
     setBusy(true); await updateItem(item.id, { overrides: diffOverrides(item.title, edited) }); setBusy(false); onSaved();
   };
-  const refresh = async () => { setBusy(true); try { await ensureTitle('movie', item.title.source_id, true); setNote('Fresh data loaded from TMDB and OMDb. Your own edits are kept.'); } catch { setNote('Couldn’t refresh right now.'); } setBusy(false); };
+  const refresh = async () => { setBusy(true); try { if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle('movie', item.title.source_id, true); setNote('Fresh data loaded from TMDB and OMDb. Your own edits are kept.'); } catch { setNote('Couldn’t refresh right now.'); } setBusy(false); };
   const clearEdits = async () => { await updateItem(item.id, { overrides: {} }); onSaved(); };
 
   const field = (k: keyof typeof f, label: string, mode: 'text' | 'numeric' | 'decimal', ph: string) => (

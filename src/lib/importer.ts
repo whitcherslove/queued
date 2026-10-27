@@ -100,7 +100,7 @@ export function parseManualId(input: string): { sourceId?: string; imdbId?: stri
 }
 
 export async function resolveReviewManual(item: ReviewItem, ref: { sourceId?: string; imdbId?: string }): Promise<boolean> {
-  const g = { ...item.payload, sourceId: ref.sourceId, imdbId: ref.imdbId ?? item.payload.imdbId };
+  const g = { ...item.payload, sourceId: ref.sourceId, imdbId: ref.imdbId ?? item.payload.imdbId, manual: true };
   if (!ref.sourceId) delete (g as any).sourceId;
   const res = await importGroups([g]);
   if (res.ok > 0) { await supabase.from('import_reviews').delete().eq('id', item.id); return true; }

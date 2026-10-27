@@ -27,9 +27,42 @@ function num(v: unknown): number | null {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
-    const { kind, sourceId, force } = await req.json();
-    if (kind !== 'movie' || !sourceId) return Response.json({ error: 'kind=movie and sourceId are required' }, { status: 400, headers: CORS });
+    const body = await req.json();
+    const { kind, force } = body;
+    let sourceId = body.sourceId as string | undefined;
+    const imdbIn = typeof body.imdbId === 'string' && /^tt\d{6,10}$/.test(body.imdbId) ? body.imdbId : null;
+    if (kind !== 'movie' || (!sourceId && !imdbIn)) return Response.json({ error: 'kind=movie and sourceId or imdbId are required' }, { status: 400, headers: CORS });
     const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+
+    // IMDb id: prefer the TMDB movie; if TMDB doesn't have it (specials, shorts), build the title from OMDb
+    if (!sourceId && imdbIn) {
+      const f = await tmdbFetch('/find/' + imdbIn, { external_source: 'imdb_id' });
+      const fj = f.ok ? await f.json() : null;
+      const hit = fj?.movie_results?.[0];
+      if (hit) sourceId = String(hit.id);
+      else {
+        const { data: have } = await db.from('titles').select('*').eq('kind', 'movie').eq('source', 'imdb').eq('source_id', imdbIn).maybeSingle();
+        if (have && !force) return Response.json({ title: have }, { headers: CORS });
+        const omdbKey = Deno.env.get('OMDB_API_KEY');
+        const o = omdbKey ? await fetch(`https://www.omdbapi.com/?i=${imdbIn}&plot=full&apikey=${omdbKey}`) : null;
+        const oj = o && o.ok ? await o.json() : null;
+        if (!oj || oj.Response !== 'True') return Response.json({ error: 'Not found on TMDB or OMDb' }, { status: 404, headers: CORS });
+        const list = (v: unknown) => String(v ?? '').split(',').map((x) => x.trim()).filter((x) => x && x !== 'N/A');
+        const rel = Date.parse(oj.Released); const relIso = Number.isFinite(rel) ? new Date(rel).toISOString().slice(0, 10) : null;
+        const row = {
+          kind: 'movie', source: 'imdb', source_id: imdbIn, imdb_id: imdbIn, title: oj.Title,
+          release_date: relIso, year: num(String(oj.Year).slice(0, 4)), runtime: num(oj.Runtime),
+          directors: list(oj.Director), genres: list(oj.Genre), overview: oj.Plot && oj.Plot !== 'N/A' ? oj.Plot : null,
+          poster_url: oj.Poster && oj.Poster !== 'N/A' ? oj.Poster : null, backdrop_url: null,
+          metascore: num(oj.Metascore) !== null ? Math.round(num(oj.Metascore)!) : null, imdb_rating: num(oj.imdbRating),
+          data: { cast: list(oj.Actors).map((n) => ({ name: n, role: '' })), collection: null, countries: list(oj.Country), language: (list(oj.Language)[0] ?? '').slice(0, 2).toLowerCase() },
+          fetched_at: new Date().toISOString()
+        };
+        const { data, error } = await db.from('titles').upsert(row, { onConflict: 'kind,source,source_id' }).select('*').single();
+        if (error) return Response.json({ error: error.message }, { status: 500, headers: CORS });
+        return Response.json({ title: data }, { headers: CORS });
+      }
+    }
 
     const { data: cached } = await db.from('titles').select('*').eq('kind', 'movie').eq('source', 'tmdb').eq('source_id', String(sourceId)).maybeSingle();
     if (cached && !force && Date.now() - new Date(cached.fetched_at).getTime() < FRESH_DAYS * 864e5) return Response.json({ title: cached }, { headers: CORS });
