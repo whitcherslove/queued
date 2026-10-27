@@ -2,10 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibItem, LogRow, SearchHit } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
-import { addToBacklog, ensureTitle, loadLibrary, loadLogs, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles } from '../lib/remote';
+import { addToBacklog, deleteLog, ensureTitle, insertLog, loadLibrary, loadLogs, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import MovieCard from './MovieCard';
 import ScoreRing from '../components/ScoreRing';
 import { useBackLayer } from '../lib/back';
+import { useLongPress } from '../lib/longpress';
 import { useDragReorder } from '../lib/drag';
 import { BookmarkBadge, GripIcon, Metascore, Poster } from '../components/Rows';
 import { IconMenu, IconSearch } from '../components/Icons';
@@ -31,6 +32,9 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const [adding, setAdding] = useState<string | null>(null);
   const [edit, setEdit] = useState(false);
   const [cardId, setCardId] = useState<string | null>(null);
+  const [cardTake, setCardTake] = useState(false);
+  const [menu, setMenu] = useState<null | { item: LibItem; log: LogRow | null }>(null);
+  const [menuConfirm, setMenuConfirm] = useState<null | 'remove' | 'viewing'>(null);
   const setSheet = (it: LibItem) => setCardId(it.id);
   const view = settings.view;
 
@@ -100,7 +104,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
 
   const backlogRow = (it: LibItem, list: string) => (
     <div key={it.id} {...rowState(list, it.id)}>
-      <button className="row-main" onClick={() => !edit && setSheet(it)}>
+      <button className="row-main" {...longPress(it.id)} onClick={() => !edit && setSheet(it)}>
         <Poster t={it.title} w={56} h={84}>{list === 'n' && <BookmarkBadge />}</Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
@@ -115,7 +119,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     const t = l.library.title, tr = tierOf(l.tier), d = dateParts(l.watched_at);
     return (
       <div key={l.id} {...rowState('w', l.id)}>
-        <button className="row-main" onClick={() => !edit && setSheet(l.library)}>
+        <button className="row-main" {...longPress(l.id)} onClick={() => !edit && setSheet(l.library)}>
           <Poster t={t} w={56} h={84}><span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={24} fontSize={9} /></span></Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
@@ -134,7 +138,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     const tr = list === 'w' ? tierOf(tier ?? null) : null, d = at ? dateParts(at) : null;
     return (
     <div key={key} {...rowState(list, key)} className={rowState(list, key).className + ' tile'}>
-      <button className="tile-main" onClick={() => !edit && onOpen()} aria-label={it.title.title}>
+      <button className="tile-main" {...longPress(list === 'w' ? key : it.id)} onClick={() => !edit && onOpen()} aria-label={it.title.title}>
         <Poster t={it.title}>{list === 'n' && <BookmarkBadge />}<span className="tile-mc"><Metascore v={it.title.metascore} size="sm" /></span>{list === 'w' && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
         {tr && <span className="tile-tier" style={{ background: tr.color }}>{tr.label}</span>}
         {d && <span className="tile-date"><span className="tile-date-text">{d.day} {d.mon} <span>{d.year}</span></span>{rew && <EyePlus size={14} />}</span>}
@@ -144,6 +148,13 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   ); };
 
   const searchingMode = q.trim().length >= 2;
+  const longPress = useLongPress((key) => {
+    if (edit) return;
+    const lg = logs.find((l) => l.id === key);
+    const it = lg ? lg.library : items.find((i) => i.id === key);
+    if (it) { setMenuConfirm(null); setMenu({ item: it, log: lg ?? null }); }
+  });
+  useBackLayer(!!menu, () => setMenu(null));
   useBackLayer(q.length > 0, () => setQ(''));
   useBackLayer(edit, () => setEdit(false));
 
@@ -217,9 +228,46 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         )}
       </main>
 
-      {cardId && <MovieCard key={cardId} itemId={cardId} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
+      {menu && (() => {
+        const { item, log } = menu; const t = item.title; const isBack = item.status === 'backlog';
+        const close = () => setMenu(null);
+        const run = (fn: () => Promise<void>) => async () => { try { await fn(); } catch { setError('Something went wrong. Try again.'); } close(); refresh(); };
+        const itemLogs = logs.filter((l) => l.library.id === item.id);
+        return (
+          <div className="sheet-wrap">
+            <button className="sheet-scrim" aria-label="Close menu" onClick={close} />
+            <div className="sheet action-sheet" role="menu" aria-label={t.title}>
+              <div className="action-head">
+                <Poster t={t} w={40} h={60} />
+                <span className="stack-sm"><strong>{t.title}</strong><span className="muted small">{log ? 'Watched ' + releaseText(log.watched_at.slice(0, 10), null) : isBack ? (item.up_next ? 'Up next' : 'Backlog') : ''}</span></span>
+              </div>
+              {menuConfirm ? (
+                <div className="stack">
+                  <span className="small">{menuConfirm === 'remove' ? 'Remove “' + t.title + '” and all its viewings?' : 'Delete this viewing?'}</span>
+                  <div className="row nowrap"><button className="btn grow" onClick={() => setMenuConfirm(null)}>Cancel</button>
+                    <button className="btn danger-fill grow" onClick={menuConfirm === 'remove'
+                      ? run(async () => { await removeFromLibrary(item.id); })
+                      : run(async () => { await deleteLog(log!.id); if (itemLogs.length <= 1) await updateItem(item.id, { status: 'backlog' }); })}>Delete</button></div>
+                </div>
+              ) : (
+                <div className="action-list">
+                  <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardId(item.id); }}>Open</button>
+                  {isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardId(item.id); }}>Mark as watched…</button>}
+                  {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, nextPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
+                  {!isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardId(item.id); }}>Change rating…</button>}
+                  {!isBack && <button role="menuitem" onClick={run(async () => { await insertLog(item.id, { rewatch: true, tier: log?.tier ?? null, watched_at: new Date().toISOString() }); })}>Log a rewatch</button>}
+                  <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>
+                  {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>Delete this viewing</button>}
+                  <button role="menuitem" className="danger" onClick={() => setMenuConfirm('remove')}>Remove from my lists</button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+      {cardId && <MovieCard key={cardId} itemId={cardId} openTake={cardTake} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
         initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}
-        initialOwned={Object.fromEntries(items.map((i) => [i.title.source_id, { id: i.id, status: i.status, up_next: i.up_next }]))} settings={settings} backlogCount={items.length} onClose={() => setCardId(null)} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
+        initialOwned={Object.fromEntries(items.map((i) => [i.title.source_id, { id: i.id, status: i.status, up_next: i.up_next }]))} settings={settings} backlogCount={items.length} onClose={() => { setCardId(null); setCardTake(false); }} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
     </div>
   );
 }

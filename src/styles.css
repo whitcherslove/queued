@@ -280,3 +280,12 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .tile-date .tile-date-text span { font-family: 'Onest', sans-serif; font-weight: 500; font-size: 11px; color: var(--muted); }
 
 .date-year { display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
+
+/* long-press menu */
+.row-main, .tile-main { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+.action-sheet { gap: 10px; }
+.action-head { display: flex; gap: 12px; align-items: center; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.action-list { display: flex; flex-direction: column; }
+.action-list button { min-height: 50px; padding: 0 4px; border: 0; border-bottom: 1px solid var(--line); background: transparent; text-align: left; font-size: 15px; font-weight: 600; }
+.action-list button:last-child { border-bottom: 0; }
+.action-list button.danger { color: #DE3C49; }
