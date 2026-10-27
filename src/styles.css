@@ -320,3 +320,20 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .bd-pick img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .bd-pick.on { border-color: var(--accent); }
 .row-card.tile.next .tile-mc { left: 5px; right: auto; }
+
+/* swipe between tabs */
+.swipe-area { touch-action: pan-y; }
+.swipe-pane { transition: transform .22s ease, opacity .22s ease; will-change: transform; }
+.swipe-pane.from-right { animation: pane-from-right .24s ease-out; }
+.swipe-pane.from-left { animation: pane-from-left .24s ease-out; }
+@keyframes pane-from-right { from { transform: translateX(40px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes pane-from-left { from { transform: translateX(-40px); opacity: .4; } to { transform: none; opacity: 1; } }
+.segmented.sliding { position: relative; }
+.segmented.sliding button { position: relative; z-index: 1; background: transparent !important; }
+.seg-pill { position: absolute; top: 4px; bottom: 4px; left: 4px; border-radius: 9px; background: var(--surface); box-shadow: 0 1px 3px rgba(0,0,0,.18); transition: transform .24s cubic-bezier(.2,.8,.2,1); }
+/* drag reorder */
+.row-card { transition: transform .18s ease, box-shadow .18s ease; }
+.row-card.dragging { opacity: 1 !important; box-shadow: 0 12px 28px rgba(0,0,0,.45); position: relative; }
+.row-card.drop { box-shadow: inset 0 0 0 2px var(--accent); }
+.row-card.sorting { user-select: none; }
+@media (prefers-reduced-motion: reduce) { .swipe-pane, .seg-pill, .row-card { transition: none; } .swipe-pane.from-right, .swipe-pane.from-left { animation: none; } }

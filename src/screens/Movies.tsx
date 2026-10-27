@@ -93,7 +93,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     await saveLogOrder(ids);
   };
 
-  const { drag, handle } = useDragReorder((list, id, overId) => {
+  const { drag, handle, look } = useDragReorder((list, id, overId) => {
     if (list === 'w') reorderWatched(moveId(watched.map((l) => l.id), id, overId));
     else { const g = list === 'n' ? next : rest; reorderBacklog(g, moveId(g.map((i) => i.id), id, overId)); }
   });
@@ -102,10 +102,13 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     if (list === 'w') reorderWatched(moveBy(watched.map((l) => l.id), id, d));
     else { const g = list === 'n' ? next : rest; reorderBacklog(g, moveBy(g.map((i) => i.id), id, d)); }
   };
-  const rowState = (list: string, id: string) => ({
-    'data-rowid': id, 'data-list': list,
-    className: 'row-card' + (list === 'n' ? ' next' : '') + (drag?.id === id ? ' dragging' : '') + (drag && drag.over === id && drag.id !== id && drag.list === list ? ' drop' : '')
-  });
+  const rowState = (list: string, id: string) => {
+    const lk = look(list, id);
+    return {
+      'data-rowid': id, 'data-list': list, style: lk.style,
+      className: 'row-card' + (list === 'n' ? ' next' : '') + (lk.dragging ? ' dragging' : '') + (lk.target ? ' drop' : '') + (drag ? ' sorting' : '')
+    };
+  };
   const grip = (list: string, id: string, name: string) => edit ? (
     <button className="grip" aria-label={'Drag to reorder ' + name + '. Arrow keys also move it.'} {...handle(list, id)} onKeyDown={keyMove(list, id)}><GripIcon /></button>
   ) : null;
@@ -157,6 +160,44 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   ); };
 
   const searchingMode = q.trim().length >= 2;
+  const TABS: ('watched' | 'backlog')[] = ['watched', 'backlog'];
+  const tabIndex = TABS.indexOf(tab);
+  const [swipeX, setSwipeX] = useState(0);
+  const [swiping, setSwiping] = useState(false);
+  const [enter, setEnter] = useState<'' | 'from-right' | 'from-left'>('');
+  const lastSwipe = useRef(0);
+  const sw = useRef<{ x: number; y: number; mode: '' | 'h' | 'v'; w: number; moved: boolean } | null>(null);
+  const goTab = (i: number, dir: 'from-right' | 'from-left') => { setTab(TABS[i]); setEnter(dir); window.setTimeout(() => setEnter(''), 260); };
+  const swipeHandlers = {
+    onPointerDown: (e: React.PointerEvent) => {
+      if (edit || searchingMode || drag || e.button > 0) return;
+      sw.current = { x: e.clientX, y: e.clientY, mode: '', w: (e.currentTarget as HTMLElement).clientWidth || 360, moved: false };
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const st = sw.current; if (!st || drag) return;
+      const dx = e.clientX - st.x, dy = e.clientY - st.y;
+      if (!st.mode) {
+        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3) { st.mode = 'h'; setSwiping(true); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ } }
+        else if (Math.abs(dy) > 12) { st.mode = 'v'; }
+      }
+      if (st.mode === 'h') {
+        st.moved = true;
+        const atEdge = (dx > 0 && tabIndex === 0) || (dx < 0 && tabIndex === TABS.length - 1);
+        setSwipeX(atEdge ? dx * 0.25 : dx);
+      }
+    },
+    onPointerUp: () => {
+      const st = sw.current; sw.current = null;
+      if (!st || st.mode !== 'h') return;
+      const dx = swipeX; lastSwipe.current = Date.now(); setSwiping(false); setSwipeX(0);
+      if (dx < -70 && tabIndex < TABS.length - 1) goTab(tabIndex + 1, 'from-right');
+      else if (dx > 70 && tabIndex > 0) goTab(tabIndex - 1, 'from-left');
+    },
+    onPointerCancel: () => { sw.current = null; setSwiping(false); setSwipeX(0); },
+    onClickCapture: (e: React.MouseEvent) => { if (swiping || Date.now() - lastSwipe.current < 350) { e.preventDefault(); e.stopPropagation(); } }
+  };
+  const segW = useRef<HTMLDivElement>(null);
+  const progress = swiping ? Math.max(-1, Math.min(1, -swipeX / (segW.current?.parentElement?.clientWidth || 360))) : 0;
   const longPress = useLongPress((key) => {
     if (edit) return;
     const lg = logs.find((l) => l.id === key);
@@ -192,9 +233,10 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
           {q && <button className="clear" aria-label="Clear search" onClick={() => setQ('')}>×</button>}
         </div>
         {!searchingMode && (
-          <div className="segmented" role="tablist">
-            <button role="tab" aria-selected={tab === 'watched'} className={tab === 'watched' ? 'on' : ''} onClick={() => setTab('watched')}>Watched <span className="muted">{watched.length}</span></button>
-            <button role="tab" aria-selected={tab === 'backlog'} className={tab === 'backlog' ? 'on' : ''} onClick={() => setTab('backlog')}>Backlog <span className="muted">{next.length + rest.length}</span></button>
+          <div className="segmented sliding" role="tablist" ref={segW}>
+            <span className="seg-pill" aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: `translateX(calc(${tabIndex + progress} * 100%))`, transition: swiping ? 'none' : undefined }} />
+            <button role="tab" aria-selected={tab === 'watched'} onClick={() => tab !== 'watched' && goTab(0, 'from-left')}>Watched <span className="muted">{watched.length}</span></button>
+            <button role="tab" aria-selected={tab === 'backlog'} onClick={() => tab !== 'backlog' && goTab(1, 'from-right')}>Backlog <span className="muted">{next.length + rest.length}</span></button>
           </div>
         )}
         {edit && !searchingMode && (
@@ -202,7 +244,8 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         )}
       </header>
 
-      <main className="content">
+      <main className="content swipe-area" {...swipeHandlers}>
+        <div className={'swipe-pane' + (enter ? ' ' + enter : '')} style={{ transform: swipeX ? `translateX(${swipeX}px)` : undefined, opacity: swipeX ? 1 - Math.min(Math.abs(swipeX) / 600, 0.35) : undefined, transition: swiping ? 'none' : undefined }}>
         {error && <p className="error" role="alert">{error}</p>}
         {loading ? <p className="muted">Loading…</p> : searchingMode ? (
           <div className="stack">
@@ -247,6 +290,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
             {view === 'list' ? rest.map((it) => backlogRow(it, 'r')) : <div className="grid">{rest.map((it) => tile(it, 'r', () => setSheet(it), it.id))}</div>}
           </div>
         )}
+        </div>
       </main>
 
       {menu && (() => {
