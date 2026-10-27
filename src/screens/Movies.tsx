@@ -213,7 +213,9 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         )}
       </main>
 
-      {cardId && <MovieCard key={cardId} itemId={cardId} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null} settings={settings} backlogCount={items.length} onClose={() => setCardId(null)} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
+      {cardId && <MovieCard key={cardId} itemId={cardId} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
+        initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}
+        initialOwned={Object.fromEntries(items.map((i) => [i.title.source_id, { id: i.id, status: i.status, up_next: i.up_next }]))} settings={settings} backlogCount={items.length} onClose={() => setCardId(null)} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
     </div>
   );
 }

@@ -270,3 +270,7 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .card-screen { animation: card-in .18s ease-out; }
 @keyframes card-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .card-screen { animation: none; } button:active { transform: none; } }
+
+.ring { color: var(--ink); }
+.ring > span { display: none; }
+.poster-ring .ring { color: #fff; }

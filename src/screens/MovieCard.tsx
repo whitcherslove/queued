@@ -10,19 +10,19 @@ import ScoreRing from '../components/ScoreRing';
 import { IconBack } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 
-interface Props { itemId: string; initial?: LibItem | null; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string) => void; backlogCount: number }
+interface Props { itemId: string; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, { id: string; status: string; up_next: boolean }>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string) => void; backlogCount: number }
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const EXT = <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /></svg>;
 const EYE_PLUS = <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 18c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /><path d="M16 19h6" /><path d="M19 16v6" /></svg>;
 const CHIPS = ['Similar movies', 'Fun facts', 'Post-credits scene?', 'Explain the ending'];
 
-export default function MovieCard({ itemId, initial, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
+export default function MovieCard({ itemId, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
-  const [logsReady, setLogsReady] = useState(false);
-  const [logs, setLogs] = useState<ItemLog[]>([]);
+  const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
+  const [logs, setLogs] = useState<ItemLog[]>(initialLogs ?? []);
   const [chat, setChat] = useState<ChatMsg[]>([]);
-  const [owned, setOwned] = useState<Record<string, { id: string; status: string; up_next: boolean }>>({});
+  const [owned, setOwned] = useState<Record<string, { id: string; status: string; up_next: boolean }>>(initialOwned ?? {});
   const [takeOpen, setTakeOpen] = useState(initial?.status === 'backlog');
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
@@ -124,7 +124,7 @@ export default function MovieCard({ itemId, initial, settings, onClose, onChange
         <div className="hero-text">
           <h2>{t.title}</h2>
           <div className="row">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).map((c) => <span key={c} className="hero-chip">{c}</span>)}</div>
-          {t.directors.length > 0 && <span className="hero-sub">Dir. {t.directors.join(', ')}</span>}
+          {t.directors.length > 0 && <span className="hero-sub">{t.directors.join(', ')}</span>}
           {done && tr && <span className="hero-tier" style={{ background: tr.color, color: tr.id === 'dropped' ? '#17161A' : '#17161A' }}>{tr.label}</span>}
         </div>
       </div>

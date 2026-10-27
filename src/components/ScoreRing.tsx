@@ -15,8 +15,8 @@ export default function ScoreRing({ value, scale, size, fontSize, label }: Props
         <circle cx="26" cy="26" r="22" fill="none" stroke="var(--line)" strokeWidth="5" />
         <circle cx="26" cy="26" r="19.5" fill={color} fillOpacity="0.28" />
         <circle cx="26" cy="26" r="22" fill="none" stroke={color} strokeWidth="5" strokeLinecap="round" strokeDasharray={dash} transform="rotate(-90 26 26)" />
+        <text x="26" y="26.5" textAnchor="middle" dominantBaseline="central" fill="currentColor" fontFamily="Arial, 'Helvetica Neue', sans-serif" fontWeight="800" letterSpacing="-0.5" fontSize={((fontSize ?? size * 0.34) * 52) / size}>{text}</text>
       </svg>
-      <span style={{ fontSize: fontSize ?? size * 0.34 }}>{text}</span>
     </span>
   );
 }
