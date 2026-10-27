@@ -356,3 +356,11 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 @keyframes pane-enter-right { from { transform: translateX(16%); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes pane-enter-left { from { transform: translateX(-16%); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .swipe-pane.leave-left, .swipe-pane.leave-right, .swipe-pane.enter-right, .swipe-pane.enter-left { animation: none; } }
+
+/* movie-to-movie: the screen stays opaque, only the content slides */
+.card-screen.enter-right, .card-screen.enter-left { animation: none; }
+.card-screen.enter-right .card-swipe { animation: pane-enter-right .34s cubic-bezier(.22,.9,.3,1); }
+.card-screen.enter-left .card-swipe { animation: pane-enter-left .34s cubic-bezier(.22,.9,.3,1); }
+.card-swipe.leave-left { animation: pane-leave-left .15s ease-in forwards !important; }
+.card-swipe.leave-right { animation: pane-leave-right .15s ease-in forwards !important; }
+@media (prefers-reduced-motion: reduce) { .card-screen .card-swipe { animation: none !important; } }

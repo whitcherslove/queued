@@ -32,6 +32,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
   const [sx, setSx] = useState(0);
+  const [leave, setLeave] = useState<'' | 'left' | 'right'>('');
   const swRef = useRef<{ x: number; y: number; mode: '' | 'h' | 'v' } | null>(null);
   const lastSwipe = useRef(0);
   const swipe = {
@@ -52,8 +53,10 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
       const st = swRef.current; swRef.current = null;
       if (!st || st.mode !== 'h') return;
       lastSwipe.current = Date.now();
-      const dx = sx; setSx(0);
-      if (dx < -80 && onNext) onNext(); else if (dx > 80 && onPrev) onPrev();
+      const dx = sx;
+      if (dx < -80 && onNext) { setLeave('left'); window.setTimeout(onNext, 150); }
+      else if (dx > 80 && onPrev) { setLeave('right'); window.setTimeout(onPrev, 150); }
+      else setSx(0);
     },
     onPointerCancel: () => { swRef.current = null; setSx(0); },
     onClickCapture: (e: React.MouseEvent) => { if (Date.now() - lastSwipe.current < 350) { e.preventDefault(); e.stopPropagation(); } }
@@ -149,7 +152,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
 
   return (
     <div className={'card-screen' + (enterFrom ? ' enter-' + enterFrom : '')} {...swipe}>
-      <div className="card-swipe" style={{ transform: sx ? `translateX(${sx}px)` : undefined, opacity: sx ? 1 - Math.min(Math.abs(sx) / 700, 0.3) : undefined, transition: sx ? 'none' : undefined }}>
+      <div className={'card-swipe' + (leave ? ' leave-' + leave : '')} style={{ ['--sx' as string]: sx + 'px', transform: sx && !leave ? `translateX(${sx}px)` : undefined, opacity: sx && !leave ? 1 - Math.min(Math.abs(sx) / 700, 0.3) : undefined, transition: sx ? 'none' : undefined }}>
       <div className="hero">
         {t.backdrop_url && <img src={t.backdrop_url} alt="" />}
         <div className="hero-shade" />
