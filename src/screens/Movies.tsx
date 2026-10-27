@@ -119,12 +119,12 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
           <Poster t={t} w={56} h={84}><span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={24} fontSize={9} /></span></Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
-            <span className="row-meta">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}<Metascore v={t.metascore} size="sm" />{l.rewatch && <EyePlus />}</span>
+            <span className="row-meta">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}<Metascore v={t.metascore} size="sm" /></span>
             {tr && <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span>}
           </span>
         </button>
         {edit ? grip('w', l.id, t.title) : (
-          <span className="date-col"><span className="date-cap">Watched on</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></span>
+          <span className="date-col"><span className="date-cap">Watched on</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}{l.rewatch && <EyePlus size={13} />}</span></span>
         )}
       </div>
     );

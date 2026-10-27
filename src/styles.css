@@ -278,3 +278,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .rew-mark { display: inline-flex; color: #39C316; flex: none; }
 .tile-date { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
 .tile-date .tile-date-text span { font-family: 'Onest', sans-serif; font-weight: 500; font-size: 11px; color: var(--muted); }
+
+.date-year { display: inline-flex; align-items: center; justify-content: center; gap: 3px; }
