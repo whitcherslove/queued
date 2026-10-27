@@ -345,3 +345,14 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 @keyframes card-from-right { from { transform: translateX(60px); opacity: .3; } to { transform: none; opacity: 1; } }
 @keyframes card-from-left { from { transform: translateX(-60px); opacity: .3; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .card-screen.enter-right, .card-screen.enter-left { animation: none; } }
+
+/* smoother tab change: current list slides out, the next one glides in */
+.swipe-pane.leave-left { animation: pane-leave-left .15s ease-in forwards; }
+.swipe-pane.leave-right { animation: pane-leave-right .15s ease-in forwards; }
+.swipe-pane.enter-right { animation: pane-enter-right .34s cubic-bezier(.22,.9,.3,1); }
+.swipe-pane.enter-left { animation: pane-enter-left .34s cubic-bezier(.22,.9,.3,1); }
+@keyframes pane-leave-left { from { transform: translateX(var(--sx, 0px)); opacity: .9; } to { transform: translateX(calc(var(--sx, 0px) - 18%)); opacity: 0; } }
+@keyframes pane-leave-right { from { transform: translateX(var(--sx, 0px)); opacity: .9; } to { transform: translateX(calc(var(--sx, 0px) + 18%)); opacity: 0; } }
+@keyframes pane-enter-right { from { transform: translateX(16%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes pane-enter-left { from { transform: translateX(-16%); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .swipe-pane.leave-left, .swipe-pane.leave-right, .swipe-pane.enter-right, .swipe-pane.enter-left { animation: none; } }

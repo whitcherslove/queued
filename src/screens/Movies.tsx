@@ -170,10 +170,19 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const tabIndex = TABS.indexOf(tab);
   const [swipeX, setSwipeX] = useState(0);
   const [swiping, setSwiping] = useState(false);
-  const [enter, setEnter] = useState<'' | 'from-right' | 'from-left'>('');
+  const [anim, setAnim] = useState<'' | 'leave-left' | 'leave-right' | 'enter-right' | 'enter-left'>('');
+  const [pillTarget, setPillTarget] = useState<number | null>(null);
   const lastSwipe = useRef(0);
   const sw = useRef<{ x: number; y: number; mode: '' | 'h' | 'v'; w: number; moved: boolean } | null>(null);
-  const goTab = (i: number, dir: 'from-right' | 'from-left') => { setTab(TABS[i]); setEnter(dir); window.setTimeout(() => setEnter(''), 260); };
+  const goTab = (i: number, dir: 'from-right' | 'from-left') => {
+    setPillTarget(i);
+    setAnim(dir === 'from-right' ? 'leave-left' : 'leave-right');
+    window.setTimeout(() => {
+      setTab(TABS[i]); setSwipeX(0); setPillTarget(null);
+      setAnim(dir === 'from-right' ? 'enter-right' : 'enter-left');
+      window.setTimeout(() => setAnim(''), 340);
+    }, 150);
+  };
   const swipeHandlers = {
     onPointerDown: (e: React.PointerEvent) => {
       if (edit || searchingMode || drag || e.button > 0) return;
@@ -195,9 +204,10 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     onPointerUp: () => {
       const st = sw.current; sw.current = null;
       if (!st || st.mode !== 'h') return;
-      const dx = swipeX; lastSwipe.current = Date.now(); setSwiping(false); setSwipeX(0);
+      const dx = swipeX; lastSwipe.current = Date.now(); setSwiping(false);
       if (dx < -70 && tabIndex < TABS.length - 1) goTab(tabIndex + 1, 'from-right');
       else if (dx > 70 && tabIndex > 0) goTab(tabIndex - 1, 'from-left');
+      else setSwipeX(0);
     },
     onPointerCancel: () => { sw.current = null; setSwiping(false); setSwipeX(0); },
     onClickCapture: (e: React.MouseEvent) => { if (swiping || Date.now() - lastSwipe.current < 350) { e.preventDefault(); e.stopPropagation(); } }
@@ -241,7 +251,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         </div>
         {!searchingMode && (
           <div className="segmented sliding" role="tablist" ref={segW}>
-            <span className="seg-pill" aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: `translateX(calc(${tabIndex + progress} * 100%))`, transition: swiping ? 'none' : undefined }} />
+            <span className="seg-pill" aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: `translateX(calc(${pillTarget ?? tabIndex + progress} * 100%))`, transition: swiping ? 'none' : undefined }} />
             <button role="tab" aria-selected={tab === 'watched'} onClick={() => tab !== 'watched' && goTab(0, 'from-left')}>Watched <span className="muted">{watched.length}</span></button>
             <button role="tab" aria-selected={tab === 'backlog'} onClick={() => tab !== 'backlog' && goTab(1, 'from-right')}>Backlog <span className="muted">{next.length + rest.length}</span></button>
           </div>
@@ -252,7 +262,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
       </header>
 
       <main className="content swipe-area" {...swipeHandlers}>
-        <div className={'swipe-pane' + (enter ? ' ' + enter : '')} style={{ transform: swipeX ? `translateX(${swipeX}px)` : undefined, opacity: swipeX ? 1 - Math.min(Math.abs(swipeX) / 600, 0.35) : undefined, transition: swiping ? 'none' : undefined }}>
+        <div className={'swipe-pane' + (anim ? ' ' + anim : '')} style={{ ['--sx' as string]: swipeX + 'px', transform: swipeX && !anim ? `translateX(${swipeX}px)` : undefined, opacity: swipeX && !anim ? 1 - Math.min(Math.abs(swipeX) / 600, 0.35) : undefined, transition: swiping ? 'none' : undefined }}>
         {error && <p className="error" role="alert">{error}</p>}
         {loading ? <p className="muted">Loading…</p> : searchingMode ? (
           <div className="stack">
