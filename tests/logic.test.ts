@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../src/lib/logic';
+import { matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog, topPosition } from '../src/lib/logic';
 import type { LibItem, LogRow } from '../src/lib/types';
 
 const title = (id: string, name: string, extra: Partial<LibItem['title']> = {}) => ({
@@ -29,6 +29,8 @@ describe('ordering', () => {
     expect(r.next.map((i) => i.id)).toEqual(['2']);
     expect(r.rest.map((i) => i.id)).toEqual(['3', '1']);
     expect(nextPosition([lib('1', 'A', 3), lib('2', 'B', 7)])).toBe(8);
+    expect(topPosition([lib('1', 'A', 3), lib('2', 'B', 7)])).toBe(2);
+    expect(topPosition([])).toBe(0);
   });
   it('sorts logs by date unless a custom order exists', () => {
     const l = (id: string, d: string, p: number | null) => ({ id, watched_at: d, position: p } as LogRow);

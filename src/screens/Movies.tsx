@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibItem, LogRow, SearchHit } from '../lib/types';
 import type { Settings } from '../lib/theme';
-import { merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
+import { topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
 import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, insertLog, loadLibrary, loadLogs, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import MovieCard from './MovieCard';
 import ScoreRing from '../components/ScoreRing';
@@ -71,13 +71,13 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const addByImdb = async () => {
     if (!imdbInQuery) return;
     setAdding(imdbInQuery);
-    try { const t = await ensureTitleByImdb(imdbInQuery); if (!items.some((i) => i.title_id === t.id)) await addToBacklog(t.id, 'movies', nextPosition(items)); setQ(''); await refresh(); }
+    try { const t = await ensureTitleByImdb(imdbInQuery); if (!items.some((i) => i.title_id === t.id)) await addToBacklog(t.id, 'movies', topPosition(items)); setQ(''); await refresh(); }
     catch { setError('Nothing found for ' + imdbInQuery + ' on TMDB or IMDb.'); }
     setAdding(null);
   };
   const add = async (h: SearchHit) => {
     setAdding(h.sourceId);
-    try { const t = await ensureTitle('movie', h.sourceId); await addToBacklog(t.id, 'movies', nextPosition(items)); await refresh(); }
+    try { const t = await ensureTitle('movie', h.sourceId); await addToBacklog(t.id, 'movies', topPosition(items)); await refresh(); }
     catch { setError('Couldn’t add “' + h.title + '”. Try again in a moment.'); }
     setAdding(null);
   };
@@ -267,9 +267,9 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
                 <div className="action-list">
                   <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardId(item.id); }}>Open</button>
                   {isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardId(item.id); }}>Mark as watched…</button>}
-                  {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, nextPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
+                  {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, topPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
                   {!isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardId(item.id); }}>Change rating…</button>}
-                  {!isBack && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: nextPosition(items) }); })}>Log a rewatch → Backlog</button>}
+                  {!isBack && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>Log a rewatch → Backlog</button>}
                   <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>
                   {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>Delete this viewing</button>}
                   <button role="menuitem" className="danger" onClick={() => setMenuConfirm('remove')}>Remove from my lists</button>
@@ -281,7 +281,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
       })()}
       {cardId && <MovieCard key={cardId} itemId={cardId} openTake={cardTake} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
         initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}
-        initialOwned={Object.fromEntries(items.map((i) => [i.title.source_id, { id: i.id, status: i.status, up_next: i.up_next }]))} settings={settings} backlogCount={items.length} onClose={() => { setCardId(null); setCardTake(false); }} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
+        initialOwned={Object.fromEntries(items.map((i) => [i.title.source_id, { id: i.id, status: i.status, up_next: i.up_next }]))} settings={settings} backlogCount={topPosition(items)} onClose={() => { setCardId(null); setCardTake(false); }} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
     </div>
   );
 }

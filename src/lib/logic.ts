@@ -98,3 +98,8 @@ export function parseNum(v: string, max: number, step: number): { ok: boolean; n
   if (!Number.isFinite(n) || n < 0 || n > max) return { ok: false, n: null };
   return { ok: true, n: Math.round(n / step) * step };
 }
+
+/** New backlog entries go to the very top. */
+export function topPosition(items: LibItem[]): number {
+  return items.length ? Math.min(...items.map((i) => i.position)) - 1 : 0;
+}

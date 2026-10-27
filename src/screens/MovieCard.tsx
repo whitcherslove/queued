@@ -84,10 +84,10 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
     if (logs.length) { if (planned && item.rewatch) await cancelRewatch(); else await planRewatch(); }
     else await updateItem(item.id, { rewatch: !item.rewatch });
   });
-  const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: backlogCount + 1 }); setTakeOpen(true); };
+  const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: backlogCount }); setTakeOpen(true); };
   const cancelRewatch = async () => { await updateItem(item.id, { status: last?.tier === 'dropped' ? 'dropped' : 'done', rewatch: false, up_next: false, score: null }); };
   const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else await planRewatch(); });
-  const toggleNext = guard(async () => { await updateItem(item.id, { up_next: !item.up_next, position: backlogCount + 1 }); });
+  const toggleNext = guard(async () => { await updateItem(item.id, { up_next: !item.up_next, position: backlogCount }); });
 
   const send = async (text: string) => {
     const q = text.trim(); if (!q) return;
@@ -107,6 +107,8 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
   const mcUrl = 'https://www.metacritic.com/search/' + encodeURIComponent(t.title) + '/?category=2';
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
   const tr = planned ? null : tierOf(last?.tier ?? null);
+  const origTr = tierOf(last?.tier ?? null);
+  const shownScore = planned ? (item.score ?? last?.score ?? null) : score;
   const ov = t.overview ?? '';
 
   const tile = (kind: 'metascore' | 'imdb_rating') => {
@@ -131,7 +133,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
           <h2>{t.title}</h2>
           <div className="row">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).map((c) => <span key={c} className="hero-chip">{c}</span>)}</div>
           {t.directors.length > 0 && <span className="hero-sub">{t.directors.join(', ')}</span>}
-          {done && tr && <span className="hero-tier" style={{ background: tr.color, color: tr.id === 'dropped' ? '#17161A' : '#17161A' }}>{tr.label}</span>}
+          {origTr && (done || planned) && (() => { const tr = origTr; return <span className="hero-tier" style={{ background: tr.color, color: tr.id === 'dropped' ? '#17161A' : '#17161A' }}>{tr.label}</span>; })()}
         </div>
       </div>
 
@@ -148,7 +150,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
           {tile('metascore')}
           {tile('imdb_rating')}
           <button className="tile3" onClick={() => setTakeOpen(true)} aria-label="Change my take">
-            <ScoreRing value={score} scale={scale} size={48} fontSize={17} />
+            <ScoreRing value={shownScore} scale={scale} size={48} fontSize={17} />
             <span className="muted small">My score</span>
           </button>
         </div>
@@ -164,7 +166,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
           {!takeOpen ? (
             <button className="take-summary" onClick={() => setTakeOpen(true)} aria-expanded="false">
               <span className="h2">My take</span>
-              {!logsReady ? null : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not watched yet</span>}
+              {!logsReady ? null : planned && logs.length ? <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>Rewatch · Backlog</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not watched yet</span>}
               {rewOn && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
               <span className="spacer" />
               <span className="muted" aria-hidden="true">▾</span>
@@ -221,7 +223,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
                 <div key={p.sourceId} className={'coll-row' + (isCur ? ' cur' : '')}>
                   <span className="coll-n">{i + 1}</span>
                   <button className="coll-title" disabled={!o || isCur} onClick={() => o && onOpenOther(o.id)}>{p.title} <span className="muted">{p.year}</span></button>
-                  {!o && <button className="add-btn sm" aria-label={'Add ' + p.title + ' to backlog'} onClick={guard(async () => { const tt = await ensureTitle('movie', p.sourceId); await addToBacklog(tt.id, 'movies', backlogCount + 1); })}>+</button>}
+                  {!o && <button className="add-btn sm" aria-label={'Add ' + p.title + ' to backlog'} onClick={guard(async () => { const tt = await ensureTitle('movie', p.sourceId); await addToBacklog(tt.id, 'movies', backlogCount); })}>+</button>}
                   {st && <span className={'pill status' + (st === 'Watched' ? ' accent' : isCur ? ' outline' : '')}>{st}</span>}
                 </div>
               );
@@ -233,6 +235,15 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
           <section className="card stack-sm">
             <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length} {logs.length === 1 ? 'viewing' : 'viewings'}</span></span>
               <button className={'btn sm' + (planned ? ' planned' : ' primary')} aria-pressed={planned} onClick={logRewatch}>{planned ? '✓ Rewatch planned' : 'Log a rewatch'}</button></div>
+            {planned && logs.length > 0 && (
+              <div className="view-row">
+                <span className="grow small strong">Planned rewatch <span className="accent-text normal">Next</span></span>
+                <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>
+                <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>Backlog</span>
+                <ScoreRing value={item.score} scale={scale} size={32} fontSize={12} />
+                <button className="del-x" aria-label="Cancel the planned rewatch" onClick={logRewatch}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+              </div>
+            )}
             {logs.map((l, i) => {
               const x = tierOf(l.tier);
               return delView === l.id ? (
@@ -241,7 +252,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
                   <button className="btn sm danger-fill" onClick={guard(async () => { await deleteLog(l.id); const rem = logs.filter((y) => y.id !== l.id); if (!planned) await updateItem(item.id, { status: rem.length ? (latestLog(rem)!.tier === 'dropped' ? 'dropped' : 'done') : 'backlog' }); setDelView(null); })}>Delete</button></div>
               ) : (
                 <div key={l.id} className="view-row">
-                  <span className="grow small strong">{longDate(l.watched_at)} {i === 0 && <span className="accent-text normal">Latest</span>}</span>
+                  <span className="grow small strong">{longDate(l.watched_at)} {i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
                   <button className={'rew-toggle' + (l.rewatch ? ' on' : '')} aria-pressed={l.rewatch} aria-label={l.rewatch ? 'Marked as rewatch — tap to unmark' : 'Mark this viewing as a rewatch'} onClick={guard(async () => { await updateLog(l.id, { rewatch: !l.rewatch }); })}>{EYE_PLUS}</button>
                   {x && <span className="pill" style={{ background: x.color, color: '#17161A' }}>{x.label}</span>}
                   <ScoreRing value={l.score} scale={scale} size={32} fontSize={12} />
