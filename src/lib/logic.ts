@@ -1,4 +1,4 @@
-import type { LibItem, LogRow, SearchHit } from './types';
+import type { ItemLog, LibItem, LogRow, Overrides, SearchHit, Title } from './types';
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -55,4 +55,46 @@ export function newHits(hits: SearchHit[], items: LibItem[]): SearchHit[] {
 
 export function nextPosition(items: LibItem[]): number {
   return items.reduce((m, i) => Math.max(m, i.position), 0) + 1;
+}
+
+/** Title with the user's own edits applied on top of the cached data. */
+export function merged(t: Title, o: Overrides | null | undefined): Title {
+  return { ...t, ...(o ?? {}) } as Title;
+}
+
+/** Only keep fields that differ from the source data. */
+export function diffOverrides(base: Title, edited: Overrides): Overrides {
+  const out: Overrides = {};
+  (Object.keys(edited) as (keyof Overrides)[]).forEach((k) => {
+    const a = JSON.stringify(edited[k] ?? null), b = JSON.stringify((base as any)[k] ?? null);
+    if (a !== b) (out as any)[k] = edited[k];
+  });
+  return out;
+}
+
+export function latestLog(logs: ItemLog[]): ItemLog | null {
+  return logs.reduce<ItemLog | null>((m, l) => (!m || l.watched_at > m.watched_at ? l : m), null);
+}
+
+export function money(v: unknown): string {
+  const n = Number(v);
+  if (!n) return '';
+  if (n >= 1e9) return '$' + (n / 1e9).toFixed(2).replace(/\.?0+$/, '') + 'B';
+  if (n >= 1e6) return '$' + Math.round(n / 1e6) + 'M';
+  if (n >= 1e3) return '$' + Math.round(n / 1e3) + 'K';
+  return '$' + n;
+}
+
+export function longDate(iso: string): string {
+  const MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  return `${MONL[m - 1]} ${d}, ${y}`;
+}
+
+export function parseNum(v: string, max: number, step: number): { ok: boolean; n: number | null } {
+  const s = v.trim().replace(',', '.');
+  if (!s) return { ok: true, n: null };
+  const n = Number(s);
+  if (!Number.isFinite(n) || n < 0 || n > max) return { ok: false, n: null };
+  return { ok: true, n: Math.round(n / step) * step };
 }

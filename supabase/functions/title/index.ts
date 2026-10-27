@@ -39,6 +39,18 @@ Deno.serve(async (req) => {
     const m = await r.json();
     const imdbId = m.imdb_id || m.external_ids?.imdb_id || null;
 
+    let parts: unknown[] = [];
+    if (m.belongs_to_collection?.id) {
+      const c = await tmdbFetch('/collection/' + m.belongs_to_collection.id, { language: 'en-US' });
+      if (c.ok) {
+        const cj = await c.json();
+        parts = (cj.parts ?? [])
+          .filter((p: any) => p.release_date)
+          .sort((a: any, b: any) => String(a.release_date).localeCompare(String(b.release_date)))
+          .map((p: any) => ({ sourceId: String(p.id), title: p.title, year: Number(String(p.release_date).slice(0, 4)), posterUrl: p.poster_path ? IMG + 'w185' + p.poster_path : null }));
+      }
+    }
+
     let metascore: number | null = null, imdbRating: number | null = null;
     const omdbKey = Deno.env.get('OMDB_API_KEY');
     if (imdbId && omdbKey) {
@@ -61,7 +73,7 @@ Deno.serve(async (req) => {
       imdb_rating: imdbRating,
       data: {
         cast: (m.credits?.cast ?? []).slice(0, 8).map((c: any) => ({ name: c.name, role: c.character })),
-        collection: m.belongs_to_collection ? { id: m.belongs_to_collection.id, name: m.belongs_to_collection.name } : null,
+        collection: m.belongs_to_collection ? { id: m.belongs_to_collection.id, name: m.belongs_to_collection.name, parts } : null,
         countries: (m.production_countries ?? []).map((c: any) => c.name),
         language: m.original_language, budget: m.budget || null, revenue: m.revenue || null, tagline: m.tagline || null
       },

@@ -6,7 +6,7 @@ const title = (id: string, name: string, extra: Partial<LibItem['title']> = {}) 
   id: 't' + id, kind: 'movie' as const, source: 'tmdb', source_id: 's' + id, imdb_id: null, title: name, release_date: null, year: null, runtime: null,
   directors: [], genres: [], overview: null, poster_url: null, backdrop_url: null, metascore: null, imdb_rating: null, data: {}, ...extra
 });
-const lib = (id: string, name: string, pos: number, upNext = false): LibItem => ({ id, title_id: 't' + id, section: 'movies', status: 'backlog', up_next: upNext, position: pos, tier: null, score: null, title: title(id, name) });
+const lib = (id: string, name: string, pos: number, upNext = false): LibItem => ({ id, title_id: 't' + id, section: 'movies', status: 'backlog', up_next: upNext, position: pos, tier: null, score: null, overrides: {}, title: title(id, name) });
 
 describe('formatting', () => {
   it('release date and runtime', () => {
@@ -44,5 +44,28 @@ describe('search', () => {
     expect(matchLibrary(items, 'f').length).toBe(0);
     const hits = [{ sourceId: 's1', title: 'Frozen', year: 2013, releaseDate: null, posterUrl: null }, { sourceId: 's9', title: 'Frozen Fever', year: 2015, releaseDate: null, posterUrl: null }];
     expect(newHits(hits, items).map((h) => h.sourceId)).toEqual(['s9']);
+  });
+});
+
+import { diffOverrides, latestLog, merged, money, parseNum, longDate } from '../src/lib/logic';
+describe('card helpers', () => {
+  const base = title('1', 'Frozen', { metascore: 75, genres: ['Animation'] });
+  it('applies and diffs overrides', () => {
+    expect(merged(base, { metascore: 80 }).metascore).toBe(80);
+    expect(diffOverrides(base, { title: 'Frozen', metascore: 75, genres: ['Animation'] })).toEqual({});
+    expect(diffOverrides(base, { title: 'Frozen!', metascore: 75 })).toEqual({ title: 'Frozen!' });
+  });
+  it('picks the latest log', () => {
+    expect(latestLog([{ id: 'a', watched_at: '2026-01-01', tier: null, score: null, rewatch: false }, { id: 'b', watched_at: '2026-03-01', tier: null, score: null, rewatch: true }])?.id).toBe('b');
+    expect(latestLog([])).toBeNull();
+  });
+  it('formats money and dates, parses numbers', () => {
+    expect(money(150000000)).toBe('$150M');
+    expect(money(1280000000)).toBe('$1.28B');
+    expect(money(0)).toBe('');
+    expect(longDate('2026-10-17T20:00:00Z')).toBe('October 17, 2026');
+    expect(parseNum('6,8', 10, 0.1).n).toBeCloseTo(6.8);
+    expect(parseNum('120', 100, 1).ok).toBe(false);
+    expect(parseNum('', 100, 1)).toEqual({ ok: true, n: null });
   });
 });

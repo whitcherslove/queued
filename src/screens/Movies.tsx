@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibItem, LogRow, SearchHit } from '../lib/types';
 import type { Settings } from '../lib/theme';
-import { dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
-import { addToBacklog, ensureTitle, loadLibrary, loadLogs, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext } from '../lib/remote';
+import { merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
+import { addToBacklog, ensureTitle, loadLibrary, loadLogs, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles } from '../lib/remote';
+import MovieCard from './MovieCard';
 import { useDragReorder } from '../lib/drag';
 import { BookmarkBadge, GripIcon, Metascore, Poster } from '../components/Rows';
 import { IconMenu, IconSearch } from '../components/Icons';
-import { TIERS, imdbColor } from '../lib/scores';
+import { TIERS } from '../lib/scores';
 
 interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void }
 
@@ -23,11 +24,14 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState<string | null>(null);
   const [edit, setEdit] = useState(false);
-  const [sheet, setSheet] = useState<LibItem | null>(null);
+  const [cardId, setCardId] = useState<string | null>(null);
+  const setSheet = (it: LibItem) => setCardId(it.id);
   const view = settings.view;
 
   const refresh = useCallback(async () => {
-    try { const [a, b] = await Promise.all([loadLibrary('movies'), loadLogs('movies')]); setItems(a); setLogs(b); setError(''); }
+    try { const [a, b] = await Promise.all([loadLibrary('movies'), loadLogs('movies')]);
+      setItems(a.map((i) => ({ ...i, title: merged(i.title, i.overrides) })));
+      setLogs(b.map((l) => ({ ...l, library: { ...l.library, title: merged(l.library.title, l.library.overrides) } }))); setError(''); }
     catch (e) { setError('Couldn’t load your lists. Check your connection and pull to refresh.'); }
     setLoading(false);
   }, []);
@@ -203,42 +207,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         )}
       </main>
 
-      {sheet && (
-        <QuickSheet it={sheet} onClose={() => setSheet(null)}
-          onUpNext={async (v) => { await setUpNext(sheet.id, v, nextPosition(items)); setSheet(null); refresh(); }}
-          onRemove={async () => { await removeFromLibrary(sheet.id); setSheet(null); refresh(); }} />
-      )}
-    </div>
-  );
-}
-
-function QuickSheet({ it, onClose, onUpNext, onRemove }: { it: LibItem; onClose: () => void; onUpNext: (v: boolean) => void; onRemove: () => void }) {
-  const [confirm, setConfirm] = useState(false);
-  const t = it.title, ic = imdbColor(t.imdb_rating);
-  return (
-    <div className="sheet-wrap">
-      <button className="sheet-scrim" aria-label="Close" onClick={onClose} />
-      <div className="sheet" role="dialog" aria-label={t.title}>
-        <div className="sheet-head">
-          <Poster t={t} w={72} h={108} />
-          <div className="stack-sm">
-            <strong className="sheet-title">{t.title}</strong>
-            <span className="muted small">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}</span>
-            {t.directors.length > 0 && <span className="muted small">Dir. {t.directors.join(', ')}</span>}
-            <span className="row"><Metascore v={t.metascore} size="sm" /><span className="pill" style={{ background: ic ?? 'var(--surface2)', color: ic ? '#17161A' : 'var(--muted)' }}>IMDb {t.imdb_rating ?? '—'}</span></span>
-          </div>
-        </div>
-        {it.status === 'backlog' && (
-          <button className="switch-row" role="switch" aria-checked={it.up_next} onClick={() => onUpNext(!it.up_next)}>
-            <span className="stack-sm"><strong>Up next</strong><span className="muted small">{it.up_next ? 'Pinned to the top of your Backlog' : 'Pin it to the top of your Backlog'}</span></span>
-            <span className={'switch' + (it.up_next ? ' on' : '')}><span /></span>
-          </button>
-        )}
-        <p className="muted small">The full movie card with rating, score and notes arrives in the next update.</p>
-        {confirm
-          ? <div className="row"><span className="small">Remove “{t.title}” from your lists?</span><button className="btn sm" onClick={() => setConfirm(false)}>Cancel</button><button className="btn sm danger-fill" onClick={onRemove}>Remove</button></div>
-          : <button className="btn danger" onClick={() => setConfirm(true)}>Remove from my lists</button>}
-      </div>
+      {cardId && <MovieCard itemId={cardId} settings={settings} backlogCount={items.length} onClose={() => setCardId(null)} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
     </div>
   );
 }

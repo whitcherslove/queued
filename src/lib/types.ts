@@ -9,10 +9,16 @@ export interface Title {
   data: Record<string, unknown>;
 }
 
+export type Overrides = Partial<Pick<Title, 'title' | 'release_date' | 'runtime' | 'directors' | 'genres' | 'metascore' | 'imdb_rating'>>;
+
 export interface LibItem {
   id: string; title_id: string; section: Section; status: Status; up_next: boolean; position: number;
-  tier: string | null; score: number | null; title: Title;
+  tier: string | null; score: number | null; overrides: Overrides; title: Title;
 }
+
+export interface ItemLog { id: string; watched_at: string; tier: string | null; score: number | null; rewatch: boolean }
+export interface ChatMsg { id: string; role: 'user' | 'model'; content: string; created_at: string; pending?: boolean }
+export interface CollectionPart { sourceId: string; title: string; year: number; posterUrl: string | null }
 
 export interface LogRow {
   id: string; library_id: string; scope: 'item' | 'season' | 'seasons' | 'show'; season_from: number | null; season_to: number | null;
