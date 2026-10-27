@@ -213,7 +213,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         )}
       </main>
 
-      {cardId && <MovieCard itemId={cardId} settings={settings} backlogCount={items.length} onClose={() => setCardId(null)} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
+      {cardId && <MovieCard key={cardId} itemId={cardId} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null} settings={settings} backlogCount={items.length} onClose={() => setCardId(null)} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
     </div>
   );
 }

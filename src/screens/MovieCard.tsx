@@ -10,19 +10,20 @@ import ScoreRing from '../components/ScoreRing';
 import { IconBack } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 
-interface Props { itemId: string; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string) => void; backlogCount: number }
+interface Props { itemId: string; initial?: LibItem | null; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string) => void; backlogCount: number }
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const EXT = <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /></svg>;
 const EYE_PLUS = <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 18c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /><path d="M16 19h6" /><path d="M19 16v6" /></svg>;
 const CHIPS = ['Similar movies', 'Fun facts', 'Post-credits scene?', 'Explain the ending'];
 
-export default function MovieCard({ itemId, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
-  const [item, setItem] = useState<LibItem | null>(null);
+export default function MovieCard({ itemId, initial, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
+  const [item, setItem] = useState<LibItem | null>(initial ?? null);
+  const [logsReady, setLogsReady] = useState(false);
   const [logs, setLogs] = useState<ItemLog[]>([]);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [owned, setOwned] = useState<Record<string, { id: string; status: string; up_next: boolean }>>({});
-  const [takeOpen, setTakeOpen] = useState(false);
+  const [takeOpen, setTakeOpen] = useState(initial?.status === 'backlog');
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
   const [quick, setQuick] = useState<null | 'metascore' | 'imdb_rating'>(null);
@@ -38,7 +39,7 @@ export default function MovieCard({ itemId, settings, onClose, onChanged, onOpen
 
   const reload = useCallback(async () => {
     const [it, lg, ch] = await Promise.all([loadItem(itemId), loadItemLogs(itemId), loadChat(itemId)]);
-    setItem(it); setLogs(lg); setChat(ch);
+    setItem(it); setLogs(lg); setChat(ch); setLogsReady(true);
     if (firstFor.current !== it.id) { firstFor.current = it.id; setTakeOpen(it.status === 'backlog'); }
     const parts = ((it.title.data as any)?.collection?.parts ?? []) as CollectionPart[];
     setOwned(await findOwnedBySource(parts.map((p) => p.sourceId), 'movies'));
@@ -63,8 +64,8 @@ export default function MovieCard({ itemId, settings, onClose, onChanged, onOpen
       return;
     }
     if (last) await updateLog(last.id, { tier: id });
-    else await insertLog(item.id, { tier: id, score: item.score, watched_at: new Date().toISOString() });
-    await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done', up_next: false });
+    else await insertLog(item.id, { tier: id, score: item.score, rewatch: !!item.rewatch, watched_at: new Date().toISOString() });
+    await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done', up_next: false, rewatch: false });
   })();
 
   const setScore = (v: number | null) => guard(async () => {
@@ -77,7 +78,8 @@ export default function MovieCard({ itemId, settings, onClose, onChanged, onOpen
     await updateLog(last.id, { watched_at: d + time });
   })();
 
-  const toggleRew = guard(async () => { if (last) await updateLog(last.id, { rewatch: !last.rewatch }); });
+  const rewOn = last ? last.rewatch : !!item.rewatch;
+  const toggleRew = guard(async () => { if (last) await updateLog(last.id, { rewatch: !last.rewatch }); else await updateItem(item.id, { rewatch: !item.rewatch }); });
   const logRewatch = guard(async () => { await insertLog(item.id, { rewatch: true, tier: last?.tier ?? null, watched_at: new Date().toISOString() }); setTakeOpen(true); });
   const toggleNext = guard(async () => { await updateItem(item.id, { up_next: !item.up_next, position: backlogCount + 1 }); });
 
@@ -156,8 +158,8 @@ export default function MovieCard({ itemId, settings, onClose, onChanged, onOpen
           {!takeOpen ? (
             <button className="take-summary" onClick={() => setTakeOpen(true)} aria-expanded="false">
               <span className="h2">My take</span>
-              {tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not watched yet</span>}
-              {last?.rewatch && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
+              {!logsReady ? null : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not watched yet</span>}
+              {rewOn && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
               <span className="spacer" />
               <span className="muted" aria-hidden="true">▾</span>
             </button>
@@ -185,13 +187,13 @@ export default function MovieCard({ itemId, settings, onClose, onChanged, onOpen
                 <>
                   <div className="divider" />
                   <div className="score-row"><label htmlFor="wdate" className="strong">Watched on</label><input id="wdate" type="date" value={last.watched_at.slice(0, 10)} onChange={(e) => setDate(e.target.value)} className="date-input" /></div>
-                  <div className="divider" />
-                  <button className="switch-row flat" role="switch" aria-checked={last.rewatch} onClick={toggleRew}>
-                    <span className="rew-icon">{EYE_PLUS}</span><strong className="grow">Rewatch</strong>
-                    <span className={'switch' + (last.rewatch ? ' on-green' : '')}><span /></span>
-                  </button>
                 </>
               )}
+              <div className="divider" />
+                  <button className="switch-row flat" role="switch" aria-checked={rewOn} onClick={toggleRew}>
+                    <span className="rew-icon">{EYE_PLUS}</span><strong className="grow">Rewatch</strong>
+                    <span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span>
+                  </button>
             </div>
           )}
         </section>

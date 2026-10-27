@@ -14,7 +14,7 @@ export async function ensureTitle(kind: 'movie', sourceId: string, force = false
   return data.title as Title;
 }
 
-const LIB_FIELDS = 'id, title_id, section, status, up_next, position, tier, score, overrides, title:titles(*)';
+const LIB_FIELDS = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, title:titles(*)';
 
 export async function loadLibrary(section: Section): Promise<LibItem[]> {
   const { data, error } = await supabase.from('library').select(LIB_FIELDS).eq('section', section).order('position');
@@ -69,7 +69,7 @@ export async function loadItemLogs(libraryId: string): Promise<ItemLog[]> {
   return (data ?? []) as ItemLog[];
 }
 
-export async function updateItem(id: string, patch: Partial<{ status: Status; up_next: boolean; position: number; score: number | null; overrides: Overrides }>): Promise<void> {
+export async function updateItem(id: string, patch: Partial<{ status: Status; up_next: boolean; position: number; score: number | null; rewatch: boolean; overrides: Overrides }>): Promise<void> {
   const { error } = await supabase.from('library').update(patch).eq('id', id);
   if (error) throw error;
 }
