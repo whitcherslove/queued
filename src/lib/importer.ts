@@ -91,6 +91,22 @@ export async function loadReviews(): Promise<ReviewItem[]> {
   return (data ?? []) as ReviewItem[];
 }
 
+/** Accepts a TMDB link/id or an IMDb link/id typed by the user. */
+export function parseManualId(input: string): { sourceId?: string; imdbId?: string } | null {
+  const s = input.trim();
+  const imdb = s.match(/tt\d{6,10}/); if (imdb) return { imdbId: imdb[0] };
+  const tmdb = s.match(/themoviedb\.org\/movie\/(\d+)/) || s.match(/^(\d{1,8})$/); if (tmdb) return { sourceId: tmdb[1] };
+  return null;
+}
+
+export async function resolveReviewManual(item: ReviewItem, ref: { sourceId?: string; imdbId?: string }): Promise<boolean> {
+  const g = { ...item.payload, sourceId: ref.sourceId, imdbId: ref.imdbId ?? item.payload.imdbId };
+  if (!ref.sourceId) delete (g as any).sourceId;
+  const res = await importGroups([g]);
+  if (res.ok > 0) { await supabase.from('import_reviews').delete().eq('id', item.id); return true; }
+  return false;
+}
+
 export async function resolveReview(item: ReviewItem, sourceId: string | null): Promise<void> {
   if (sourceId) await importGroups([{ ...item.payload, sourceId }]);
   await supabase.from('import_reviews').delete().eq('id', item.id);

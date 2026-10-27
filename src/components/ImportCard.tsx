@@ -1,5 +1,7 @@
 import { ChangeEvent, useEffect, useState } from 'react';
-import { groupRows, importGroups, ImportRow, loadReviews, parseFile, resolveReview, ReviewItem, storePending } from '../lib/importer';
+import { groupRows, importGroups, ImportRow, loadReviews, parseFile, parseManualId, resolveReview, resolveReviewManual, ReviewItem, storePending } from '../lib/importer';
+import { searchTitles } from '../lib/remote';
+import type { SearchHit } from '../lib/types';
 
 export default function ImportCard({ email }: { email: string }) {
   const [rows, setRows] = useState<ImportRow[] | null>(null);
@@ -81,10 +83,53 @@ export default function ImportCard({ email }: { email: string }) {
                 ))}
                 <button className="cand skip" onClick={() => choose(it, null)}>Skip</button>
               </div>
+              <ManualPick item={it} onDone={() => setReviews((r) => r.filter((x) => x.id !== it.id))} />
             </div>
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+function ManualPick({ item, onDone }: { item: ReviewItem; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState(item.payload.title);
+  const [hits, setHits] = useState<SearchHit[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  if (!open) return <button className="link left" onClick={() => setOpen(true)}>None of these — search or paste a link</button>;
+  const run = async () => {
+    const ref = parseManualId(q);
+    setBusy(true); setMsg('');
+    if (ref) {
+      const ok = await resolveReviewManual(item, ref);
+      setBusy(false);
+      if (ok) onDone(); else setMsg('Couldn’t find that title. Check the link or ID.');
+      return;
+    }
+    try { setHits(await searchTitles(q, 'movie')); } catch { setMsg('Search failed. Try again.'); }
+    setBusy(false);
+  };
+  return (
+    <div className="stack-sm">
+      <div className="row nowrap">
+        <label htmlFor={'mp-' + item.id} className="sr">Search TMDB or paste a TMDB / IMDb link</label>
+        <input id={'mp-' + item.id} className="text-input grow" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} placeholder="Title, or a TMDB / IMDb link" />
+        <button className="btn primary sm" onClick={run} disabled={busy}>{busy ? '…' : 'Find'}</button>
+      </div>
+      <span className="muted small">Try another spelling, the original title, or paste a link like imdb.com/title/tt0111161 or themoviedb.org/movie/278.</span>
+      {msg && <span className="error small">{msg}</span>}
+      {hits.length > 0 && (
+        <div className="cands">
+          {hits.slice(0, 8).map((c) => (
+            <button key={c.sourceId} className="cand" disabled={busy} onClick={async () => { setBusy(true); const ok = await resolveReviewManual(item, { sourceId: c.sourceId }); setBusy(false); if (ok) onDone(); else setMsg('Import failed. Try again.'); }}>
+              <span className="poster" style={{ width: 46, height: 68 }}>{c.posterUrl && <img src={c.posterUrl} alt="" />}</span>
+              <span className="small">{c.title}<br /><span className="muted">{c.year ?? ''}</span></span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

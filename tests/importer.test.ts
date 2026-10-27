@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupRows, normalizeRow } from '../src/lib/importer';
+import { groupRows, normalizeRow, parseManualId } from '../src/lib/importer';
 
 describe('AppSheet import', () => {
   it('normalizes a row', () => {
@@ -18,5 +18,14 @@ describe('AppSheet import', () => {
     const g = groupRows([a, b, c]);
     expect(g.length).toBe(2);
     expect(g.find((x) => x.title === 'Scream 2')!.rows.length).toBe(2);
+  });
+});
+
+describe('manual id', () => {
+  it('reads IMDb and TMDB links', () => {
+    expect(parseManualId('https://www.imdb.com/title/tt0111161/')).toEqual({ imdbId: 'tt0111161' });
+    expect(parseManualId('https://www.themoviedb.org/movie/278-the-shawshank-redemption')).toEqual({ sourceId: '278' });
+    expect(parseManualId('278')).toEqual({ sourceId: '278' });
+    expect(parseManualId('Shawshank')).toBeNull();
   });
 });
