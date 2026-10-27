@@ -8,7 +8,7 @@ import ScoreRing from '../components/ScoreRing';
 import { useBackLayer } from '../lib/back';
 import { useLongPress } from '../lib/longpress';
 import { useDragReorder } from '../lib/drag';
-import { BookmarkBadge, GripIcon, Metascore, Poster } from '../components/Rows';
+import { GripIcon, Metascore, Poster } from '../components/Rows';
 import { IconMenu, IconSearch } from '../components/Icons';
 import { TIERS } from '../lib/scores';
 
@@ -113,7 +113,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const backlogRow = (it: LibItem, list: string) => (
     <div key={it.id} {...rowState(list, it.id)}>
       <button className="row-main" {...longPress(it.id)} onClick={() => !edit && setSheet(it)}>
-        <Poster t={it.title} w={56} h={84}>{list === 'n' && <BookmarkBadge />}</Poster>
+        <Poster t={it.title} w={56} h={84}></Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
           <span className="row-meta">{[releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}<Metascore v={it.title.metascore} size="sm" />{it.rewatch && <EyePlus />}</span>
@@ -147,7 +147,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     return (
     <div key={key} {...rowState(list, key)} className={rowState(list, key).className + ' tile'}>
       <button className="tile-main" {...longPress(list === 'w' ? key : it.id)} onClick={() => !edit && onOpen()} aria-label={it.title.title}>
-        <Poster t={it.title}>{list === 'n' && <BookmarkBadge />}<span className="tile-mc"><Metascore v={it.title.metascore} size="sm" /></span>{list === 'w' && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
+        <Poster t={it.title}><span className="tile-mc"><Metascore v={it.title.metascore} size="sm" /></span>{list === 'w' && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
         {tr && <span className="tile-tier" style={{ background: tr.color }}>{tr.label}</span>}
         {d && <span className="tile-date"><span className="tile-date-text">{d.day} {d.mon} <span>{d.year}</span></span>{rew && <EyePlus size={14} />}</span>}
       </button>
