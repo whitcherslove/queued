@@ -100,10 +100,9 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         <Poster t={it.title} w={56} h={84}>{list === 'n' && <BookmarkBadge />}</Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
-          <span className="row-meta">{[releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}</span>
+          <span className="row-meta">{[releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}<Metascore v={it.title.metascore} size="sm" /></span>
         </span>
       </button>
-      <Metascore v={it.title.metascore} />
       {grip(list, it.id, it.title.title)}
     </div>
   );
@@ -113,14 +112,13 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     return (
       <div key={l.id} {...rowState('w', l.id)}>
         <button className="row-main" onClick={() => !edit && setSheet(l.library)}>
-          <Poster t={t} w={56} h={84}><span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={30} fontSize={11} /></span></Poster>
+          <Poster t={t} w={56} h={84}><span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={24} fontSize={9} /></span></Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
-            <span className="row-meta">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}</span>
+            <span className="row-meta">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}<Metascore v={t.metascore} size="sm" /></span>
             {tr && <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span>}
           </span>
         </button>
-        <Metascore v={t.metascore} />
         {edit ? grip('w', l.id, t.title) : (
           <span className="date-col"><span className="date-cap">Watched on</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></span>
         )}

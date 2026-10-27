@@ -246,3 +246,8 @@ input, textarea, select { font-size: 16px !important; }
 .poster-ring { position: absolute; right: 3px; bottom: 3px; border-radius: 999px; background: rgba(0,0,0,.65); display: flex; }
 .poster-ring .ring span { color: #fff; }
 .tile-main .poster-ring { right: 5px; bottom: 5px; }
+
+.row-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.coll-row .pill { align-self: center; }
+.poster-ring { right: 2px; bottom: 2px; }
+.tile-main .poster-ring { right: 4px; bottom: 4px; }
