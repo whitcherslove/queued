@@ -79,9 +79,14 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
     await updateLog(last.id, { watched_at: d + time });
   })();
 
-  const rewOn = last && !planned ? last.rewatch : !!item.rewatch;
-  const toggleRew = guard(async () => { if (last && !planned) await updateLog(last.id, { rewatch: !last.rewatch }); else await updateItem(item.id, { rewatch: !item.rewatch }); });
-  const logRewatch = guard(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: backlogCount + 1 }); setTakeOpen(true); });
+  const rewOn = planned ? !!item.rewatch : false;
+  const toggleRew = guard(async () => {
+    if (logs.length) { if (planned && item.rewatch) await cancelRewatch(); else await planRewatch(); }
+    else await updateItem(item.id, { rewatch: !item.rewatch });
+  });
+  const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: backlogCount + 1 }); setTakeOpen(true); };
+  const cancelRewatch = async () => { await updateItem(item.id, { status: last?.tier === 'dropped' ? 'dropped' : 'done', rewatch: false, up_next: false, score: null }); };
+  const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else await planRewatch(); });
   const toggleNext = guard(async () => { await updateItem(item.id, { up_next: !item.up_next, position: backlogCount + 1 }); });
 
   const send = async (text: string) => {
@@ -227,7 +232,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
         {logs.length > 0 && (
           <section className="card stack-sm">
             <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length} {logs.length === 1 ? 'viewing' : 'viewings'}</span></span>
-              <button className="btn primary sm" onClick={logRewatch}>{planned ? 'Rewatch planned' : 'Log a rewatch'}</button></div>
+              <button className={'btn sm' + (planned ? ' planned' : ' primary')} aria-pressed={planned} onClick={logRewatch}>{planned ? '✓ Rewatch planned' : 'Log a rewatch'}</button></div>
             {logs.map((l, i) => {
               const x = tierOf(l.tier);
               return delView === l.id ? (
@@ -237,7 +242,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
               ) : (
                 <div key={l.id} className="view-row">
                   <span className="grow small strong">{longDate(l.watched_at)} {i === 0 && <span className="accent-text normal">Latest</span>}</span>
-                  {l.rewatch && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
+                  <button className={'rew-toggle' + (l.rewatch ? ' on' : '')} aria-pressed={l.rewatch} aria-label={l.rewatch ? 'Marked as rewatch — tap to unmark' : 'Mark this viewing as a rewatch'} onClick={guard(async () => { await updateLog(l.id, { rewatch: !l.rewatch }); })}>{EYE_PLUS}</button>
                   {x && <span className="pill" style={{ background: x.color, color: '#17161A' }}>{x.label}</span>}
                   <ScoreRing value={l.score} scale={scale} size={32} fontSize={12} />
                   <button className="del-x" aria-label="Delete this viewing" onClick={() => setDelView(l.id)}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>

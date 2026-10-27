@@ -301,3 +301,7 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .cand { flex: none; width: 110px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface2); text-align: left; }
 .cand.skip { width: 70px; justify-content: center; align-items: center; color: var(--muted); font-weight: 700; }
 .toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 50; padding: 10px 16px; border-radius: 999px; background: var(--surface2); color: var(--ink); font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.3); }
+
+.btn.planned { border: 1.5px solid #39C316; color: #39C316; background: transparent; }
+.rew-toggle { width: 36px; height: 36px; flex: none; border: 0; border-radius: 999px; background: transparent; color: var(--muted); opacity: .45; display: flex; align-items: center; justify-content: center; }
+.rew-toggle.on { color: #39C316; opacity: 1; }
