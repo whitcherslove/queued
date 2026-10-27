@@ -5,11 +5,13 @@ import { applyTheme, DEFAULT_SETTINGS, Settings } from './lib/theme';
 import { loadProfile, Profile, saveSettings } from './lib/profile';
 import Login from './screens/Login';
 import Shell from './screens/Shell';
+import { claimPending, groupRows, importGroups } from './lib/importer';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [claiming, setClaiming] = useState('');
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
@@ -20,7 +22,15 @@ export default function App() {
   useEffect(() => {
     if (!session) { setProfile(null); applyTheme(DEFAULT_SETTINGS); return; }
     loadProfile(session.user.id, session.user.email ?? '')
-      .then((p) => { setProfile(p); applyTheme(p.settings); })
+      .then((p) => { setProfile(p); applyTheme(p.settings);
+        claimPending().then(async (rows) => {
+          if (!rows.length) return;
+          const groups = groupRows(rows);
+          setClaiming(`Bringing in ${groups.length} movies from AppSheet…`);
+          await importGroups(groups);
+          setClaiming(''); window.location.reload();
+        });
+      })
       .catch(() => {
         const p = { id: session.user.id, email: session.user.email ?? '', avatar_url: null, settings: DEFAULT_SETTINGS };
         setProfile(p); applyTheme(p.settings);
@@ -45,5 +55,5 @@ export default function App() {
   if (!ready) return <main className="center-screen"><h1 className="wordmark">Queued</h1></main>;
   if (!session) return <Login />;
   if (!profile) return <main className="center-screen"><h1 className="wordmark">Queued</h1></main>;
-  return <Shell profile={profile} onProfile={setProfile} onSettings={updateSettings} />;
+  return <>{claiming && <div className="toast" role="status">{claiming}</div>}<Shell profile={profile} onProfile={setProfile} onSettings={updateSettings} /></>;
 }

@@ -4,6 +4,7 @@ import { ACCENTS, Settings } from '../lib/theme';
 import { Profile, removeAvatar, uploadAvatar } from '../lib/profile';
 import Avatar from '../components/Avatar';
 import { IconBack } from '../components/Icons';
+import ImportCard from '../components/ImportCard';
 
 interface Props { profile: Profile; onBack: () => void; onProfile: (p: Profile) => void; onSettings: (s: Settings) => void }
 
@@ -63,6 +64,8 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             ))}
           </div>
         </section>
+
+        <ImportCard email={profile.email} />
 
         <button className="btn danger" onClick={() => supabase.auth.signOut()}>Sign out</button>
       </main>

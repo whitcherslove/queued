@@ -292,3 +292,12 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 
 .del-x { width: 40px; height: 40px; margin-right: -8px; flex: none; border: 0; border-radius: 999px; background: transparent; color: #DE3C49; display: flex; align-items: center; justify-content: center; }
 .del-x svg { width: 26px; height: 26px; padding: 6px; border-radius: 999px; background: rgba(222, 60, 73, .14); box-sizing: border-box; }
+
+/* import */
+.bar { height: 8px; border-radius: 4px; background: var(--surface2); overflow: hidden; }
+.bar span { display: block; height: 8px; background: var(--accent); transition: width .3s; }
+.review { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.cands { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
+.cand { flex: none; width: 110px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; padding: 6px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface2); text-align: left; }
+.cand.skip { width: 70px; justify-content: center; align-items: center; color: var(--muted); font-weight: 700; }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); top: calc(10px + env(safe-area-inset-top, 0px)); z-index: 50; padding: 10px 16px; border-radius: 999px; background: var(--surface2); color: var(--ink); font-size: 13px; font-weight: 600; box-shadow: 0 4px 16px rgba(0,0,0,.3); }
