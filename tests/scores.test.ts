@@ -31,7 +31,7 @@ describe('score colors', () => {
 
 describe('theme', () => {
   it('builds css vars for accent and theme', () => {
-    const v = themeVars({ theme: 'light', accent: 'teal', scale: 5, view: 'list', posterScore: true });
+    const v = themeVars({ theme: 'light', accent: 'teal', scale: 5, view: 'list', posterScore: true, listMetascore: true });
     expect(v['--accent']).toBe('#137A6C');
     expect(v['--on-accent']).toBe('#FFFFFF');
   });

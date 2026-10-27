@@ -59,6 +59,10 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             <span className="stack-sm grow"><strong>My score on posters</strong><span className="muted small">Score ring in the corner of posters in lists and grid</span></span>
             <span className={'switch' + (s.posterScore ? ' on' : '')}><span /></span>
           </button>
+          <button className="switch-row flat" role="switch" aria-checked={s.listMetascore} onClick={() => set({ listMetascore: !s.listMetascore })}>
+            <span className="stack-sm grow"><strong>Metascore in lists</strong><span className="muted small">Metascore next to the runtime and on grid posters</span></span>
+            <span className={'switch' + (s.listMetascore ? ' on' : '')}><span /></span>
+          </button>
           <span className="muted small">Accent</span>
           <div className="row">
             {ACCENTS.map((a) => (
