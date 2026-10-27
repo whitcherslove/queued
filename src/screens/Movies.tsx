@@ -128,7 +128,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     return (
       <div key={l.id} {...rowState('w', l.id)}>
         <button className="row-main" {...longPress(l.id)} onClick={() => !edit && setSheet(l.library)}>
-          <Poster t={t} w={56} h={84}><span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={24} fontSize={9} /></span></Poster>
+          <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
             <span className="row-meta">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}<Metascore v={t.metascore} size="sm" /></span>
@@ -147,7 +147,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     return (
     <div key={key} {...rowState(list, key)} className={rowState(list, key).className + ' tile'}>
       <button className="tile-main" {...longPress(list === 'w' ? key : it.id)} onClick={() => !edit && onOpen()} aria-label={it.title.title}>
-        <Poster t={it.title}><span className="tile-mc"><Metascore v={it.title.metascore} size="sm" /></span>{list === 'w' && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
+        <Poster t={it.title}><span className="tile-mc"><Metascore v={it.title.metascore} size="sm" /></span>{list === 'w' && settings.posterScore && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
         {tr && <span className="tile-tier" style={{ background: tr.color }}>{tr.label}</span>}
         {d && <span className="tile-date"><span className="tile-date-text">{d.day} {d.mon} <span>{d.year}</span></span>{rew && <EyePlus size={14} />}</span>}
       </button>

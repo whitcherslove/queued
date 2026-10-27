@@ -55,6 +55,10 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
           <div className="segmented">
             {([5, 10] as const).map((n) => <button key={n} aria-pressed={s.scale === n} className={s.scale === n ? 'on' : ''} onClick={() => set({ scale: n })}>{n}-point</button>)}
           </div>
+          <button className="switch-row flat" role="switch" aria-checked={s.posterScore} onClick={() => set({ posterScore: !s.posterScore })}>
+            <span className="stack-sm grow"><strong>My score on posters</strong><span className="muted small">Score ring in the corner of posters in lists and grid</span></span>
+            <span className={'switch' + (s.posterScore ? ' on' : '')}><span /></span>
+          </button>
           <span className="muted small">Accent</span>
           <div className="row">
             {ACCENTS.map((a) => (
