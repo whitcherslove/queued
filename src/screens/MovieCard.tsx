@@ -33,29 +33,33 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
   const [editLog, setEditLog] = useState<string | null>(null);
   const [sx, setSx] = useState(0);
   const [leave, setLeave] = useState<'' | 'left' | 'right'>('');
-  const swRef = useRef<{ x: number; y: number; mode: '' | 'h' | 'v' } | null>(null);
+  const swRef = useRef<{ x: number; y: number; t: number; mode: '' | 'h' | 'v'; vx: number; lx: number; lt: number } | null>(null);
   const lastSwipe = useRef(0);
   const swipe = {
     onPointerDown: (e: React.PointerEvent) => {
       if (e.button > 0 || (e.target as HTMLElement).closest('input, textarea, .chips.scroll, .bd-grid, .cands, .chat-log, .no-swipe')) return;
-      swRef.current = { x: e.clientX, y: e.clientY, mode: '' };
+      swRef.current = { x: e.clientX, y: e.clientY, t: e.timeStamp, mode: '', vx: 0, lx: e.clientX, lt: e.timeStamp };
     },
     onPointerMove: (e: React.PointerEvent) => {
       const st = swRef.current; if (!st) return;
       const dx = e.clientX - st.x, dy = e.clientY - st.y;
       if (!st.mode) {
-        if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.4) st.mode = 'h';
-        else if (Math.abs(dy) > 12) { st.mode = 'v'; return; }
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { st.mode = 'h'; try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ } }
+        else if (Math.abs(dy) > 14) { st.mode = 'v'; return; }
       }
-      if (st.mode === 'h') { const edge = (dx > 0 && !onPrev) || (dx < 0 && !onNext); setSx(edge ? dx * 0.2 : dx); }
+      if (st.mode === 'h') {
+        const dt = e.timeStamp - st.lt; if (dt > 0) st.vx = (e.clientX - st.lx) / dt;
+        st.lx = e.clientX; st.lt = e.timeStamp;
+        const edge = (dx > 0 && !onPrev) || (dx < 0 && !onNext); setSx(edge ? dx * 0.2 : dx);
+      }
     },
     onPointerUp: () => {
       const st = swRef.current; swRef.current = null;
       if (!st || st.mode !== 'h') return;
       lastSwipe.current = Date.now();
-      const dx = sx;
-      if (dx < -80 && onNext) { setLeave('left'); window.setTimeout(onNext, 150); }
-      else if (dx > 80 && onPrev) { setLeave('right'); window.setTimeout(onPrev, 150); }
+      const dx = sx, flick = Math.abs(st.vx) > 0.45 && Math.abs(dx) > 25;
+      if ((dx < -60 || (flick && st.vx < 0)) && onNext) onNext();
+      else if ((dx > 60 || (flick && st.vx > 0)) && onPrev) onPrev();
       else setSx(0);
     },
     onPointerCancel: () => { swRef.current = null; setSx(0); },

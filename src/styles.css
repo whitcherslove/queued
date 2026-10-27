@@ -370,3 +370,7 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .swipe-pane.enter-left { animation: tab-in-left .2s ease-out; }
 @keyframes tab-in-right { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes tab-in-left { from { transform: translateX(-24px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+/* card-to-card: one short glide, same as tabs */
+.card-screen.enter-right .card-swipe { animation: tab-in-right .2s ease-out; }
+.card-screen.enter-left .card-swipe { animation: tab-in-left .2s ease-out; }

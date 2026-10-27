@@ -173,7 +173,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const [anim, setAnim] = useState<'' | 'leave-left' | 'leave-right' | 'enter-right' | 'enter-left'>('');
   const [pillTarget, setPillTarget] = useState<number | null>(null);
   const lastSwipe = useRef(0);
-  const sw = useRef<{ x: number; y: number; mode: '' | 'h' | 'v'; w: number; moved: boolean } | null>(null);
+  const sw = useRef<{ x: number; y: number; mode: '' | 'h' | 'v'; w: number; moved: boolean; vx: number; lx: number; lt: number } | null>(null);
   const goTab = (i: number, dir: 'from-right' | 'from-left') => {
     setTab(TABS[i]); setSwipeX(0); setPillTarget(null);
     setAnim(dir === 'from-right' ? 'enter-right' : 'enter-left');
@@ -182,17 +182,18 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const swipeHandlers = {
     onPointerDown: (e: React.PointerEvent) => {
       if (edit || searchingMode || drag || e.button > 0) return;
-      sw.current = { x: e.clientX, y: e.clientY, mode: '', w: (e.currentTarget as HTMLElement).clientWidth || 360, moved: false };
+      sw.current = { x: e.clientX, y: e.clientY, mode: '', w: (e.currentTarget as HTMLElement).clientWidth || 360, moved: false, vx: 0, lx: e.clientX, lt: e.timeStamp };
     },
     onPointerMove: (e: React.PointerEvent) => {
       const st = sw.current; if (!st || drag) return;
       const dx = e.clientX - st.x, dy = e.clientY - st.y;
       if (!st.mode) {
-        if (Math.abs(dx) > 12 && Math.abs(dx) > Math.abs(dy) * 1.3) { st.mode = 'h'; setSwiping(true); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ } }
-        else if (Math.abs(dy) > 12) { st.mode = 'v'; }
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { st.mode = 'h'; setSwiping(true); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ } }
+        else if (Math.abs(dy) > 14) { st.mode = 'v'; }
       }
       if (st.mode === 'h') {
         st.moved = true;
+        const dt = e.timeStamp - st.lt; if (dt > 0) st.vx = (e.clientX - st.lx) / dt; st.lx = e.clientX; st.lt = e.timeStamp;
         const atEdge = (dx > 0 && tabIndex === 0) || (dx < 0 && tabIndex === TABS.length - 1);
         setSwipeX(atEdge ? dx * 0.25 : dx);
       }
@@ -201,8 +202,9 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
       const st = sw.current; sw.current = null;
       if (!st || st.mode !== 'h') return;
       const dx = swipeX; lastSwipe.current = Date.now(); setSwiping(false);
-      if (dx < -70 && tabIndex < TABS.length - 1) goTab(tabIndex + 1, 'from-right');
-      else if (dx > 70 && tabIndex > 0) goTab(tabIndex - 1, 'from-left');
+      const flick = Math.abs(st.vx) > 0.45 && Math.abs(dx) > 25;
+      if ((dx < -60 || (flick && st.vx < 0)) && tabIndex < TABS.length - 1) goTab(tabIndex + 1, 'from-right');
+      else if ((dx > 60 || (flick && st.vx > 0)) && tabIndex > 0) goTab(tabIndex - 1, 'from-left');
       else setSwipeX(0);
     },
     onPointerCancel: () => { sw.current = null; setSwiping(false); setSwipeX(0); },
