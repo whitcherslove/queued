@@ -312,3 +312,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .tiny { font-size: 11px; }
 .view-edit { display: flex; flex-direction: column; gap: 10px; padding: 4px 0 12px; }
 .chip.sm { height: 32px; padding: 0 10px; font-size: 12px; }
+
+.bd-preview { position: relative; height: 150px; border-radius: 12px; overflow: hidden; background: var(--surface2); display: flex; align-items: center; justify-content: center; }
+.bd-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bd-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; max-height: 320px; overflow-y: auto; }
+.bd-pick { position: relative; height: 90px; padding: 0; border: 2px solid transparent; border-radius: 10px; overflow: hidden; background: var(--surface2); }
+.bd-pick img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.bd-pick.on { border-color: var(--accent); }

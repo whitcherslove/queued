@@ -28,6 +28,14 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
     const body = await req.json();
+    if (body.action === 'images') {
+      const r = await tmdbFetch('/movie/' + body.sourceId + '/images', { include_image_language: 'en,null' });
+      if (!r.ok) return Response.json({ backdrops: [] }, { headers: CORS });
+      const j = await r.json();
+      const backdrops = (j.backdrops ?? []).sort((a: any, b: any) => (b.vote_count ?? 0) - (a.vote_count ?? 0)).slice(0, 24)
+        .map((b: any) => ({ thumb: IMG + 'w780' + b.file_path, full: IMG + 'w1280' + b.file_path }));
+      return Response.json({ backdrops }, { headers: CORS });
+    }
     const { kind, force } = body;
     let sourceId = body.sourceId as string | undefined;
     const imdbIn = typeof body.imdbId === 'string' && /^tt\d{6,10}$/.test(body.imdbId) ? body.imdbId : null;

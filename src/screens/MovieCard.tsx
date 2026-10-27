@@ -4,7 +4,7 @@ import type { Settings } from '../lib/theme';
 import { TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
 import { diffOverrides, latestLog, longDate, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import {
-  addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
+  addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadBackdrops, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import { IconBack } from '../components/Icons';
@@ -349,6 +349,10 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
     title: m.title, release_date: m.release_date ?? '', runtime: m.runtime ? String(m.runtime) : '', directors: m.directors.join(', '),
     genres: m.genres.join(', '), metascore: m.metascore === null ? '' : String(m.metascore), imdb_rating: m.imdb_rating === null ? '' : String(m.imdb_rating)
   });
+  const [backdrop, setBackdrop] = useState<string | null>(m.backdrop_url);
+  const [shots, setShots] = useState<{ thumb: string; full: string }[] | null>(null);
+  const [link, setLink] = useState('');
+  const isTmdb = item.title.source === 'tmdb';
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [note, setNote] = useState('');
@@ -358,7 +362,7 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
   const save = async () => {
     const ms = numOrNull(f.metascore, 100), im = numOrNull(f.imdb_rating, 10), rt = f.runtime.trim() ? parseInt(f.runtime, 10) : null;
     if (ms === undefined || im === undefined || (f.release_date && !/^\d{4}-\d{2}-\d{2}$/.test(f.release_date))) { setNote('Check the highlighted values: dates as YYYY-MM-DD, Metascore 0–100, IMDb 0–10.'); return; }
-    const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im };
+    const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im, backdrop_url: backdrop };
     setBusy(true); await updateItem(item.id, { overrides: diffOverrides(item.title, edited) }); setBusy(false); onSaved();
   };
   const refresh = async () => { setBusy(true); try { if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle('movie', item.title.source_id, true); setNote('Fresh data loaded from TMDB and OMDb. Your own edits are kept.'); } catch { setNote('Couldn’t refresh right now.'); } setBusy(false); };
@@ -374,6 +378,24 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
       <div className="card-body">
         <button className="btn wide" onClick={refresh} disabled={busy}>↻ Refresh from TMDB + OMDb</button>
         {note && <p className="muted small">{note}</p>}
+        <div className="stack-sm">
+          <span className="muted small strong">Backdrop</span>
+          <div className="bd-preview">{backdrop ? <img src={backdrop} alt="" /> : <span className="muted small">No backdrop</span>}</div>
+          <div className="row">
+            {isTmdb && <button className="btn sm" onClick={async () => { setShots([]); setShots(await loadBackdrops(item.title.source_id)); }}>Choose from TMDB</button>}
+            {backdrop !== item.title.backdrop_url && <button className="btn sm" onClick={() => setBackdrop(item.title.backdrop_url)}>Reset to default</button>}
+          </div>
+          {shots && (shots.length === 0
+            ? <span className="muted small">Loading images… If nothing shows up, TMDB has no other backdrops for this movie.</span>
+            : <div className="bd-grid">{shots.map((b) => (
+                <button key={b.full} className={'bd-pick' + (backdrop === b.full ? ' on' : '')} aria-pressed={backdrop === b.full} aria-label="Use this backdrop" onClick={() => setBackdrop(b.full)}><img src={b.thumb} alt="" loading="lazy" /></button>
+              ))}</div>)}
+          <div className="row nowrap">
+            <label htmlFor="bd-link" className="sr">Image link</label>
+            <input id="bd-link" className="text-input grow" value={link} onChange={(e) => setLink(e.target.value)} placeholder="…or paste an image link (https://…)" />
+            <button className="btn sm" onClick={() => { if (/^https:\/\/\S+$/.test(link.trim())) { setBackdrop(link.trim()); setLink(''); } else setNote('Paste a full image link starting with https://'); }}>Use</button>
+          </div>
+        </div>
         {field('title', 'Title', 'text', 'Movie title')}
         {field('release_date', 'Release date (YYYY-MM-DD)', 'numeric', '2019-11-22')}
         {field('runtime', 'Runtime, minutes', 'numeric', '103')}

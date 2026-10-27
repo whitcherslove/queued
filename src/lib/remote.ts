@@ -117,3 +117,9 @@ export async function findOwnedBySource(sourceIds: string[], section: Section): 
   (data ?? []).forEach((r: any) => { out[r.title.source_id] = { id: r.id, status: r.status, up_next: r.up_next }; });
   return out;
 }
+
+export async function loadBackdrops(sourceId: string): Promise<{ thumb: string; full: string }[]> {
+  const { data, error } = await supabase.functions.invoke('title', { body: { action: 'images', sourceId } });
+  if (error) return [];
+  return (data?.backdrops ?? []) as { thumb: string; full: string }[];
+}
