@@ -239,7 +239,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
                   {l.rewatch && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
                   {x && <span className="pill" style={{ background: x.color, color: '#17161A' }}>{x.label}</span>}
                   <ScoreRing value={l.score} scale={scale} size={32} fontSize={12} />
-                  <button className="icon-btn small-btn" aria-label="Delete this viewing" onClick={() => setDelView(l.id)}>🗑</button>
+                  <button className="del-x" aria-label="Delete this viewing" onClick={() => setDelView(l.id)}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
                 </div>
               );
             })}
