@@ -207,7 +207,13 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
           <div className="stack">
             <div className="sec-head"><span className="h2">In your lists</span><span className="muted small">{libMatches.length || ''}</span></div>
             {libMatches.length === 0 && <p className="muted small">Not in your lists yet.</p>}
-            {libMatches.map((it) => backlogRow(it, 's'))}
+            {(() => {
+              const latestFor = (id: string) => logs.filter((l) => l.library.id === id).sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
+              const rows = libMatches.map((it) => ({ it, lg: it.status !== 'backlog' ? latestFor(it.id) : undefined }));
+              return view === 'list'
+                ? rows.map(({ it, lg }) => (lg ? watchedRow(lg) : backlogRow(it, 's')))
+                : <div className="grid">{rows.map(({ it, lg }) => (lg ? tile(lg.library, 'w', () => setSheet(lg.library), lg.id, lg.score, lg.tier, lg.watched_at, lg.rewatch) : tile(it, it.up_next ? 'n' : 'r', () => setSheet(it), it.id)))}</div>;
+            })()}
             <div className="sec-head mt"><span className="h2">Add from TMDB</span><span className="muted small">{searching ? 'Searching…' : fresh.length || ''}</span></div>
             {imdbInQuery && (
               <div className="hit">

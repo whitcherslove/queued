@@ -80,9 +80,9 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
     await updateLog(last.id, { watched_at: d + time });
   })();
 
-  const rewOn = planned ? !!item.rewatch : false;
+  const rewOn = planned || !last ? !!item.rewatch : last.rewatch;
   const toggleRew = guard(async () => {
-    if (logs.length) { if (planned && item.rewatch) await cancelRewatch(); else await planRewatch(); }
+    if (last && !planned) await updateLog(last.id, { rewatch: !last.rewatch });
     else await updateItem(item.id, { rewatch: !item.rewatch });
   });
   const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: backlogCount }); setTakeOpen(true); };
