@@ -10,14 +10,14 @@ import ScoreRing from '../components/ScoreRing';
 import { IconBack } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 
-interface Props { itemId: string; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, { id: string; status: string; up_next: boolean }>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string) => void; backlogCount: number }
+interface Props { itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, { id: string; status: string; up_next: boolean }>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string) => void; backlogCount: number }
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const EXT = <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /></svg>;
 const EYE_PLUS = <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 18c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /><path d="M16 19h6" /><path d="M19 16v6" /></svg>;
 const CHIPS = ['Similar movies', 'Fun facts', 'Post-credits scene?', 'Explain the ending'];
 
-export default function MovieCard({ itemId, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
+export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
   const [logs, setLogs] = useState<ItemLog[]>(initialLogs ?? []);
@@ -31,9 +31,35 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
   const [draft, setDraft] = useState('');
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
+  const [sx, setSx] = useState(0);
+  const swRef = useRef<{ x: number; y: number; mode: '' | 'h' | 'v' } | null>(null);
+  const lastSwipe = useRef(0);
+  const swipe = {
+    onPointerDown: (e: React.PointerEvent) => {
+      if (e.button > 0 || (e.target as HTMLElement).closest('input, textarea, .chips.scroll, .bd-grid, .cands, .chat-log, .no-swipe')) return;
+      swRef.current = { x: e.clientX, y: e.clientY, mode: '' };
+    },
+    onPointerMove: (e: React.PointerEvent) => {
+      const st = swRef.current; if (!st) return;
+      const dx = e.clientX - st.x, dy = e.clientY - st.y;
+      if (!st.mode) {
+        if (Math.abs(dx) > 14 && Math.abs(dx) > Math.abs(dy) * 1.4) st.mode = 'h';
+        else if (Math.abs(dy) > 12) { st.mode = 'v'; return; }
+      }
+      if (st.mode === 'h') { const edge = (dx > 0 && !onPrev) || (dx < 0 && !onNext); setSx(edge ? dx * 0.2 : dx); }
+    },
+    onPointerUp: () => {
+      const st = swRef.current; swRef.current = null;
+      if (!st || st.mode !== 'h') return;
+      lastSwipe.current = Date.now();
+      const dx = sx; setSx(0);
+      if (dx < -80 && onNext) onNext(); else if (dx > 80 && onPrev) onPrev();
+    },
+    onPointerCancel: () => { swRef.current = null; setSx(0); },
+    onClickCapture: (e: React.MouseEvent) => { if (Date.now() - lastSwipe.current < 350) { e.preventDefault(); e.stopPropagation(); } }
+  };
   const [error, setError] = useState('');
   const scale = settings.scale;
-  useBackLayer(true, onClose);
   useBackLayer(editOpen, () => setEditOpen(false));
   useBackLayer(!!quick, () => setQuick(null));
   const firstFor = useRef<string | null>(null);
@@ -122,7 +148,8 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
   };
 
   return (
-    <div className="card-screen">
+    <div className={'card-screen' + (enterFrom ? ' enter-' + enterFrom : '')} {...swipe}>
+      <div className="card-swipe" style={{ transform: sx ? `translateX(${sx}px)` : undefined, opacity: sx ? 1 - Math.min(Math.abs(sx) / 700, 0.3) : undefined, transition: sx ? 'none' : undefined }}>
       <div className="hero">
         {t.backdrop_url && <img src={t.backdrop_url} alt="" />}
         <div className="hero-shade" />
@@ -314,6 +341,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
         </section>
       </div>
 
+      </div>
       {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }}
         onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}

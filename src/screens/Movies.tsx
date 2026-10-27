@@ -33,9 +33,15 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const [edit, setEdit] = useState(false);
   const [cardId, setCardId] = useState<string | null>(null);
   const [cardTake, setCardTake] = useState(false);
+  const [cardSeq, setCardSeq] = useState<string[]>([]);
+  const [cardEnter, setCardEnter] = useState<'left' | 'right' | null>(null);
   const [menu, setMenu] = useState<null | { item: LibItem; log: LogRow | null }>(null);
   const [menuConfirm, setMenuConfirm] = useState<null | 'remove' | 'viewing'>(null);
-  const setSheet = (it: LibItem) => setCardId(it.id);
+  const currentSeq = () => {
+    const ids = tab === 'watched' && !(q.trim().length >= 2) ? watched.map((l) => l.library.id) : q.trim().length >= 2 ? matchLibrary(items, q).map((i) => i.id) : splitBacklog(items).next.concat(splitBacklog(items).rest).map((i) => i.id);
+    return ids.filter((id, i) => ids.indexOf(id) === i);
+  };
+  const setSheet = (it: LibItem) => { setCardSeq(currentSeq()); setCardEnter(null); setCardId(it.id); };
   const view = settings.view;
 
   const refresh = useCallback(async () => {
@@ -205,6 +211,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     if (it) { setMenuConfirm(null); setMenu({ item: it, log: lg ?? null }); }
   });
   useBackLayer(!!menu, () => setMenu(null));
+  useBackLayer(!!cardId, () => { setCardId(null); setCardTake(false); });
   useBackLayer(q.length > 0, () => setQ(''));
   useBackLayer(edit, () => setEdit(false));
 
@@ -316,10 +323,10 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
                 </div>
               ) : (
                 <div className="action-list">
-                  <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardId(item.id); }}>Open</button>
-                  {isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardId(item.id); }}>Mark as watched…</button>}
+                  <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Open</button>
+                  {isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Mark as watched…</button>}
                   {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, topPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
-                  {!isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardId(item.id); }}>Change rating…</button>}
+                  {!isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Change rating…</button>}
                   {!isBack && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>Log a rewatch → Backlog</button>}
                   <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>
                   {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>Delete this viewing</button>}
@@ -330,7 +337,9 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
           </div>
         );
       })()}
-      {cardId && <MovieCard key={cardId} itemId={cardId} openTake={cardTake} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
+      {cardId && <MovieCard key={cardId} itemId={cardId} openTake={cardTake} enterFrom={cardEnter}
+        onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
+        onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
         initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}
         initialOwned={Object.fromEntries(items.map((i) => [i.title.source_id, { id: i.id, status: i.status, up_next: i.up_next }]))} settings={settings} backlogCount={topPosition(items)} onClose={() => { setCardId(null); setCardTake(false); }} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
     </div>
