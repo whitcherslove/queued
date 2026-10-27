@@ -14,6 +14,10 @@ import { TIERS } from '../lib/scores';
 interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void }
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
+const EyePlus = ({ size = 15 }: { size?: number }) => (
+  <span className="rew-mark" role="img" aria-label="Rewatch"><svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 18c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /><path d="M16 19h6" /><path d="M19 16v6" /></svg></span>
+);
+
 
 export default function Movies({ settings, onSettings, onMenu }: Props) {
   const [tab, setTab] = useState<'watched' | 'backlog'>('watched');
@@ -115,7 +119,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
           <Poster t={t} w={56} h={84}><span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={24} fontSize={9} /></span></Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
-            <span className="row-meta">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}<Metascore v={t.metascore} size="sm" /></span>
+            <span className="row-meta">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}<Metascore v={t.metascore} size="sm" />{l.rewatch && <EyePlus />}</span>
             {tr && <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span>}
           </span>
         </button>
@@ -126,14 +130,14 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     );
   };
 
-  const tile = (it: LibItem, list: string, onOpen: () => void, key: string, score?: number | null, tier?: string | null, at?: string) => {
+  const tile = (it: LibItem, list: string, onOpen: () => void, key: string, score?: number | null, tier?: string | null, at?: string, rew?: boolean) => {
     const tr = list === 'w' ? tierOf(tier ?? null) : null, d = at ? dateParts(at) : null;
     return (
     <div key={key} {...rowState(list, key)} className={rowState(list, key).className + ' tile'}>
       <button className="tile-main" onClick={() => !edit && onOpen()} aria-label={it.title.title}>
         <Poster t={it.title}>{list === 'n' && <BookmarkBadge />}<span className="tile-mc"><Metascore v={it.title.metascore} size="sm" /></span>{list === 'w' && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
         {tr && <span className="tile-tier" style={{ background: tr.color }}>{tr.label}</span>}
-        {d && <span className="tile-date">{d.day} {d.mon} <span>{d.year}</span></span>}
+        {d && <span className="tile-date"><span className="tile-date-text">{d.day} {d.mon} <span>{d.year}</span></span>{rew && <EyePlus size={14} />}</span>}
       </button>
       {edit && <button className="grip wide" aria-label={'Drag to reorder ' + it.title.title} {...handle(list, key)} onKeyDown={keyMove(list, key)}><GripIcon /></button>}
     </div>
@@ -199,7 +203,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
           <div className="stack">
             {customOrder && <div className="sec-head"><span className="muted small">Custom order</span><button className="link" onClick={async () => { await resetLogOrder(logs.map((l) => l.id)); refresh(); }}>Sort by date</button></div>}
             {watched.length === 0 && <div className="empty"><p><strong>Nothing watched yet.</strong></p><p className="muted">Movies you rate land here. Rating arrives with the movie card in the next update.</p></div>}
-            {view === 'list' ? watched.map((l) => watchedRow(l)) : <div className="grid">{watched.map((l) => tile(l.library, 'w', () => setSheet(l.library), l.id, l.score, l.tier, l.watched_at))}</div>}
+            {view === 'list' ? watched.map((l) => watchedRow(l)) : <div className="grid">{watched.map((l) => tile(l.library, 'w', () => setSheet(l.library), l.id, l.score, l.tier, l.watched_at, l.rewatch))}</div>}
           </div>
         ) : (
           <div className="stack">
