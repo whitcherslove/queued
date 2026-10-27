@@ -30,6 +30,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
   const [editOpen, setEditOpen] = useState(false);
   const [draft, setDraft] = useState('');
   const [delView, setDelView] = useState<string | null>(null);
+  const [editLog, setEditLog] = useState<string | null>(null);
   const [error, setError] = useState('');
   const scale = settings.scale;
   useBackLayer(true, onClose);
@@ -251,12 +252,39 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
                   <button className="btn sm" onClick={() => setDelView(null)}>Cancel</button>
                   <button className="btn sm danger-fill" onClick={guard(async () => { await deleteLog(l.id); const rem = logs.filter((y) => y.id !== l.id); if (!planned) await updateItem(item.id, { status: rem.length ? (latestLog(rem)!.tier === 'dropped' ? 'dropped' : 'done') : 'backlog' }); setDelView(null); })}>Delete</button></div>
               ) : (
-                <div key={l.id} className="view-row">
-                  <span className="grow small strong">{longDate(l.watched_at)} {i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
+                <div key={l.id} className="view-wrap">
+                <div className="view-row">
+                  <button className="view-date grow" aria-expanded={editLog === l.id} onClick={() => setEditLog(editLog === l.id ? null : l.id)}>
+                    <span className="small strong">{longDate(l.watched_at)} {i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
+                    <span className="muted tiny">{editLog === l.id ? 'Done' : 'Edit'}</span>
+                  </button>
                   <button className={'rew-toggle' + (l.rewatch ? ' on' : '')} aria-pressed={l.rewatch} aria-label={l.rewatch ? 'Marked as rewatch — tap to unmark' : 'Mark this viewing as a rewatch'} onClick={guard(async () => { await updateLog(l.id, { rewatch: !l.rewatch }); })}>{EYE_PLUS}</button>
                   {x && <span className="pill" style={{ background: x.color, color: '#17161A' }}>{x.label}</span>}
                   <ScoreRing value={l.score} scale={scale} size={32} fontSize={12} />
                   <button className="del-x" aria-label="Delete this viewing" onClick={() => setDelView(l.id)}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+                </div>
+                {editLog === l.id && (
+                  <div className="view-edit">
+                    <div className="chips">
+                      {TIERS.map((tt) => {
+                        const on = l.tier === tt.id;
+                        return <button key={tt.id} aria-pressed={on} className="chip sm" style={on ? { background: tt.color, borderColor: tt.color, color: '#17161A' } : undefined}
+                          onClick={guard(async () => { await updateLog(l.id, { tier: tt.id }); if (i === 0 && !planned) await updateItem(item.id, { status: tt.id === 'dropped' ? 'dropped' : 'done' }); })}>
+                          <span className="dot" style={{ background: on ? '#17161A' : tt.color }} />{tt.label}</button>;
+                      })}
+                    </div>
+                    <div className="score-row">
+                      <label htmlFor={'vs-' + l.id} className="small strong">Score</label>
+                      <input id={'vs-' + l.id} type="range" min={0} max={scale} step={0.5} value={l.score === null ? 0 : displayScore(l.score, scale)}
+                        onChange={(e) => { const v = Number(e.target.value); const st = scale === 10 ? v / 2 : v; setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); updateLog(l.id, { score: st }).then(onChanged); }}
+                        className={'range grow' + (l.score === null ? ' faint' : '')} aria-valuetext={l.score === null ? 'No score' : `${displayScore(l.score, scale)} out of ${scale}`} />
+                    </div>
+                    <div className="score-row">
+                      <label htmlFor={'vd-' + l.id} className="small strong">Watched on</label>
+                      <input id={'vd-' + l.id} type="date" className="date-input" value={l.watched_at.slice(0, 10)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: d + (l.watched_at.slice(10) || 'T20:00:00Z') }); })(); }} />
+                    </div>
+                  </div>
+                )}
                 </div>
               );
             })}
