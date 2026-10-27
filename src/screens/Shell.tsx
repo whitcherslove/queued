@@ -5,6 +5,7 @@ import { IconMenu, IconMovie, IconPad, IconPc, IconRetro, IconSearch, IconTv } f
 import ProfileScreen from './ProfileScreen';
 import Avatar from '../components/Avatar';
 import Movies from './Movies';
+import { useBackLayer } from '../lib/back';
 
 type SectionId = 'movies' | 'tv' | 'console' | 'pc' | 'retro';
 const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element; tabs: string[]; noun: string }[] = [
@@ -23,6 +24,8 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   const [drawer, setDrawer] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const sec = SECTIONS.find((s) => s.id === section)!;
+  useBackLayer(drawer, () => setDrawer(false));
+  useBackLayer(profileOpen, () => setProfileOpen(false));
 
   if (profileOpen) return <ProfileScreen profile={profile} onBack={() => setProfileOpen(false)} onProfile={onProfile} onSettings={onSettings} />;
 

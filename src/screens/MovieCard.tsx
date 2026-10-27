@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMsg, CollectionPart, ItemLog, LibItem, Overrides, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { TIERS, displayScore, imdbColor, metascoreColor } from '../lib/scores';
@@ -8,6 +8,7 @@ import {
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import { IconBack } from '../components/Icons';
+import { useBackLayer } from '../lib/back';
 
 interface Props { itemId: string; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string) => void; backlogCount: number }
 
@@ -30,10 +31,15 @@ export default function MovieCard({ itemId, settings, onClose, onChanged, onOpen
   const [delView, setDelView] = useState<string | null>(null);
   const [error, setError] = useState('');
   const scale = settings.scale;
+  useBackLayer(true, onClose);
+  useBackLayer(editOpen, () => setEditOpen(false));
+  useBackLayer(!!quick, () => setQuick(null));
+  const firstFor = useRef<string | null>(null);
 
   const reload = useCallback(async () => {
     const [it, lg, ch] = await Promise.all([loadItem(itemId), loadItemLogs(itemId), loadChat(itemId)]);
     setItem(it); setLogs(lg); setChat(ch);
+    if (firstFor.current !== it.id) { firstFor.current = it.id; setTakeOpen(it.status === 'backlog'); }
     const parts = ((it.title.data as any)?.collection?.parts ?? []) as CollectionPart[];
     setOwned(await findOwnedBySource(parts.map((p) => p.sourceId), 'movies'));
   }, [itemId]);

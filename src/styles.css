@@ -229,3 +229,20 @@ input, textarea, select { font-size: 16px !important; }
   .rotate-hint { display: flex; position: fixed; inset: 0; z-index: 100; background: var(--bg); color: var(--ink); align-items: center; justify-content: center; font-family: 'Oswald', sans-serif; font-size: 20px; text-transform: uppercase; letter-spacing: 1px; }
   #root { visibility: hidden; }
 }
+
+/* step 3c fixes */
+.switch-row.card { flex-direction: row; align-items: center; gap: 12px; padding: 0 14px; min-height: 64px; width: 100%; color: var(--ink); text-align: left; border: 0; }
+.switch-row.card .stack-sm { flex: 1; }
+.take-summary .pill, .view-row .pill, .row .pill { align-self: center; }
+.take-summary .h2 { flex: none; }
+.row-card.next { border-left: 0; box-shadow: inset 4px 0 0 var(--accent); padding-left: 12px; }
+.row-card.next.drop { box-shadow: inset 4px 0 0 var(--accent), inset 0 0 0 2px var(--accent); }
+
+/* fixes */
+.switch-row.card { flex-direction: row; align-items: center; padding: 0 14px; min-height: 64px; }
+.take-summary .pill, .take-summary .rew-icon { align-self: center; }
+.row-card.next { border-left: 0; padding-left: 8px; box-shadow: inset 4px 0 0 var(--accent); }
+.row-card.next.drop { box-shadow: inset 4px 0 0 var(--accent), inset 0 0 0 2px var(--accent); }
+.poster-ring { position: absolute; right: 3px; bottom: 3px; border-radius: 999px; background: rgba(0,0,0,.65); display: flex; }
+.poster-ring .ring span { color: #fff; }
+.tile-main .poster-ring { right: 5px; bottom: 5px; }

@@ -4,6 +4,8 @@ import type { Settings } from '../lib/theme';
 import { merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
 import { addToBacklog, ensureTitle, loadLibrary, loadLogs, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles } from '../lib/remote';
 import MovieCard from './MovieCard';
+import ScoreRing from '../components/ScoreRing';
+import { useBackLayer } from '../lib/back';
 import { useDragReorder } from '../lib/drag';
 import { BookmarkBadge, GripIcon, Metascore, Poster } from '../components/Rows';
 import { IconMenu, IconSearch } from '../components/Icons';
@@ -111,7 +113,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     return (
       <div key={l.id} {...rowState('w', l.id)}>
         <button className="row-main" onClick={() => !edit && setSheet(l.library)}>
-          <Poster t={t} w={56} h={84} />
+          <Poster t={t} w={56} h={84}><span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={30} fontSize={11} /></span></Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
             <span className="row-meta">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}</span>
@@ -126,16 +128,18 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     );
   };
 
-  const tile = (it: LibItem, list: string, onOpen: () => void, key: string) => (
+  const tile = (it: LibItem, list: string, onOpen: () => void, key: string, score?: number | null) => (
     <div key={key} {...rowState(list, key)} className={rowState(list, key).className + ' tile'}>
       <button className="tile-main" onClick={() => !edit && onOpen()} aria-label={it.title.title}>
-        <Poster t={it.title}>{list === 'n' && <BookmarkBadge />}<span className="tile-mc"><Metascore v={it.title.metascore} size="sm" /></span></Poster>
+        <Poster t={it.title}>{list === 'n' && <BookmarkBadge />}<span className="tile-mc"><Metascore v={it.title.metascore} size="sm" /></span>{list === 'w' && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
       </button>
       {edit && <button className="grip wide" aria-label={'Drag to reorder ' + it.title.title} {...handle(list, key)} onKeyDown={keyMove(list, key)}><GripIcon /></button>}
     </div>
   );
 
   const searchingMode = q.trim().length >= 2;
+  useBackLayer(q.length > 0, () => setQ(''));
+  useBackLayer(edit, () => setEdit(false));
 
   return (
     <div className="app">
@@ -193,7 +197,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
           <div className="stack">
             {customOrder && <div className="sec-head"><span className="muted small">Custom order</span><button className="link" onClick={async () => { await resetLogOrder(logs.map((l) => l.id)); refresh(); }}>Sort by date</button></div>}
             {watched.length === 0 && <div className="empty"><p><strong>Nothing watched yet.</strong></p><p className="muted">Movies you rate land here. Rating arrives with the movie card in the next update.</p></div>}
-            {view === 'list' ? watched.map((l) => watchedRow(l)) : <div className="grid">{watched.map((l) => tile(l.library, 'w', () => setSheet(l.library), l.id))}</div>}
+            {view === 'list' ? watched.map((l) => watchedRow(l)) : <div className="grid">{watched.map((l) => tile(l.library, 'w', () => setSheet(l.library), l.id, l.score))}</div>}
           </div>
         ) : (
           <div className="stack">
