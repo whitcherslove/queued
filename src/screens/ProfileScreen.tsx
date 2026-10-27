@@ -60,7 +60,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             <span className={'switch' + (s.posterScore ? ' on' : '')}><span /></span>
           </button>
           <button className="switch-row flat" role="switch" aria-checked={s.listMetascore} onClick={() => set({ listMetascore: !s.listMetascore })}>
-            <span className="stack-sm grow"><strong>Metascore in lists</strong><span className="muted small">Metascore next to the runtime and on grid posters</span></span>
+            <span className="stack-sm grow"><strong>Metascore in Watched</strong><span className="muted small">Metascore in the Watched list and grid. Backlog always shows it</span></span>
             <span className={'switch' + (s.listMetascore ? ' on' : '')}><span /></span>
           </button>
           <span className="muted small">Accent</span>
