@@ -126,14 +126,18 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     );
   };
 
-  const tile = (it: LibItem, list: string, onOpen: () => void, key: string, score?: number | null) => (
+  const tile = (it: LibItem, list: string, onOpen: () => void, key: string, score?: number | null, tier?: string | null, at?: string) => {
+    const tr = list === 'w' ? tierOf(tier ?? null) : null, d = at ? dateParts(at) : null;
+    return (
     <div key={key} {...rowState(list, key)} className={rowState(list, key).className + ' tile'}>
       <button className="tile-main" onClick={() => !edit && onOpen()} aria-label={it.title.title}>
         <Poster t={it.title}>{list === 'n' && <BookmarkBadge />}<span className="tile-mc"><Metascore v={it.title.metascore} size="sm" /></span>{list === 'w' && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
+        {tr && <span className="tile-tier" style={{ background: tr.color }}>{tr.label}</span>}
+        {d && <span className="tile-date">{d.day} {d.mon} <span>{d.year}</span></span>}
       </button>
       {edit && <button className="grip wide" aria-label={'Drag to reorder ' + it.title.title} {...handle(list, key)} onKeyDown={keyMove(list, key)}><GripIcon /></button>}
     </div>
-  );
+  ); };
 
   const searchingMode = q.trim().length >= 2;
   useBackLayer(q.length > 0, () => setQ(''));
@@ -195,7 +199,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
           <div className="stack">
             {customOrder && <div className="sec-head"><span className="muted small">Custom order</span><button className="link" onClick={async () => { await resetLogOrder(logs.map((l) => l.id)); refresh(); }}>Sort by date</button></div>}
             {watched.length === 0 && <div className="empty"><p><strong>Nothing watched yet.</strong></p><p className="muted">Movies you rate land here. Rating arrives with the movie card in the next update.</p></div>}
-            {view === 'list' ? watched.map((l) => watchedRow(l)) : <div className="grid">{watched.map((l) => tile(l.library, 'w', () => setSheet(l.library), l.id, l.score))}</div>}
+            {view === 'list' ? watched.map((l) => watchedRow(l)) : <div className="grid">{watched.map((l) => tile(l.library, 'w', () => setSheet(l.library), l.id, l.score, l.tier, l.watched_at))}</div>}
           </div>
         ) : (
           <div className="stack">
