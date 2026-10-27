@@ -49,7 +49,8 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
   const t = useMemo(() => (item ? merged(item.title, item.overrides) : null), [item]);
   const last = latestLog(logs);
   const done = item ? item.status === 'done' || item.status === 'dropped' : false;
-  const score = last ? last.score : item?.score ?? null;
+  const planned = item?.status === 'backlog';
+  const score = planned ? item?.score ?? null : last ? last.score : item?.score ?? null;
 
   if (!item || !t) return <div className="card-screen"><div className="card-loading">{error || 'Loading…'}</div></div>;
 
@@ -57,19 +58,19 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
   const guard = (fn: () => Promise<void>) => async () => { try { setError(''); await fn(); await changed(); } catch { setError('Something went wrong. Try again.'); } };
 
   const pickTier = (id: string) => guard(async () => {
-    if (last && last.tier === id) {
+    if (!planned && last && last.tier === id) {
       await deleteLog(last.id);
       const remaining = logs.filter((l) => l.id !== last.id);
       await updateItem(item.id, { status: remaining.length ? ((latestLog(remaining)!.tier === 'dropped') ? 'dropped' : 'done') : 'backlog' });
       return;
     }
-    if (last) await updateLog(last.id, { tier: id });
+    if (last && !planned) await updateLog(last.id, { tier: id });
     else await insertLog(item.id, { tier: id, score: item.score, rewatch: !!item.rewatch, watched_at: new Date().toISOString() });
     await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done', up_next: false, rewatch: false });
   })();
 
   const setScore = (v: number | null) => guard(async () => {
-    if (last) await updateLog(last.id, { score: v }); else await updateItem(item.id, { score: v });
+    if (last && !planned) await updateLog(last.id, { score: v }); else await updateItem(item.id, { score: v });
   })();
 
   const setDate = (d: string) => guard(async () => {
@@ -78,9 +79,9 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
     await updateLog(last.id, { watched_at: d + time });
   })();
 
-  const rewOn = last ? last.rewatch : !!item.rewatch;
-  const toggleRew = guard(async () => { if (last) await updateLog(last.id, { rewatch: !last.rewatch }); else await updateItem(item.id, { rewatch: !item.rewatch }); });
-  const logRewatch = guard(async () => { await insertLog(item.id, { rewatch: true, tier: last?.tier ?? null, watched_at: new Date().toISOString() }); setTakeOpen(true); });
+  const rewOn = last && !planned ? last.rewatch : !!item.rewatch;
+  const toggleRew = guard(async () => { if (last && !planned) await updateLog(last.id, { rewatch: !last.rewatch }); else await updateItem(item.id, { rewatch: !item.rewatch }); });
+  const logRewatch = guard(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: backlogCount + 1 }); setTakeOpen(true); });
   const toggleNext = guard(async () => { await updateItem(item.id, { up_next: !item.up_next, position: backlogCount + 1 }); });
 
   const send = async (text: string) => {
@@ -100,7 +101,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
   ] as [string, string][]).filter(([, v]) => v);
   const mcUrl = 'https://www.metacritic.com/search/' + encodeURIComponent(t.title) + '/?category=2';
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
-  const tr = tierOf(last?.tier ?? null);
+  const tr = planned ? null : tierOf(last?.tier ?? null);
   const ov = t.overview ?? '';
 
   const tile = (kind: 'metascore' | 'imdb_rating') => {
@@ -172,7 +173,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
                   return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>;
                 })}
               </div>
-              {!done && <span className="muted small">Pick a rating to move it to Watched</span>}
+              {!done && <span className="muted small">{planned && logs.length ? 'Rewatch in your Backlog — pick a rating when you’ve watched it again' : 'Pick a rating to move it to Watched'}</span>}
               <div className="divider" />
               <div className="score-row">
                 <label htmlFor="score" className="strong">My score</label>
@@ -183,7 +184,7 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
                 onChange={(e) => { const v = Number(e.target.value); setScore(scale === 10 ? v / 2 : v); }}
                 aria-valuetext={score === null ? 'No score' : `${displayScore(score, scale)} out of ${scale}`} className={'range' + (score === null ? ' faint' : '')} />
               <div className="ticks" aria-hidden="true">{(scale === 10 ? [0, 2, 4, 6, 8, 10] : [0, 1, 2, 3, 4, 5]).map((n) => <span key={n}>{n}</span>)}</div>
-              {last && (
+              {last && !planned && (
                 <>
                   <div className="divider" />
                   <div className="score-row"><label htmlFor="wdate" className="strong">Watched on</label><input id="wdate" type="date" value={last.watched_at.slice(0, 10)} onChange={(e) => setDate(e.target.value)} className="date-input" /></div>
@@ -226,13 +227,13 @@ export default function MovieCard({ itemId, openTake, initial, initialLogs, init
         {logs.length > 0 && (
           <section className="card stack-sm">
             <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length} {logs.length === 1 ? 'viewing' : 'viewings'}</span></span>
-              <button className="btn primary sm" onClick={logRewatch}>Log a rewatch</button></div>
+              <button className="btn primary sm" onClick={logRewatch}>{planned ? 'Rewatch planned' : 'Log a rewatch'}</button></div>
             {logs.map((l, i) => {
               const x = tierOf(l.tier);
               return delView === l.id ? (
                 <div key={l.id} className="view-row"><span className="grow small strong">Delete the {longDate(l.watched_at)} viewing?</span>
                   <button className="btn sm" onClick={() => setDelView(null)}>Cancel</button>
-                  <button className="btn sm danger-fill" onClick={guard(async () => { await deleteLog(l.id); const rem = logs.filter((y) => y.id !== l.id); await updateItem(item.id, { status: rem.length ? (latestLog(rem)!.tier === 'dropped' ? 'dropped' : 'done') : 'backlog' }); setDelView(null); })}>Delete</button></div>
+                  <button className="btn sm danger-fill" onClick={guard(async () => { await deleteLog(l.id); const rem = logs.filter((y) => y.id !== l.id); if (!planned) await updateItem(item.id, { status: rem.length ? (latestLog(rem)!.tier === 'dropped' ? 'dropped' : 'done') : 'backlog' }); setDelView(null); })}>Delete</button></div>
               ) : (
                 <div key={l.id} className="view-row">
                   <span className="grow small strong">{longDate(l.watched_at)} {i === 0 && <span className="accent-text normal">Latest</span>}</span>

@@ -116,7 +116,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         <Poster t={it.title} w={56} h={84}>{list === 'n' && <BookmarkBadge />}</Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
-          <span className="row-meta">{[releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}<Metascore v={it.title.metascore} size="sm" /></span>
+          <span className="row-meta">{[releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}<Metascore v={it.title.metascore} size="sm" />{it.rewatch && <EyePlus />}</span>
         </span>
       </button>
       {grip(list, it.id, it.title.title)}
@@ -269,7 +269,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
                   {isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardId(item.id); }}>Mark as watched…</button>}
                   {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, nextPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
                   {!isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardId(item.id); }}>Change rating…</button>}
-                  {!isBack && <button role="menuitem" onClick={run(async () => { await insertLog(item.id, { rewatch: true, tier: log?.tier ?? null, watched_at: new Date().toISOString() }); })}>Log a rewatch</button>}
+                  {!isBack && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: nextPosition(items) }); })}>Log a rewatch → Backlog</button>}
                   <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>
                   {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>Delete this viewing</button>}
                   <button role="menuitem" className="danger" onClick={() => setMenuConfirm('remove')}>Remove from my lists</button>
