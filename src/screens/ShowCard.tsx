@@ -122,8 +122,12 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   const seasons = seasonsOf(t);
   const plan = planOf(item);
   const planLabel = scopeLabel(plan, t);
-  const runSeen = (s: number, e: number) => marks.some((m) => m.season === s && m.episode === e && m.watched_at >= since);
-  const seenBefore = (s: number, e: number) => marks.some((m) => m.season === s && m.episode === e && m.watched_at < since);
+  // An episode shows as watched whenever it's marked. Only during a rewatch, marks from before it started look faded ("seen before").
+  const rewatching = !!item.rewatch && (isBack || isPlaying);
+  const inPlanSeason = (n: number) => !plan || plan.includes(n);
+  const markOf = (s: number, e: number) => marks.find((m) => m.season === s && m.episode === e);
+  const runSeen = (s: number, e: number) => { const m = markOf(s, e); return !!m && (!rewatching || !inPlanSeason(s) || m.watched_at >= since); };
+  const seenBefore = (s: number, e: number) => { const m = markOf(s, e); return !!m && !runSeen(s, e); };
   const today = todayIso();
 
   const changed = async () => { await reload(); onChanged(); };

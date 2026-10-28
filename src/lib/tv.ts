@@ -73,10 +73,11 @@ export interface Progress {
   complete: boolean; caughtUp: boolean; anySeen: boolean;
 }
 
-/** Progress of the current run over the planned seasons. Marks older than the run start do not count. */
-export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_seasons' | 'run_started_at'>, t: Title, eps: SeasonEps[], marks: Mark[], today = todayIso()): Progress {
+/** Progress over the planned seasons. During a rewatch, marks older than the rewatch start do not count. */
+export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_seasons' | 'run_started_at'> & { rewatch?: boolean }, t: Title, eps: SeasonEps[], marks: Mark[], today = todayIso()): Progress {
   const scope = scopeSeasons(item, t);
-  const since = item.run_started_at ?? '';
+  // Only a rewatch starts from scratch; otherwise every mark counts, whenever it was made.
+  const since = item.rewatch ? item.run_started_at ?? '' : '';
   const seenSet = new Set(marks.filter((m) => m.watched_at >= since).map((m) => m.season + ':' + m.episode));
   let aired = 0, seen = 0, total = 0, nextEp: EpRef | null = null, nextFuture: EpRef | null = null, lastSeen: string | null = null;
   const known = new Set(eps.map((e) => e.season));

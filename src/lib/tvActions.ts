@@ -15,7 +15,7 @@ export async function applyEpisodeMarks(item: LibItem, t: Title, eps: SeasonEps[
   const mine = next.filter((m) => m.library_id === item.id);
   const p = progress(item, t, eps, mine);
   const isDone = item.status === 'done' || item.status === 'dropped';
-  const since = item.run_started_at ?? '';
+  const since = item.run_started_at ?? '';  // the entry written in this run, if any
   const runLog = logs.find((l) => since && l.watched_at >= since) ?? null;
   if (p.complete && !isDone) {
     await insertLog(item.id, { ...logScope(planOf(item)), watched_at: p.lastSeen ?? now, tier: null, score: item.score, rewatch: !!item.rewatch } as Partial<ItemLog>);

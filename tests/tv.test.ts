@@ -38,9 +38,11 @@ describe('tv progress', () => {
     expect(p.seen).toBe(1); expect(p.nextEp?.episode).toBe(2); expect(p.complete).toBe(false);
     p = progress(plan, t, e, [mark(2, 1), mark(2, 2)], '2026-10-28');
     expect(p.complete).toBe(true);
-    // marks from an earlier run do not count
-    p = progress(plan, t, e, [mark(2, 1, '2025-01-01T00:00:00Z')], '2026-10-28');
+    // marks from before a rewatch do not count, but they do for a normal run
+    p = progress({ ...plan, rewatch: true }, t, e, [mark(2, 1, '2025-01-01T00:00:00Z')], '2026-10-28');
     expect(p.seen).toBe(0);
+    p = progress(plan, t, e, [mark(2, 1, '2025-01-01T00:00:00Z')], '2026-10-28');
+    expect(p.seen).toBe(1);
     // a season that hasn't fully aired is caught up, not complete
     const p3 = progress({ plan_seasons: [3], run_started_at: null }, t, e, [mark(3, 1), mark(3, 2)], '2026-10-28');
     const p13 = progress({ plan_seasons: [1, 3], run_started_at: null }, t, e, [mark(1, 1), mark(1, 2)], '2026-10-28');
