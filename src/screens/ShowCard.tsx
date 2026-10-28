@@ -311,7 +311,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
             const inPlan = !plan || plan.includes(s.n);
             const open = !!openS[s.n];
             const allSeen = aired > 0 && seen === aired;
-            const lastAt = marks.filter((m) => m.season === s.n && (allSeen ? m.watched_at >= since : true)).map((m) => m.watched_at).sort().pop() ?? null;
+            const lastAt = marks.filter((m) => m.season === s.n && runSeen(m.season, m.episode)).map((m) => m.watched_at).sort().pop() ?? null;
             return (
               <div key={s.n} className={'season-card' + (inPlan ? '' : ' out')}>
                 <button className="season-head" aria-expanded={open} onClick={() => setOpenS({ ...openS, [s.n]: !open })}>
