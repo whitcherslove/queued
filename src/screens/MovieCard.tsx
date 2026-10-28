@@ -36,6 +36,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
   const [draft, setDraft] = useState('');
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
+  const [pastOpen, setPastOpen] = useState(false);
   const [preview, setPreview] = useState<number | null | undefined>(undefined);
   const swipeEl = useRef<HTMLDivElement>(null);
   const raf = useRef(0);
@@ -80,6 +81,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
   const scale = settings.scale;
   useBackLayer(editOpen, () => setEditOpen(false));
   useBackLayer(!!quick, () => setQuick(null));
+  useBackLayer(pastOpen, () => setPastOpen(false));
   const firstFor = useRef<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -279,10 +281,12 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
           </section>
         )}
 
-        {logs.length > 0 && (
+        {(logs.length > 0 || item.status === 'backlog') && (
           <section className="card stack-sm">
             <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length} {logs.length === 1 ? 'viewing' : 'viewings'}</span></span>
-              <button className={'btn sm' + (planned ? ' planned' : ' primary')} aria-pressed={planned} onClick={logRewatch}>{planned ? '✓ Rewatch planned' : 'Log a rewatch'}</button></div>
+              <span className="row nowrap"><button className="link" onClick={() => setPastOpen(true)}>+ Add past</button>
+              {logs.length > 0 && <button className={'btn sm' + (planned ? ' planned' : ' primary')} aria-pressed={planned} onClick={logRewatch}>{planned ? '✓ Rewatch planned' : 'Log a rewatch'}</button>}</span></div>
+            {logs.length === 0 && <span className="muted small">Seen it before you started tracking? Add that viewing here.</span>}
             {planned && logs.length > 0 && (
               <div className="view-row">
                 <span className="grow small strong">Planned rewatch <span className="accent-text normal">Next</span></span>
@@ -360,6 +364,12 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
       </div>
 
       </div>
+      {pastOpen && <PastMovieSheet t={t} scale={scale} onCancel={() => setPastOpen(false)}
+        onSave={(at, tier, sc) => { setPastOpen(false); guard(async () => {
+          await insertLog(item.id, { watched_at: at, tier, score: sc, rewatch: false });
+          // a backlog movie you'd already seen counts as watched now (unless it's a planned rewatch)
+          if (item.status === 'backlog' && !item.rewatch) await updateItem(item.id, { status: tier === 'dropped' ? 'dropped' : 'done', up_next: false });
+        })(); }} />}
       {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }}
         onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
@@ -468,6 +478,26 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
         {confirm
           ? <div className="row"><span className="small">Delete “{m.title}” and its viewings?</span><button className="btn sm" onClick={() => setConfirm(false)}>Cancel</button><button className="btn sm danger-fill" onClick={onDeleted}>Delete</button></div>
           : <button className="btn danger" onClick={() => setConfirm(true)}>{kind === 'tv' ? 'Delete show' : 'Delete movie'}</button>}
+      </div>
+    </div>
+  );
+}
+
+/** "Add past": a viewing from before you started tracking. Default date = release date. */
+function PastMovieSheet({ t, scale, onCancel, onSave }: { t: Title; scale: 5 | 10; onCancel: () => void; onSave: (at: string, tier: string | null, score: number | null) => void }) {
+  const [day, setDay] = useState<string>(t.release_date ?? (t.year ? t.year + '-12-31' : localDay(new Date().toISOString())));
+  const [tier, setTier] = useState<string | null>(null);
+  const [score, setScore] = useState<number | null>(null);
+  return (
+    <div className="sheet-wrap">
+      <button className="sheet-scrim" aria-label="Close" onClick={onCancel} />
+      <div className="sheet" role="dialog" aria-label="Past viewing">
+        <div className="stack-sm"><strong className="sheet-title">{t.title}</strong><span className="muted small">A viewing from before you started tracking</span></div>
+        <div className="score-row"><label htmlFor="past-day" className="strong">Watched on</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} /></div>
+        <span className="muted small">Don’t remember? Keep the release date — the entry still lands in the right place in Watched.</span>
+        <div className="chips">{TIERS.map((x) => { const on = tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => setTier(on ? null : x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}</div>
+        <div className="score-row"><span className="small strong">Score</span><ScoreSlider compact id="past-score" label="Score" value={score} scale={scale} onCommit={setScore} /></div>
+        <div className="row nowrap"><button className="btn grow" onClick={onCancel}>Cancel</button><button className="btn primary grow" onClick={() => onSave(new Date(day + 'T20:00:00').toISOString(), tier, score)}>Add to Watched</button></div>
       </div>
     </div>
   );
