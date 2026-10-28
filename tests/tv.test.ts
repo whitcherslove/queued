@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { logScope, progress, scopeLabel, scopeSeasons, showYears } from '../src/lib/tv';
+import { logScope, planOf, progress, scopeLabel, scopeSeasons, seasonsName, showYears } from '../src/lib/tv';
 import type { Mark, SeasonEps, Title } from '../src/lib/types';
 
 const show = (status: string, seasons: [number, string, number][], extra: Record<string, unknown> = {}): Title => ({
@@ -15,12 +15,16 @@ describe('tv labels', () => {
   it('scopes and labels', () => {
     expect(scopeSeasons({ plan_from: null, plan_to: null }, t)).toEqual([1, 2, 3]);
     expect(scopeSeasons({ plan_from: 2, plan_to: 3 }, t)).toEqual([2, 3]);
+    expect(scopeSeasons({ plan_seasons: [1, 3] }, t)).toEqual([1, 3]);
+    expect(planOf({ plan_seasons: [3, 1] })).toEqual([1, 3]);
     expect(showYears(t)).toBe('1999–2007');
-    expect(scopeLabel(null, null, t)).toBe('Full series · 1999–2007');
-    expect(scopeLabel(3, 3, t)).toBe('Season 3 · 2001');
-    expect(scopeLabel(1, 2, t)).toBe('Seasons 1–2 · 1999–2000');
-    expect(logScope(2, 2)).toEqual({ scope: 'season', season_from: 2, season_to: 2 });
-    expect(logScope(null, null).scope).toBe('show');
+    expect(scopeLabel(null, t)).toBe('Full series · 1999–2007');
+    expect(scopeLabel([3], t)).toBe('Season 3 · 2001');
+    expect(scopeLabel([1, 2], t)).toBe('Seasons 1–2 · 1999–2000');
+    expect(scopeLabel([3, 1], t)).toBe('Seasons 1, 3 · 1999–2001');
+    expect(seasonsName([1, 2, 4])).toBe('Seasons 1, 2, 4');
+    expect(logScope([2])).toEqual({ scope: 'season', season_from: 2, season_to: 2, seasons: [2] });
+    expect(logScope(null).scope).toBe('show');
     expect(showYears(show('Returning Series', [[1, '2022-02-04', 1]]))).toBe('2022–');
   });
 });
@@ -38,7 +42,9 @@ describe('tv progress', () => {
     p = progress(plan, t, e, [mark(2, 1, '2025-01-01T00:00:00Z')], '2026-10-28');
     expect(p.seen).toBe(0);
     // a season that hasn't fully aired is caught up, not complete
-    const p3 = progress({ plan_from: 3, plan_to: 3, run_started_at: null }, t, e, [mark(3, 1), mark(3, 2)], '2026-10-28');
+    const p3 = progress({ plan_seasons: [3], run_started_at: null }, t, e, [mark(3, 1), mark(3, 2)], '2026-10-28');
+    const p13 = progress({ plan_seasons: [1, 3], run_started_at: null }, t, e, [mark(1, 1), mark(1, 2)], '2026-10-28');
+    expect(p13.nextEp?.season).toBe(3);
     expect(p3.complete).toBe(false); expect(p3.caughtUp).toBe(true); expect(p3.nextFuture?.episode).toBe(3);
   });
   it('full series completes only when the show has ended', () => {

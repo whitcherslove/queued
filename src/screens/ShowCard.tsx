@@ -7,7 +7,8 @@ import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
   refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog
 } from '../lib/remote';
-import { epLabel, isEnded, logScope, progress, scopeLabel, seasonsOf, showYears, todayIso } from '../lib/tv';
+import { epLabel, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonsName, seasonsOf, showYears, todayIso } from '../lib/tv';
+import { applyEpisodeMarks } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
 import ScopeSheet from '../components/ScopeSheet';
 import { IconBack } from '../components/Icons';
@@ -21,8 +22,7 @@ interface Props {
   onClose: () => void; onChanged: () => void; topPos: number;
 }
 const CHIPS = ['Similar shows', 'Is it worth continuing?', 'Recap the last season', 'Fun facts'];
-const scopeShort = (l: { scope?: string; season_from?: number | null; season_to?: number | null }) =>
-  l.scope === 'show' || l.season_from == null ? 'Full series' : l.season_from === (l.season_to ?? l.season_from) ? 'Season ' + l.season_from : 'Seasons ' + l.season_from + '–' + l.season_to;
+const scopeShort = (l: { scope?: string; season_from?: number | null; season_to?: number | null; seasons?: number[] | null }) => seasonsName(logSeasons(l));
 
 function ProgressRing({ pct, text, size = 48 }: { pct: number; text: string; size?: number }) {
   const C = 138.23;
@@ -116,7 +116,8 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   const score = currentLog ? currentLog.score : item.score;
   const tileScore = currentLog ? currentLog.score : (item.score ?? last?.score ?? null);
   const seasons = seasonsOf(t);
-  const planLabel = scopeLabel(item.plan_from, item.plan_to, t);
+  const plan = planOf(item);
+  const planLabel = scopeLabel(plan, t);
   const runSeen = (s: number, e: number) => marks.some((m) => m.season === s && m.episode === e && m.watched_at >= since);
   const seenBefore = (s: number, e: number) => marks.some((m) => m.season === s && m.episode === e && m.watched_at < since);
   const today = todayIso();
@@ -124,34 +125,14 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   const changed = async () => { await reload(); onChanged(); };
   const guard = (fn: () => Promise<void>) => async () => { try { setError(''); await fn(); await changed(); } catch { setError('Something went wrong. Try again.'); } };
 
-  /** After marks change: move between Backlog / Watching / Watched and write the journal entry. */
-  const syncAfter = async (nextMarks: Mark[]) => {
-    const p2 = progress(item, t, eps, nextMarks);
-    if (p2.complete && !isDone) {
-      await insertLog(item.id, { ...logScope(item.plan_from, item.plan_to), watched_at: p2.lastSeen ?? new Date().toISOString(), tier: null, score: item.score, rewatch: !!item.rewatch } as Partial<ItemLog>);
-      await updateItem(item.id, { status: 'done', up_next: false, rewatch: false, score: null });
-      setTakeOpen(true);
-      return;
-    }
-    if (!p2.complete && isDone && runLog && !runLog.tier) {
-      await deleteLog(runLog.id);
-      await updateItem(item.id, { status: p2.anySeen ? 'playing' : 'backlog' });
-      return;
-    }
-    if (isBack && p2.anySeen) await updateItem(item.id, { status: 'playing', up_next: false, started_on: today });
-    else if (isPlaying && !p2.anySeen) await updateItem(item.id, { status: 'backlog' });
-  };
   const applyMarks = (list: { season: number; episode: number }[], on: boolean) => guard(async () => {
-    const now = new Date().toISOString();
-    const keep = marks.filter((m) => !list.some((x) => x.season === m.season && x.episode === m.episode));
-    const next = on ? keep.concat(list.map((x) => ({ library_id: item.id, season: x.season, episode: x.episode, watched_at: now }))) : keep;
-    setMarksState(next);
-    await setMarks(item.id, list, on);
-    await syncAfter(next);
+    const r = await applyEpisodeMarks(item, t, eps, marks, logs, list, on);
+    setMarksState(r.marks);
+    if (r.finished) setTakeOpen(true);
   })();
   const airedUpTo = (s: number, e: number) => {
     const out: { season: number; episode: number }[] = [];
-    seasons.filter((x) => x.n <= s && (item.plan_from == null || (x.n >= item.plan_from && x.n <= (item.plan_to ?? item.plan_from)))).forEach((x) => {
+    seasons.filter((x) => x.n <= s && (!plan || plan.includes(x.n))).forEach((x) => {
       (eps.find((y) => y.season === x.n)?.episodes ?? []).forEach((ep) => { if ((x.n < s || ep.n <= e) && ep.air_date && ep.air_date <= today && !runSeen(x.n, ep.n)) out.push({ season: x.n, episode: ep.n }); });
     });
     return out;
@@ -165,7 +146,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
       await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done' });
       return;
     }
-    await insertLog(item.id, { ...logScope(item.plan_from, item.plan_to), watched_at: new Date().toISOString(), tier: id, score: item.score, rewatch: !!item.rewatch } as Partial<ItemLog>);
+    await insertLog(item.id, { ...logScope(plan), watched_at: new Date().toISOString(), tier: id, score: item.score, rewatch: !!item.rewatch } as Partial<ItemLog>);
     await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done', up_next: false, rewatch: false, score: null });
   })();
   const setScore = (v: number | null) => guard(async () => { if (currentLog) await updateLog(currentLog.id, { score: v }); else await updateItem(item.id, { score: v }); })();
@@ -173,10 +154,11 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   const toggleRew = guard(async () => { if (currentLog) await updateLog(currentLog.id, { rewatch: !currentLog.rewatch }); else await updateItem(item.id, { rewatch: !item.rewatch }); });
   const toggleNext = guard(async () => { await updateItem(item.id, { up_next: !item.up_next, position: topPos }); });
   const cancelPlan = guard(async () => { await updateItem(item.id, { status: last?.tier === 'dropped' ? 'dropped' : 'done', rewatch: false, up_next: false, score: null }); });
-  const doneScope = (from: number | null, to: number | null) => guard(async () => {
+  const doneScope = (list: number[] | null) => guard(async () => {
     const kind = scopeFor; setScopeFor('');
-    if (kind === 'plan') await updateItem(item.id, { plan_from: from, plan_to: to });
-    else await updateItem(item.id, { status: 'backlog', plan_from: from, plan_to: to, run_started_at: new Date().toISOString(), rewatch: kind === 'rewatch', score: null, position: topPos, up_next: false });
+    const planPatch = { plan_seasons: list, plan_from: list ? list[0] : null, plan_to: list ? list[list.length - 1] : null };
+    if (kind === 'plan') await updateItem(item.id, planPatch);
+    else await updateItem(item.id, { status: 'backlog', ...planPatch, run_started_at: new Date().toISOString(), rewatch: kind === 'rewatch', score: null, position: topPos, up_next: false });
     setTakeOpen(false);
   })();
   const send = async (text: string) => {
@@ -198,7 +180,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
       ? <button className="tile3" onClick={() => setQuick(kind)} aria-label={'Add ' + label}>{sq}<span className="muted small">Add {label} ✎</span></button>
       : <a className="tile3" href={kind === 'metascore' ? mcUrl : imdbUrl} target="_blank" rel="noopener">{sq}<span className="muted small">{label} {EXT}</span></a>;
   };
-  const maxLogged = Math.max(0, ...logs.map((l) => (l.scope === 'show' ? seasons.length : l.season_to ?? 0)));
+  const maxLogged = Math.max(0, ...logs.map((l) => { const ls = logSeasons(l); return ls ? Math.max(...ls) : seasons.length; }));
   const moreSeasons = seasons.filter((s) => s.n > maxLogged).length > 0;
 
   return (
@@ -227,7 +209,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
           {tileMC('metascore')}
           {tileMC('imdb_rating')}
           {isPlaying
-            ? <button className="tile3" onClick={() => setOpenS({ ...openS, [p.nextEp?.season ?? seasons[0]?.n ?? 1]: true })} aria-label="Show seasons"><ProgressRing pct={p.pct} text={p.seen + ' of ' + p.aired} /><span className="muted small">Watched {p.seen}/{p.aired}</span></button>
+            ? <button className="tile3" onClick={() => setOpenS({ ...openS, [p.nextEp?.season ?? seasons[0]?.n ?? 1]: true })} aria-label="Show seasons"><ProgressRing pct={p.pct} text={p.pct + '%'} /><span className="muted small">Progress</span></button>
             : <button className="tile3" onClick={() => setTakeOpen(true)} aria-label="Change my take"><ScoreRing value={tileScore} scale={scale} size={48} fontSize={17} /><span className="muted small">My score</span></button>}
         </div>
 
@@ -296,15 +278,17 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
             const upcoming = list.length - aired;
             const rating = ratings.find((r) => r.season === s.n);
             const rt = tierOf(rating?.tier ?? null);
-            const inPlan = item.plan_from == null || (s.n >= item.plan_from && s.n <= (item.plan_to ?? item.plan_from));
+            const inPlan = !plan || plan.includes(s.n);
             const open = !!openS[s.n];
             const allSeen = aired > 0 && seen === aired;
+            const lastAt = marks.filter((m) => m.season === s.n && (allSeen ? m.watched_at >= since : true)).map((m) => m.watched_at).sort().pop() ?? null;
             return (
               <div key={s.n} className={'season-card' + (inPlan ? '' : ' out')}>
                 <button className="season-head" aria-expanded={open} onClick={() => setOpenS({ ...openS, [s.n]: !open })}>
                   <span className="stack-sm grow">
                     <span className="row nowrap"><strong>Season {s.n}</strong>{rt && <span className="pill" style={{ background: rt.color, color: '#17161A' }}>{rt.label}</span>}{!inPlan && <span className="muted tiny">not in plan</span>}</span>
                     <span className="muted small">{seen}/{aired}{upcoming ? ' · ' + upcoming + ' upcoming' : ''}{s.air_date ? ' · ' + s.air_date.slice(0, 4) : ''}</span>
+                    {lastAt && <span className={'small ' + (allSeen ? 'accent-text' : 'muted')}>{(allSeen ? 'Finished ' : 'Last watched ') + longDate(lastAt)}</span>}
                     <span className="mini-bar"><span style={{ width: (aired ? (seen / aired) * 100 : 0) + '%' }} /></span>
                   </span>
                   <ScoreRing value={rating?.score ?? null} scale={scale} size={32} fontSize={12} label={'Season ' + s.n + ' score'} />
@@ -330,7 +314,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
                             <span className={'ep-box' + (on ? ' on' : before ? ' before' : '')} aria-hidden="true">{(on || before) && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}</span>
                             <span className="ep-n">{e.n}</span>
                             <span className="ep-name">{e.name}</span>
-                            <span className="ep-date">{future ? (e.air_date ? 'Airs ' + releaseText(e.air_date, null) : 'TBA') : on ? releaseText((marks.find((m) => m.season === s.n && m.episode === e.n)?.watched_at ?? '').slice(0, 10), null) : releaseText(e.air_date, null)}</span>
+                            <span className={'ep-date' + (before ? ' before' : '')}>{future ? (e.air_date ? 'Airs ' + releaseText(e.air_date, null) : 'TBA') : (on || before) ? (before ? 'Seen ' : '') + releaseText((marks.find((m) => m.season === s.n && m.episode === e.n)?.watched_at ?? '').slice(0, 10), null) : releaseText(e.air_date, null)}</span>
                           </button>
                         );
                       })}
@@ -422,7 +406,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
 
       {scopeFor && <ScopeSheet t={t} title={scopeFor === 'plan' ? 'What are you watching?' : scopeFor === 'rewatch' ? 'Rewatch which seasons?' : 'Watch more seasons'}
         confirm={scopeFor === 'plan' ? 'Save' : 'Add to Backlog'}
-        initial={scopeFor === 'plan' ? { from: item.plan_from ?? null, to: item.plan_to ?? null } : scopeFor === 'more' ? { from: Math.min(maxLogged + 1, seasons.length || 1), to: seasons.length || 1 } : { from: null, to: null }}
+        initial={scopeFor === 'plan' ? plan : scopeFor === 'more' ? seasons.filter((x) => x.n > maxLogged).map((x) => x.n) : null}
         onCancel={() => setScopeFor('')} onDone={doneScope} />}
       {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails kind="tv" item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }} onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}

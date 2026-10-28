@@ -10,12 +10,36 @@ export function isEnded(t: Title): boolean {
   return ['Ended', 'Canceled'].includes((t.data as any)?.status);
 }
 
-/** Seasons covered by the plan: full series = every season, otherwise from..to. */
-export function scopeSeasons(item: Pick<LibItem, 'plan_from' | 'plan_to'>, t: Title): number[] {
-  const all = seasonsOf(t).map((s) => s.n);
-  if (item.plan_from == null) return all;
-  const to = item.plan_to ?? item.plan_from;
-  return all.filter((n) => n >= item.plan_from! && n <= to);
+type PlanLike = Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_seasons'>;
+const range = (a: number, b: number) => Array.from({ length: Math.max(0, b - a + 1) }, (_, i) => a + i);
+
+/** The planned seasons as a list, or null for the full series. */
+export function planOf(item: PlanLike): number[] | null {
+  if (item.plan_seasons && item.plan_seasons.length) return [...item.plan_seasons].sort((a, b) => a - b);
+  if (item.plan_from != null) return range(item.plan_from, item.plan_to ?? item.plan_from);
+  return null;
+}
+
+/** Seasons a journal entry covers, or null for the full series. */
+export function logSeasons(l: { scope?: string; season_from?: number | null; season_to?: number | null; seasons?: number[] | null }): number[] | null {
+  if (l.scope === 'show') return null;
+  if (l.seasons && l.seasons.length) return [...l.seasons].sort((a, b) => a - b);
+  if (l.season_from != null) return range(l.season_from, l.season_to ?? l.season_from);
+  return null;
+}
+
+/** Seasons covered by the plan: full series = every season. */
+export function scopeSeasons(item: PlanLike, t: Title): number[] {
+  const all = seasonsOf(t).map((s) => s.n), plan = planOf(item);
+  return plan ? all.filter((n) => plan.includes(n)) : all;
+}
+
+/** "Season 3", "Seasons 1–3", "Seasons 1, 3", "Full series" */
+export function seasonsName(list: number[] | null): string {
+  if (!list || !list.length) return 'Full series';
+  if (list.length === 1) return 'Season ' + list[0];
+  const contiguous = list.every((n, i) => i === 0 || n === list[i - 1] + 1);
+  return contiguous ? 'Seasons ' + list[0] + '–' + list[list.length - 1] : 'Seasons ' + list.join(', ');
 }
 
 const yr = (d: string | null | undefined) => (d ? d.slice(0, 4) : '');
@@ -27,19 +51,19 @@ export function showYears(t: Title): string {
   return first && last && last !== first ? first + '–' + last : first;
 }
 
-/** "Full series · 1999–2007", "Season 3 · 2026", "Seasons 1–3 · 2023–2025" */
-export function scopeLabel(from: number | null | undefined, to: number | null | undefined, t: Title): string {
-  if (from == null) return 'Full series' + (showYears(t) ? ' · ' + showYears(t) : '');
-  const t2 = to ?? from, ss = seasonsOf(t);
-  const a = yr(ss.find((s) => s.n === from)?.air_date), b = yr(ss.find((s) => s.n === t2)?.air_date);
+/** "Full series · 1999–2007", "Season 3 · 2026", "Seasons 1–3 · 2023–2025", "Seasons 1, 3 · 2023–2026" */
+export function scopeLabel(list: number[] | null, t: Title): string {
+  if (!list || !list.length) return 'Full series' + (showYears(t) ? ' · ' + showYears(t) : '');
+  const ss = seasonsOf(t), sorted = [...list].sort((x, y) => x - y);
+  const a = yr(ss.find((s) => s.n === sorted[0])?.air_date), b = yr(ss.find((s) => s.n === sorted[sorted.length - 1])?.air_date);
   const years = a && b && a !== b ? a + '–' + b : a || b;
-  return (from === t2 ? 'Season ' + from : 'Seasons ' + from + '–' + t2) + (years ? ' · ' + years : '');
+  return seasonsName(sorted) + (years ? ' · ' + years : '');
 }
 
-export function logScope(from: number | null | undefined, to: number | null | undefined): { scope: 'show' | 'season' | 'seasons'; season_from: number | null; season_to: number | null } {
-  if (from == null) return { scope: 'show', season_from: null, season_to: null };
-  const t2 = to ?? from;
-  return { scope: from === t2 ? 'season' : 'seasons', season_from: from, season_to: t2 };
+export function logScope(list: number[] | null) {
+  if (!list || !list.length) return { scope: 'show' as const, season_from: null, season_to: null, seasons: null };
+  const s = [...list].sort((a, b) => a - b);
+  return { scope: (s.length === 1 ? 'season' : 'seasons') as 'season' | 'seasons', season_from: s[0], season_to: s[s.length - 1], seasons: s };
 }
 
 export interface EpRef { season: number; episode: number; name: string; air_date: string | null }
@@ -50,7 +74,7 @@ export interface Progress {
 }
 
 /** Progress of the current run over the planned seasons. Marks older than the run start do not count. */
-export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'run_started_at'>, t: Title, eps: SeasonEps[], marks: Mark[], today = todayIso()): Progress {
+export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_seasons' | 'run_started_at'>, t: Title, eps: SeasonEps[], marks: Mark[], today = todayIso()): Progress {
   const scope = scopeSeasons(item, t);
   const since = item.run_started_at ?? '';
   const seenSet = new Set(marks.filter((m) => m.watched_at >= since).map((m) => m.season + ':' + m.episode));
@@ -72,7 +96,7 @@ export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'run_star
   marks.forEach((m) => { if (m.watched_at >= since && scope.includes(m.season) && (!lastSeen || m.watched_at > lastSeen)) lastSeen = m.watched_at; });
   const allKnown = scope.length > 0 && scope.every((n) => known.has(n));
   const fullyAired = total > 0 && aired === total;
-  const planEndsInPast = item.plan_from != null || isEnded(t);
+  const planEndsInPast = planOf(item) !== null || isEnded(t);
   const complete = allKnown && fullyAired && seen === aired && planEndsInPast;
   return { aired, seen, total, pct: aired ? Math.round((seen / aired) * 100) : 0, nextEp, nextFuture, lastSeen, complete, caughtUp: aired > 0 && seen === aired && !complete, anySeen: seen > 0 };
 }

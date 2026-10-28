@@ -14,15 +14,15 @@ export type Overrides = Partial<Pick<Title, 'title' | 'release_date' | 'runtime'
 export interface LibItem {
   id: string; title_id: string; section: Section; status: Status; up_next: boolean; position: number;
   tier: string | null; score: number | null; rewatch?: boolean; overrides: Overrides; title: Title;
-  plan_from?: number | null; plan_to?: number | null; run_started_at?: string | null; started_on?: string | null;
+  plan_from?: number | null; plan_to?: number | null; plan_seasons?: number[] | null; run_started_at?: string | null; started_on?: string | null;
 }
 
-export interface ItemLog { id: string; watched_at: string; tier: string | null; score: number | null; rewatch: boolean; scope?: 'item' | 'season' | 'seasons' | 'show'; season_from?: number | null; season_to?: number | null }
+export interface ItemLog { id: string; watched_at: string; tier: string | null; score: number | null; rewatch: boolean; scope?: 'item' | 'season' | 'seasons' | 'show'; season_from?: number | null; season_to?: number | null; seasons?: number[] | null }
 export interface ChatMsg { id: string; role: 'user' | 'model'; content: string; created_at: string; pending?: boolean }
 export interface CollectionPart { sourceId: string; title: string; year: number; posterUrl: string | null }
 
 export interface LogRow {
-  id: string; library_id: string; scope: 'item' | 'season' | 'seasons' | 'show'; season_from: number | null; season_to: number | null;
+  id: string; library_id: string; scope: 'item' | 'season' | 'seasons' | 'show'; season_from: number | null; season_to: number | null; seasons?: number[] | null;
   watched_at: string; tier: string | null; score: number | null; rewatch: boolean; position: number | null;
   library: LibItem;
 }

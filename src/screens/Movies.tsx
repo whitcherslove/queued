@@ -5,7 +5,8 @@ import { topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, 
 import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
-import { epLabel, isEnded, progress, scopeLabel, todayIso } from '../lib/tv';
+import { epLabel, isEnded, logSeasons, planOf, progress, scopeLabel, todayIso } from '../lib/tv';
+import { applyEpisodeMarks } from '../lib/tvActions';
 import MovieCard from './MovieCard';
 import ScoreRing from '../components/ScoreRing';
 import { useBackLayer } from '../lib/back';
@@ -152,7 +153,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
         <Poster t={it.title} w={56} h={84}></Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
-          <span className="row-meta">{isTv ? scopeLabel(it.plan_from, it.plan_to, it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{it.rewatch && <EyePlus />}</span>
+          <span className="row-meta">{isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{it.rewatch && <EyePlus />}</span>
           <span className="row-meta"><Metascore v={it.title.metascore} size="sm" /></span>
         </span>
       </button>
@@ -170,12 +171,34 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           <span className="row-text">
             <span className="row-title">{it.title.title}{isNew && <> <span className="new-pill">NEW</span></>}</span>
             <span className="row-meta">{p.nextEp ? 'Next: ' + epLabel(p.nextEp) : 'Caught up'}{it.rewatch && <EyePlus />}</span>
-            <span className="row-meta"><span className="mini-bar w72"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.seen}/{p.aired}</strong></span>
+            <span className="row-meta"><span className="mini-bar w72"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>
           </span>
         </button>
         <span className="date-col"><span className="date-cap">{caught ? 'Next episode' : 'Started on'}</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">TBA</span>}</span>
+        {p.nextEp && <button className="quick-check" aria-label={'Mark ' + epLabel(p.nextEp) + ' of ' + it.title.title + ' as watched'} onClick={() => quickMark(it)}>
+          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></button>}
       </div>
     );
+  };
+  const watchTile = (it: LibItem, p: ReturnType<typeof progress>) => (
+    <div key={it.id} className="row-card tile" data-rowid={it.id} data-list="p">
+      <button className="tile-main" {...longPress(it.id)} onClick={() => setSheet(it)} aria-label={it.title.title}>
+        <Poster t={it.title}>{p.nextEp && <span className="tile-next">{epLabel(p.nextEp).replace(' · ', '')}</span>}</Poster>
+        <span className="tile-prog"><span className="mini-bar"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>
+      </button>
+      {p.nextEp && <button className="quick-check sm" aria-label={'Mark ' + epLabel(p.nextEp) + ' as watched'} onClick={() => quickMark(it)}>✓ {epLabel(p.nextEp).replace(' · ', '')}</button>}
+    </div>
+  );
+  const quickMark = async (it: LibItem) => {
+    const mine = tvMarks.filter((m) => m.library_id === it.id), eps = tvEps.filter((e) => e.title_id === it.title_id);
+    const p = progress(it, it.title, eps, mine); if (!p.nextEp) return;
+    const itemLogs = logs.filter((l) => l.library.id === it.id).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch }));
+    try {
+      const r = await applyEpisodeMarks(it, it.title, eps, mine, itemLogs, [{ season: p.nextEp.season, episode: p.nextEp.episode }], true);
+      setTvMarks((all) => all.filter((m) => m.library_id !== it.id).concat(r.marks.filter((m) => m.library_id === it.id)));
+      await refresh();
+      if (r.finished) { setCardSeq([it.id]); setCardTake(true); setCardEnter(null); setCardId(it.id); }
+    } catch { setError('Couldn’t mark the episode. Try again.'); }
   };
 
   const watchedRow = (l: LogRow) => {
@@ -186,7 +209,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
-            <span className="row-meta">{isTv ? scopeLabel(l.scope === 'show' ? null : l.season_from, l.season_to, t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{settings.listMetascore && <Metascore v={t.metascore} size="sm" />}</span>
+            <span className="row-meta">{isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{settings.listMetascore && <Metascore v={t.metascore} size="sm" />}</span>
             {tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : isTv && <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
           </span>
         </button>
@@ -361,11 +384,11 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           <div className="stack">
             <span className="h2">In progress</span>
             {watchingRows.prog.length === 0 && <div className="empty small-pad">Mark an episode in a show from your Backlog — it moves here.</div>}
-            {watchingRows.prog.map(({ it, p }) => watchRow(it, p, false))}
+            {view === 'list' ? watchingRows.prog.map(({ it, p }) => watchRow(it, p, false)) : <div className="grid">{watchingRows.prog.map(({ it, p }) => watchTile(it, p))}</div>}
             <span className="h2 mt-block">Caught up</span>
             <span className="muted small">Still airing — they jump back to In progress when a new episode is out.</span>
             {watchingRows.caught.length === 0 && <div className="empty small-pad">Nothing here yet.</div>}
-            {watchingRows.caught.map(({ it, p }) => watchRow(it, p, true))}
+            {view === 'list' ? watchingRows.caught.map(({ it, p }) => watchRow(it, p, true)) : <div className="grid">{watchingRows.caught.map(({ it, p }) => watchTile(it, p))}</div>}
           </div>
         ) : tab === 'watched' ? (
           <div className="stack">
@@ -424,7 +447,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
         );
       })()}
       {scopeAdd && <ScopeSheet t={scopeAdd} title="What will you watch?" confirm="Add to Backlog" onCancel={() => setScopeAdd(null)}
-        onDone={async (from, to) => { const t = scopeAdd; setScopeAdd(null); try { await addToBacklog(t.id, 'tv', topPosition(items), { plan_from: from, plan_to: to, run_started_at: new Date().toISOString() }); refreshEpisodes([t.source_id]); await refresh(); } catch { setError('Couldn’t add “' + t.title + '”.'); } }} />}
+        onDone={async (list) => { const t = scopeAdd; setScopeAdd(null); try { await addToBacklog(t.id, 'tv', topPosition(items), { plan_seasons: list, plan_from: list ? list[0] : null, plan_to: list ? list[list.length - 1] : null, run_started_at: new Date().toISOString() }); refreshEpisodes([t.source_id]); await refresh(); } catch { setError('Couldn’t add “' + t.title + '”.'); } }} />}
       {cardId && isTv && <ShowCard key={cardId} itemId={cardId} openTake={cardTake} enterFrom={cardEnter} settings={settings} topPos={topPosition(items)}
         initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
         initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch, scope: l.scope, season_from: l.season_from, season_to: l.season_to })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}
