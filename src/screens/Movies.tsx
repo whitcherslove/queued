@@ -518,7 +518,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
         onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
         onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
         initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}
-        initialOwned={Object.fromEntries(items.map((i) => [i.title.source_id, { id: i.id, status: i.status, up_next: i.up_next }]))} settings={settings} backlogCount={topPosition(items)} onClose={() => { setCardId(null); setCardTake(false); setCardPast(false); }} onChanged={refresh} onOpenOther={(id, past) => { setCardPast(!!past); setCardTake(false); setCardId(id); }} />}
+        initialOwned={Object.fromEntries(items.map((i) => { const lg = logs.filter((l) => l.library.id === i.id).sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0]; return [i.title.source_id, { id: i.id, status: i.status, up_next: i.up_next, tier: lg?.tier ?? null, score: lg?.score ?? null }]; }))} settings={settings} backlogCount={topPosition(items)} onClose={() => { setCardId(null); setCardTake(false); setCardPast(false); }} onChanged={refresh} onOpenOther={(id, past) => { setCardPast(!!past); setCardTake(false); setCardId(id); }} />}
     </div>
   );
 }

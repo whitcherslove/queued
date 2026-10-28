@@ -4,14 +4,14 @@ import type { Settings } from '../lib/theme';
 import { TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
 import { diffOverrides, latestLog, localDay, withLocalDay, longDate, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import {
-  addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
+  type Owned, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import ScoreSlider from '../components/ScoreSlider';
 import { IconBack } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 
-interface Props { openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, { id: string; status: string; up_next: boolean }>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string, past?: boolean) => void; backlogCount: number }
+interface Props { openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, Owned>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string, past?: boolean) => void; backlogCount: number }
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const EXT = <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /></svg>;
@@ -27,7 +27,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
   const [logs, setLogs] = useState<ItemLog[]>(initialLogs ?? []);
   const [chat, setChat] = useState<ChatMsg[]>([]);
-  const [owned, setOwned] = useState<Record<string, { id: string; status: string; up_next: boolean }>>(initialOwned ?? {});
+  const [owned, setOwned] = useState<Record<string, Owned>>(initialOwned ?? {});
   const [takeOpen, setTakeOpen] = useState(!!openTake || initial?.status === 'backlog');
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
@@ -276,7 +276,18 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                   <span className="coll-n">{i + 1}</span>
                   <button className="coll-title" disabled={!o || isCur} onClick={() => o && onOpenOther(o.id)}>{p.title} <span className="muted">{p.year}</span></button>
                   {!o && <button className="add-btn sm" aria-label={'Add ' + p.title} onClick={() => setAddPart(p)}>+</button>}
-                  {st && <span className={'pill status' + (st === 'Watched' ? ' accent' : isCur ? ' outline' : '')}>{st}</span>}
+                  {(() => {
+                    // watched: show your rating — the tier label, the score ring, or both
+                    const seen = !isCur && o && (o.status === 'done' || o.status === 'dropped');
+                    const tr2 = seen ? tierOf(o!.tier ?? null) : null, sc2 = seen ? o!.score ?? null : null;
+                    if (seen && (tr2 || sc2 !== null)) return (
+                      <span className="coll-rate">
+                        {tr2 && <span className="pill" style={{ background: tr2.color, color: '#17161A' }}>{tr2.label}</span>}
+                        {sc2 !== null && <ScoreRing value={sc2} scale={scale} size={28} fontSize={10} />}
+                      </span>
+                    );
+                    return st ? <span className={'pill status' + (st === 'Watched' ? ' accent' : isCur ? ' outline' : '')}>{st}</span> : null;
+                  })()}
                 </div>
               );
             })}

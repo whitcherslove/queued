@@ -118,11 +118,17 @@ export async function askAi(libraryId: string, question: string): Promise<string
   return data.answer as string;
 }
 
-export async function findOwnedBySource(sourceIds: string[], section: Section): Promise<Record<string, { id: string; status: Status; up_next: boolean }>> {
+export interface Owned { id: string; status: Status | string; up_next: boolean; tier?: string | null; score?: number | null }
+
+/** Your copies of these titles, with the rating of the latest viewing. */
+export async function findOwnedBySource(sourceIds: string[], section: Section): Promise<Record<string, Owned>> {
   if (!sourceIds.length) return {};
-  const { data } = await supabase.from('library').select('id, status, up_next, title:titles!inner(source_id)').eq('section', section).in('titles.source_id', sourceIds);
-  const out: Record<string, { id: string; status: Status; up_next: boolean }> = {};
-  (data ?? []).forEach((r: any) => { out[r.title.source_id] = { id: r.id, status: r.status, up_next: r.up_next }; });
+  const { data } = await supabase.from('library').select('id, status, up_next, title:titles!inner(source_id), logs(watched_at, tier, score)').eq('section', section).in('titles.source_id', sourceIds);
+  const out: Record<string, Owned> = {};
+  (data ?? []).forEach((r: any) => {
+    const last = (r.logs ?? []).slice().sort((a: any, b: any) => String(b.watched_at).localeCompare(String(a.watched_at)))[0];
+    out[r.title.source_id] = { id: r.id, status: r.status, up_next: r.up_next, tier: last?.tier ?? null, score: last?.score ?? null };
+  });
   return out;
 }
 

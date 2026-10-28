@@ -451,3 +451,6 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 
 .finished-pill { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 700; padding: 2px 8px 2px 6px; border-radius: 999px; background: var(--surface2); color: var(--ink); }
 .action-list button .stack-sm { padding: 8px 0; }
+
+.coll-rate { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.coll-rate .pill { max-width: 120px; overflow: hidden; text-overflow: ellipsis; }
