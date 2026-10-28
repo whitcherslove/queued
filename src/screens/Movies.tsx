@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
-import { topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
+import { localDay, topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
 import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
@@ -29,7 +29,7 @@ const followSeasons = (i: LibItem, logs: LogRow[]): number[] | null => {
   const covered = coveredSeasons(i.title, mine);
   let list = (i.status === 'backlog' ? planOf(i) ?? [] : newSeasons(i.title, mine)).filter((n) => !covered.has(n));
   // An ended show only waits here for a season that premiered after your last entry (e.g. a final season you haven't started)
-  if (isEnded(i.title)) { const since = latest.watched_at.slice(0, 10); list = list.filter((n) => { const d = seasonAir(i.title, n); return !!d && d > since; }); return list.length ? list : null; }
+  if (isEnded(i.title)) { const since = localDay(latest.watched_at); list = list.filter((n) => { const d = seasonAir(i.title, n); return !!d && d > since; }); return list.length ? list : null; }
   // A running show you're up to date with waits here too (an empty list = "waiting for a new season"), until it ends or is canceled
   return list;
 };
@@ -459,7 +459,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
             <div className="sheet action-sheet" role="menu" aria-label={t.title}>
               <div className="action-head">
                 <Poster t={t} w={40} h={60} />
-                <span className="stack-sm"><strong>{t.title}</strong><span className="muted small">{log ? 'Watched ' + releaseText(log.watched_at.slice(0, 10), null) : isBack ? (item.up_next ? 'Up next' : 'Backlog') : ''}</span></span>
+                <span className="stack-sm"><strong>{t.title}</strong><span className="muted small">{log ? 'Watched ' + releaseText(log.watched_at, null) : isBack ? (item.up_next ? 'Up next' : 'Backlog') : ''}</span></span>
               </div>
               {menuConfirm ? (
                 <div className="stack">
@@ -478,6 +478,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
                   {!isBack && item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Change rating…</button>}
                   {!isBack && !isTv && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>Log a rewatch → Backlog</button>}
                   {item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>}
+                  {isTv && followIds.has(item.id) && item.status !== 'backlog' && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'dropped' }); })}>Stop following</button>}
                   {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>Delete this viewing</button>}
                   <button role="menuitem" className="danger" onClick={() => setMenuConfirm('remove')}>Remove from my lists</button>
                 </div>

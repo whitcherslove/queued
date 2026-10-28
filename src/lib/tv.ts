@@ -1,6 +1,7 @@
 import type { LibItem, Mark, SeasonEps, Title, TvSeason } from './types';
 
-export const todayIso = () => new Date().toISOString().slice(0, 10);
+const localDayOf = (iso: string) => { if (iso.length <= 10) return iso; const d = new Date(iso); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+export const todayIso = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
 
 export function seasonsOf(t: Title): TvSeason[] {
   return (((t.data as any)?.seasons ?? []) as TvSeason[]).filter((s) => s.n > 0).sort((a, b) => a.n - b.n);
@@ -117,7 +118,7 @@ export function coveredSeasons(t: Title, logs: LogLike[]): Set<number> {
   logs.forEach((l) => {
     const list = logSeasons(l);
     if (list) list.forEach((n) => out.add(n));
-    else ss.forEach((s) => { if (isEnded(t) || (s.air_date && s.air_date <= l.watched_at.slice(0, 10))) out.add(s.n); });
+    else ss.forEach((s) => { if (isEnded(t) || (s.air_date && s.air_date <= localDayOf(l.watched_at))) out.add(s.n); });
   });
   return out;
 }

@@ -180,6 +180,6 @@ export async function loadSeasonRatings(libraryId: string): Promise<SeasonRating
 }
 
 export async function saveSeasonRating(libraryId: string, season: number, patch: { tier?: string | null; score?: number | null }): Promise<void> {
-  const { error } = await supabase.from('season_ratings').upsert({ library_id: libraryId, season, ...patch, rated_at: new Date().toISOString().slice(0, 10) }, { onConflict: 'library_id,season' });
+  const { error } = await supabase.from('season_ratings').upsert({ library_id: libraryId, season, ...patch, rated_at: (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })() }, { onConflict: 'library_id,season' });
   if (error) throw error;
 }

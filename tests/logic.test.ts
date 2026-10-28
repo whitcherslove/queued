@@ -71,3 +71,15 @@ describe('card helpers', () => {
     expect(parseNum('', 100, 1)).toEqual({ ok: true, n: null });
   });
 });
+
+import { localDay as ld, withLocalDay as wld } from '../src/lib/logic';
+describe('local dates', () => {
+  it('moves a timestamp to another local day and reads it back', () => {
+    const iso = new Date(2026, 9, 28, 1, 30).toISOString();   // 01:30 local — may be the previous day in UTC
+    expect(ld(iso)).toBe('2026-10-28');
+    const moved = wld(iso, '2026-10-05');
+    expect(ld(moved)).toBe('2026-10-05');
+    expect(new Date(moved).getHours()).toBe(1);
+    expect(ld('2026-10-05')).toBe('2026-10-05');
+  });
+});

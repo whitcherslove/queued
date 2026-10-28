@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMsg, CollectionPart, ItemLog, LibItem, Overrides, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
-import { diffOverrides, latestLog, longDate, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
+import { diffOverrides, latestLog, localDay, withLocalDay, longDate, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import {
   addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
@@ -121,8 +121,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
 
   const setDate = (d: string) => guard(async () => {
     if (!last || !d) return;
-    const time = last.watched_at.slice(10) || 'T20:00:00Z';
-    await updateLog(last.id, { watched_at: d + time });
+    await updateLog(last.id, { watched_at: withLocalDay(last.watched_at, d) });
   })();
 
   const rewOn = planned || !last ? !!item.rewatch : last.rewatch;
@@ -243,7 +242,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
               {last && !planned && (
                 <>
                   <div className="divider" />
-                  <div className="score-row"><label htmlFor="wdate" className="strong">Watched on</label><input id="wdate" type="date" value={last.watched_at.slice(0, 10)} onChange={(e) => setDate(e.target.value)} className="date-input" /></div>
+                  <div className="score-row"><label htmlFor="wdate" className="strong">Watched on</label><input id="wdate" type="date" value={localDay(last.watched_at)} onChange={(e) => setDate(e.target.value)} className="date-input" /></div>
                 </>
               )}
               <div className="divider" />
@@ -327,7 +326,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
                     </div>
                     <div className="score-row">
                       <label htmlFor={'vd-' + l.id} className="small strong">Watched on</label>
-                      <input id={'vd-' + l.id} type="date" className="date-input" value={l.watched_at.slice(0, 10)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: d + (l.watched_at.slice(10) || 'T20:00:00Z') }); })(); }} />
+                      <input id={'vd-' + l.id} type="date" className="date-input" value={localDay(l.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} />
                     </div>
                   </div>
                 )}

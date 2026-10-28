@@ -2,9 +2,24 @@ import type { ItemLog, LibItem, LogRow, Overrides, SearchHit, Title } from './ty
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+/** Calendar day in the phone's time zone ("2026-10-28"); plain dates pass through unchanged. */
+export function localDay(iso: string): string {
+  if (iso.length <= 10) return iso;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return iso.slice(0, 10);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+/** Same moment-of-day, moved to another local calendar day; returns an ISO timestamp. */
+export function withLocalDay(iso: string, day: string): string {
+  const d = new Date(iso), [y, m, dd] = day.split('-').map(Number);
+  const base = isNaN(d.getTime()) ? new Date(y, m - 1, dd, 20, 0) : new Date(y, m - 1, dd, d.getHours(), d.getMinutes(), d.getSeconds());
+  return base.toISOString();
+}
+
 export function releaseText(iso: string | null, year: number | null): string {
   if (!iso) return year ? String(year) : '';
-  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  const [y, m, d] = localDay(iso).split('-').map(Number);
   return `${d} ${MON[m - 1]} ${y}`;
 }
 
@@ -14,7 +29,7 @@ export function runtimeText(min: number | null): string {
 }
 
 export function dateParts(iso: string): { day: number; mon: string; year: string } {
-  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  const [y, m, d] = localDay(iso).split('-').map(Number);
   return { day: d, mon: MON[m - 1], year: String(y) };
 }
 
@@ -87,7 +102,7 @@ export function money(v: unknown): string {
 
 export function longDate(iso: string): string {
   const MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
+  const [y, m, d] = localDay(iso).split('-').map(Number);
   return `${MONL[m - 1]} ${d}, ${y}`;
 }
 

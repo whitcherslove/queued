@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMsg, ItemLog, LibItem, Mark, SeasonEps, SeasonRating } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
-import { latestLog, longDate, merged, releaseText } from '../lib/logic';
+import { latestLog, localDay, longDate, merged, releaseText, withLocalDay } from '../lib/logic';
 import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
   refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog
@@ -198,7 +198,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
       : <a className="tile3" href={kind === 'metascore' ? mcUrl : imdbUrl} target="_blank" rel="noopener">{sq}<span className="muted small">{label} {EXT}</span></a>;
   };
   const maxLogged = Math.max(0, ...logs.map((l) => { const ls = logSeasons(l); return ls ? Math.max(...ls) : seasons.length; }));
-  const fresh = isDone && status !== 'dropped' && last?.tier !== 'dropped' ? newSeasons(t, logs).filter((n) => !isEnded(t) || ((seasonAir(t, n) ?? '') > (last?.watched_at.slice(0, 10) ?? ''))) : [];
+  const fresh = isDone && status !== 'dropped' && last?.tier !== 'dropped' ? newSeasons(t, logs).filter((n) => !isEnded(t) || ((seasonAir(t, n) ?? '') > (last ? localDay(last.watched_at) : ''))) : [];
   const freshAir = fresh.length ? seasonAir(t, fresh[0]) : null;
   const start = (list: number[] | null) => guard(async () => {
     await updateItem(item.id, { status: 'playing', plan_seasons: list, plan_from: list ? list[0] : null, plan_to: list ? list[list.length - 1] : null, run_started_at: new Date().toISOString(), started_on: today, up_next: false, score: null });
@@ -290,7 +290,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
               <ScoreSlider id="score" label="My score" value={score} scale={scale} onCommit={(v) => setScore(v)} onPreview={(v) => setPreview(v)} />
               {currentLog && <>
                 <div className="divider" />
-                <div className="score-row"><label htmlFor="wdate" className="strong">Finished on</label><input id="wdate" type="date" className="date-input" value={currentLog.watched_at.slice(0, 10)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(currentLog.id, { watched_at: d + (currentLog.watched_at.slice(10) || 'T20:00:00Z') }); })(); }} /></div>
+                <div className="score-row"><label htmlFor="wdate" className="strong">Finished on</label><input id="wdate" type="date" className="date-input" value={localDay(currentLog.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(currentLog.id, { watched_at: withLocalDay(currentLog.watched_at, d) }); })(); }} /></div>
               </>}
               <div className="divider" />
               <button className="switch-row flat" role="switch" aria-checked={rewOn} onClick={toggleRew}><span className="rew-icon">{EYE_PLUS}</span><strong className="grow">Rewatch</strong><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></button>
@@ -343,7 +343,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
                             <span className={'ep-box' + (on ? ' on' : before ? ' before' : '')} aria-hidden="true">{(on || before) && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}</span>
                             <span className="ep-n">{e.n}</span>
                             <span className="ep-name">{e.name}</span>
-                            <span className={'ep-date' + (before ? ' before' : '')}>{future ? (e.air_date ? 'Airs ' + releaseText(e.air_date, null) : 'TBA') : (on || before) ? (before ? 'Seen ' : '') + releaseText((marks.find((m) => m.season === s.n && m.episode === e.n)?.watched_at ?? '').slice(0, 10), null) : releaseText(e.air_date, null)}</span>
+                            <span className={'ep-date' + (before ? ' before' : '')}>{future ? (e.air_date ? 'Airs ' + releaseText(e.air_date, null) : 'TBA') : (on || before) ? (before ? 'Seen ' : '') + releaseText(marks.find((m) => m.season === s.n && m.episode === e.n)?.watched_at ?? null, null) : releaseText(e.air_date, null)}</span>
                           </button>
                         );
                       })}
@@ -394,7 +394,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
                     <div className="score-row"><label htmlFor={'vs-' + l.id} className="small strong">Score</label>
                       <ScoreSlider compact id={'vs-' + l.id} label="Score" value={l.score} scale={scale} onCommit={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); updateLog(l.id, { score: st }).then(onChanged); }} /></div>
                     <div className="score-row"><label htmlFor={'vd-' + l.id} className="small strong">Finished on</label>
-                      <input id={'vd-' + l.id} type="date" className="date-input" value={l.watched_at.slice(0, 10)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: d + (l.watched_at.slice(10) || 'T20:00:00Z') }); })(); }} /></div>
+                      <input id={'vd-' + l.id} type="date" className="date-input" value={localDay(l.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></div>
                   </div>
                 )}
               </div>
