@@ -7,6 +7,7 @@ import {
   addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
+import ScoreSlider from '../components/ScoreSlider';
 import { IconBack } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 
@@ -35,6 +36,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
   const [draft, setDraft] = useState('');
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
+  const [preview, setPreview] = useState<number | null | undefined>(undefined);
   const swipeEl = useRef<HTMLDivElement>(null);
   const raf = useRef(0);
   const swRef = useRef<{ x: number; y: number; mode: '' | 'h' | 'v'; dx: number; vx: number; lx: number; lt: number } | null>(null);
@@ -113,6 +115,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
   })();
 
   const setScore = (v: number | null) => guard(async () => {
+    setPreview(undefined);
     if (last && !planned) await updateLog(last.id, { score: v }); else await updateItem(item.id, { score: v });
   })();
 
@@ -229,12 +232,9 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
               <div className="score-row">
                 <label htmlFor="score" className="strong">My score</label>
                 {score !== null && <button className="link" onClick={() => setScore(null)}>Clear</button>}
-                <ScoreRing value={score} scale={scale} size={46} fontSize={16} />
+                <ScoreRing value={preview !== undefined ? preview : score} scale={scale} size={46} fontSize={16} />
               </div>
-              <input id="score" type="range" min={0} max={scale} step={0.5} value={score === null ? 0 : displayScore(score, scale)}
-                onChange={(e) => { const v = Number(e.target.value); setScore(scale === 10 ? v / 2 : v); }}
-                aria-valuetext={score === null ? 'No score' : `${displayScore(score, scale)} out of ${scale}`} className={'range' + (score === null ? ' faint' : '')} style={{ accentColor: myScoreColor(score) ?? 'var(--muted)' }} />
-              <div className="ticks" aria-hidden="true">{(scale === 10 ? [0, 2, 4, 6, 8, 10] : [0, 1, 2, 3, 4, 5]).map((n) => <span key={n}>{n}</span>)}</div>
+              <ScoreSlider id="score" label="My score" value={score} scale={scale} onCommit={(v) => setScore(v)} onPreview={(v) => setPreview(v)} />
               {last && !planned && (
                 <>
                   <div className="divider" />
@@ -318,9 +318,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
                     </div>
                     <div className="score-row">
                       <label htmlFor={'vs-' + l.id} className="small strong">Score</label>
-                      <input id={'vs-' + l.id} type="range" min={0} max={scale} step={0.5} value={l.score === null ? 0 : displayScore(l.score, scale)}
-                        onChange={(e) => { const v = Number(e.target.value); const st = scale === 10 ? v / 2 : v; setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); updateLog(l.id, { score: st }).then(onChanged); }}
-                        className={'range grow' + (l.score === null ? ' faint' : '')} style={{ accentColor: myScoreColor(l.score) ?? 'var(--muted)' }} aria-valuetext={l.score === null ? 'No score' : `${displayScore(l.score, scale)} out of ${scale}`} />
+                      <ScoreSlider compact id={'vs-' + l.id} label="Score" value={l.score} scale={scale} onCommit={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); updateLog(l.id, { score: st }).then(onChanged); }} />
                     </div>
                     <div className="score-row">
                       <label htmlFor={'vd-' + l.id} className="small strong">Watched on</label>

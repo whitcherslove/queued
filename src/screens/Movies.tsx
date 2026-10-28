@@ -175,8 +175,6 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           </span>
         </button>
         <span className="date-col"><span className="date-cap">{caught ? 'Next episode' : 'Started on'}</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">TBA</span>}</span>
-        {p.nextEp && <button className="quick-check" aria-label={'Mark ' + epLabel(p.nextEp) + ' of ' + it.title.title + ' as watched'} onClick={() => quickMark(it)}>
-          <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></button>}
       </div>
     );
   };
@@ -186,7 +184,6 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
         <Poster t={it.title}>{p.nextEp && <span className="tile-next">{epLabel(p.nextEp).replace(' · ', '')}</span>}</Poster>
         <span className="tile-prog"><span className="mini-bar"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>
       </button>
-      {p.nextEp && <button className="quick-check sm" aria-label={'Mark ' + epLabel(p.nextEp) + ' as watched'} onClick={() => quickMark(it)}>✓ {epLabel(p.nextEp).replace(' · ', '')}</button>}
     </div>
   );
   const quickMark = async (it: LibItem) => {

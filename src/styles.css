@@ -427,3 +427,8 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .tile-prog { display: flex; align-items: center; gap: 6px; }
 .tile-prog .mini-bar { flex: 1; }
 .ep-date.before { opacity: .6; }
+
+.score-slider { display: flex; flex-direction: column; gap: 2px; width: 100%; }
+.score-slider.compact { flex: 1; }
+.score-slider .range { touch-action: pan-y; }
+.score-slider.compact .ticks { margin-top: -4px; }

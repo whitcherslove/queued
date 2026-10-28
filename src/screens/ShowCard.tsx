@@ -10,6 +10,7 @@ import {
 import { epLabel, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonsName, seasonsOf, showYears, todayIso } from '../lib/tv';
 import { applyEpisodeMarks } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
+import ScoreSlider from '../components/ScoreSlider';
 import ScopeSheet from '../components/ScopeSheet';
 import { IconBack } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
@@ -54,6 +55,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   const [scopeFor, setScopeFor] = useState<'' | 'plan' | 'rewatch' | 'more'>('');
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
+  const [preview, setPreview] = useState<number | null | undefined>(undefined);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
   const scale = settings.scale;
@@ -149,7 +151,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
     await insertLog(item.id, { ...logScope(plan), watched_at: new Date().toISOString(), tier: id, score: item.score, rewatch: !!item.rewatch } as Partial<ItemLog>);
     await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done', up_next: false, rewatch: false, score: null });
   })();
-  const setScore = (v: number | null) => guard(async () => { if (currentLog) await updateLog(currentLog.id, { score: v }); else await updateItem(item.id, { score: v }); })();
+  const setScore = (v: number | null) => guard(async () => { setPreview(undefined); if (currentLog) await updateLog(currentLog.id, { score: v }); else await updateItem(item.id, { score: v }); })();
   const rewOn = currentLog ? currentLog.rewatch : !!item.rewatch;
   const toggleRew = guard(async () => { if (currentLog) await updateLog(currentLog.id, { rewatch: !currentLog.rewatch }); else await updateItem(item.id, { rewatch: !item.rewatch }); });
   const toggleNext = guard(async () => { await updateItem(item.id, { up_next: !item.up_next, position: topPos }); });
@@ -255,9 +257,8 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
                 {TIERS.map((x) => { const on = currentLog?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
               </div>
               <div className="divider" />
-              <div className="score-row"><label htmlFor="score" className="strong">My score</label>{score !== null && <button className="link" onClick={() => setScore(null)}>Clear</button>}<ScoreRing value={score} scale={scale} size={46} fontSize={16} /></div>
-              <input id="score" type="range" min={0} max={scale} step={0.5} value={score === null ? 0 : displayScore(score, scale)} onChange={(e) => { const v = Number(e.target.value); setScore(scale === 10 ? v / 2 : v); }}
-                className={'range' + (score === null ? ' faint' : '')} style={{ accentColor: myScoreColor(score) ?? 'var(--muted)' }} aria-valuetext={score === null ? 'No score' : `${displayScore(score, scale)} out of ${scale}`} />
+              <div className="score-row"><label htmlFor="score" className="strong">My score</label>{score !== null && <button className="link" onClick={() => setScore(null)}>Clear</button>}<ScoreRing value={preview !== undefined ? preview : score} scale={scale} size={46} fontSize={16} /></div>
+              <ScoreSlider id="score" label="My score" value={score} scale={scale} onCommit={(v) => setScore(v)} onPreview={(v) => setPreview(v)} />
               {currentLog && <>
                 <div className="divider" />
                 <div className="score-row"><label htmlFor="wdate" className="strong">Finished on</label><input id="wdate" type="date" className="date-input" value={currentLog.watched_at.slice(0, 10)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(currentLog.id, { watched_at: d + (currentLog.watched_at.slice(10) || 'T20:00:00Z') }); })(); }} /></div>
@@ -302,8 +303,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
                       {TIERS.filter((x) => x.id !== 'dropped').map((x) => { const on = rating?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={guard(async () => { await saveSeasonRating(item.id, s.n, { tier: on ? null : x.id }); })}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
                     </div>
                     <div className="score-row"><label htmlFor={'ss-' + s.n} className="small strong">Score</label>
-                      <input id={'ss-' + s.n} type="range" min={0} max={scale} step={0.5} value={rating?.score == null ? 0 : displayScore(rating.score, scale)} className={'range grow' + (rating?.score == null ? ' faint' : '')} style={{ accentColor: myScoreColor(rating?.score ?? null) ?? 'var(--muted)' }}
-                        onChange={(e) => { const v = Number(e.target.value); const sc = scale === 10 ? v / 2 : v; setRatings((r) => { const o = r.filter((x) => x.season !== s.n); return o.concat([{ library_id: item.id, season: s.n, tier: rating?.tier ?? null, score: sc, rated_at: today }]); }); saveSeasonRating(item.id, s.n, { score: sc }); }} /></div>
+                      <ScoreSlider compact id={'ss-' + s.n} label={'Season ' + s.n + ' score'} value={rating?.score ?? null} scale={scale} onCommit={(sc) => { setRatings((r) => { const o = r.filter((x) => x.season !== s.n); return o.concat([{ library_id: item.id, season: s.n, tier: rating?.tier ?? null, score: sc, rated_at: today }]); }); saveSeasonRating(item.id, s.n, { score: sc }); }} /></div>
                     <div className="ep-list">
                       {list.length === 0 && <span className="muted small">Loading episodes…</span>}
                       {list.map((e) => {
@@ -362,8 +362,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
                   <div className="view-edit">
                     <div className="chips">{TIERS.map((tt) => { const on = l.tier === tt.id; return <button key={tt.id} aria-pressed={on} className="chip sm" style={on ? { background: tt.color, borderColor: tt.color, color: '#17161A' } : undefined} onClick={guard(async () => { await updateLog(l.id, { tier: on ? null : tt.id }); })}><span className="dot" style={{ background: on ? '#17161A' : tt.color }} />{tt.label}</button>; })}</div>
                     <div className="score-row"><label htmlFor={'vs-' + l.id} className="small strong">Score</label>
-                      <input id={'vs-' + l.id} type="range" min={0} max={scale} step={0.5} value={l.score === null ? 0 : displayScore(l.score, scale)} className={'range grow' + (l.score === null ? ' faint' : '')} style={{ accentColor: myScoreColor(l.score) ?? 'var(--muted)' }}
-                        onChange={(e) => { const v = Number(e.target.value); const st = scale === 10 ? v / 2 : v; setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); updateLog(l.id, { score: st }).then(onChanged); }} /></div>
+                      <ScoreSlider compact id={'vs-' + l.id} label="Score" value={l.score} scale={scale} onCommit={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); updateLog(l.id, { score: st }).then(onChanged); }} /></div>
                     <div className="score-row"><label htmlFor={'vd-' + l.id} className="small strong">Finished on</label>
                       <input id={'vd-' + l.id} type="date" className="date-input" value={l.watched_at.slice(0, 10)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: d + (l.watched_at.slice(10) || 'T20:00:00Z') }); })(); }} /></div>
                   </div>
