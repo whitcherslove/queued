@@ -1,20 +1,20 @@
 import { supabase } from './supabase';
-import type { ChatMsg, ItemLog, LibItem, LogRow, Overrides, SearchHit, Section, Status, Title } from './types';
+import type { ChatMsg, ItemLog, LibItem, LogRow, Mark, Overrides, SearchHit, SeasonEps, SeasonRating, Section, Status, Title } from './types';
 
-export async function searchTitles(q: string, kind: 'movie'): Promise<SearchHit[]> {
+export async function searchTitles(q: string, kind: 'movie' | 'tv'): Promise<SearchHit[]> {
   const { data, error } = await supabase.functions.invoke('search', { body: { q, kind } });
   if (error) throw error;
   return (data?.results ?? []) as SearchHit[];
 }
 
-export async function ensureTitle(kind: 'movie', sourceId: string, force = false): Promise<Title> {
+export async function ensureTitle(kind: 'movie' | 'tv', sourceId: string, force = false): Promise<Title> {
   const { data, error } = await supabase.functions.invoke('title', { body: { kind, sourceId, force } });
   if (error) throw error;
   if (!data?.title) throw new Error(data?.error || 'No title returned');
   return data.title as Title;
 }
 
-const LIB_FIELDS = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, title:titles(*)';
+const LIB_FIELDS = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, run_started_at, started_on, title:titles(*)';
 
 export async function loadLibrary(section: Section): Promise<LibItem[]> {
   const { data, error } = await supabase.from('library').select(LIB_FIELDS).eq('section', section).order('position');
@@ -30,8 +30,8 @@ export async function loadLogs(section: Section): Promise<LogRow[]> {
   return (data ?? []) as unknown as LogRow[];
 }
 
-export async function addToBacklog(titleId: string, section: Section, position: number): Promise<void> {
-  const { error } = await supabase.from('library').insert({ title_id: titleId, section, position });
+export async function addToBacklog(titleId: string, section: Section, position: number, extra: Record<string, unknown> = {}): Promise<void> {
+  const { error } = await supabase.from('library').insert({ title_id: titleId, section, position, ...extra });
   if (error) throw error;
 }
 
@@ -57,8 +57,8 @@ export async function resetLogOrder(ids: string[]): Promise<void> {
   if (ids.length) await supabase.from('logs').update({ position: null }).in('id', ids);
 }
 
-export async function ensureTitleByImdb(imdbId: string, force = false): Promise<Title> {
-  const { data, error } = await supabase.functions.invoke('title', { body: { kind: 'movie', imdbId, force } });
+export async function ensureTitleByImdb(imdbId: string, force = false, kind: 'movie' | 'tv' = 'movie'): Promise<Title> {
+  const { data, error } = await supabase.functions.invoke('title', { body: { kind, imdbId, force } });
   if (error) throw error;
   if (!data?.title) throw new Error(data?.error || 'Not found');
   return data.title as Title;
@@ -71,18 +71,18 @@ export async function loadItem(id: string): Promise<LibItem> {
 }
 
 export async function loadItemLogs(libraryId: string): Promise<ItemLog[]> {
-  const { data, error } = await supabase.from('logs').select('id, watched_at, tier, score, rewatch').eq('library_id', libraryId).order('watched_at', { ascending: false });
+  const { data, error } = await supabase.from('logs').select('id, watched_at, tier, score, rewatch, scope, season_from, season_to').eq('library_id', libraryId).order('watched_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as ItemLog[];
 }
 
-export async function updateItem(id: string, patch: Partial<{ status: Status; up_next: boolean; position: number; score: number | null; rewatch: boolean; overrides: Overrides }>): Promise<void> {
+export async function updateItem(id: string, patch: Partial<{ status: Status; up_next: boolean; position: number; score: number | null; rewatch: boolean; overrides: Overrides; plan_from: number | null; plan_to: number | null; run_started_at: string | null; started_on: string | null }>): Promise<void> {
   const { error } = await supabase.from('library').update(patch).eq('id', id);
   if (error) throw error;
 }
 
 export async function insertLog(libraryId: string, log: Partial<ItemLog>): Promise<ItemLog> {
-  const { data, error } = await supabase.from('logs').insert({ library_id: libraryId, ...log }).select('id, watched_at, tier, score, rewatch').single();
+  const { data, error } = await supabase.from('logs').insert({ library_id: libraryId, ...log }).select('id, watched_at, tier, score, rewatch, scope, season_from, season_to').single();
   if (error) throw error;
   return data as ItemLog;
 }
@@ -119,8 +119,8 @@ export async function findOwnedBySource(sourceIds: string[], section: Section): 
 }
 
 export type Pic = { thumb: string; full: string };
-export async function loadImages(sourceId: string): Promise<{ backdrops: Pic[]; posters: Pic[] }> {
-  const { data, error } = await supabase.functions.invoke('title', { body: { action: 'images', sourceId } });
+export async function loadImages(sourceId: string, kind: 'movie' | 'tv' = 'movie'): Promise<{ backdrops: Pic[]; posters: Pic[] }> {
+  const { data, error } = await supabase.functions.invoke('title', { body: { action: 'images', sourceId, kind } });
   if (error) return { backdrops: [], posters: [] };
   return { backdrops: (data?.backdrops ?? []) as Pic[], posters: (data?.posters ?? []) as Pic[] };
 }
@@ -134,4 +134,49 @@ export async function uploadCover(file: File, kind: 'poster' | 'backdrop'): Prom
   const up = await supabase.storage.from('covers').upload(path, file, { contentType: file.type || 'image/jpeg' });
   if (up.error) throw up.error;
   return supabase.storage.from('covers').getPublicUrl(path).data.publicUrl;
+}
+
+// ---------- TV ----------
+export async function refreshEpisodes(sourceIds: string[]): Promise<void> {
+  if (!sourceIds.length) return;
+  await supabase.functions.invoke('title', { body: { kind: 'tv', action: 'episodes', sourceIds } });
+}
+
+export async function loadEpisodes(titleIds: string[]): Promise<SeasonEps[]> {
+  if (!titleIds.length) return [];
+  const { data, error } = await supabase.from('title_seasons').select('title_id, season, name, air_date, episodes').in('title_id', titleIds).order('season');
+  if (error) throw error;
+  return (data ?? []) as SeasonEps[];
+}
+
+export async function loadMarks(libraryIds: string[]): Promise<Mark[]> {
+  if (!libraryIds.length) return [];
+  const { data, error } = await supabase.from('episode_marks').select('library_id, season, episode, watched_at').in('library_id', libraryIds);
+  if (error) throw error;
+  return (data ?? []) as Mark[];
+}
+
+export async function setMarks(libraryId: string, eps: { season: number; episode: number }[], on: boolean): Promise<void> {
+  if (!eps.length) return;
+  if (on) {
+    const now = new Date().toISOString();
+    const { error } = await supabase.from('episode_marks').upsert(eps.map((e) => ({ library_id: libraryId, season: e.season, episode: e.episode, watched_at: now })), { onConflict: 'library_id,season,episode' });
+    if (error) throw error;
+  } else {
+    for (const e of eps) {
+      const { error } = await supabase.from('episode_marks').delete().eq('library_id', libraryId).eq('season', e.season).eq('episode', e.episode);
+      if (error) throw error;
+    }
+  }
+}
+
+export async function loadSeasonRatings(libraryId: string): Promise<SeasonRating[]> {
+  const { data, error } = await supabase.from('season_ratings').select('library_id, season, tier, score, rated_at').eq('library_id', libraryId);
+  if (error) throw error;
+  return (data ?? []) as SeasonRating[];
+}
+
+export async function saveSeasonRating(libraryId: string, season: number, patch: { tier?: string | null; score?: number | null }): Promise<void> {
+  const { error } = await supabase.from('season_ratings').upsert({ library_id: libraryId, season, ...patch, rated_at: new Date().toISOString().slice(0, 10) }, { onConflict: 'library_id,season' });
+  if (error) throw error;
 }

@@ -17,6 +17,10 @@ const EXT = <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" f
 const EYE_PLUS = <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 18c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /><path d="M16 19h6" /><path d="M19 16v6" /></svg>;
 const CHIPS = ['Similar movies', 'Fun facts', 'Post-credits scene?', 'Explain the ending'];
 
+export const tierOfId = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
+export const EYE_PLUS_ICON = EYE_PLUS;
+export const EXT_ICON = EXT;
+
 export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
@@ -361,7 +365,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
   );
 }
 
-function QuickNumber({ kind, title, item, onClose, onSaved }: { kind: 'metascore' | 'imdb_rating'; title: string; titleRow: Title; item: LibItem; onClose: () => void; onSaved: () => void }) {
+export function QuickNumber({ kind, title, item, onClose, onSaved }: { kind: 'metascore' | 'imdb_rating'; title: string; titleRow: Title; item: LibItem; onClose: () => void; onSaved: () => void }) {
   const [v, setV] = useState('');
   const max = kind === 'metascore' ? 100 : 10, step = kind === 'metascore' ? 1 : 0.1;
   const p = parseNum(v, max, step);
@@ -383,7 +387,7 @@ function QuickNumber({ kind, title, item, onClose, onSaved }: { kind: 'metascore
   );
 }
 
-function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onClose: () => void; onSaved: () => void; onDeleted: () => void }) {
+export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' }: { item: LibItem; onClose: () => void; onSaved: () => void; onDeleted: () => void; kind?: 'movie' | 'tv' }) {
   const m = merged(item.title, item.overrides);
   const [f, setF] = useState({
     title: m.title, release_date: m.release_date ?? '', runtime: m.runtime ? String(m.runtime) : '', directors: m.directors.join(', '),
@@ -395,7 +399,7 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
   const [picker, setPicker] = useState<'' | 'poster' | 'backdrop'>('');
   const [uploading, setUploading] = useState<'' | 'poster' | 'backdrop'>('');
   const isTmdb = item.title.source === 'tmdb';
-  const openPicker = async (k: 'poster' | 'backdrop') => { setPicker(picker === k ? '' : k); if (!pics) setPics(await loadImages(item.title.source_id)); };
+  const openPicker = async (k: 'poster' | 'backdrop') => { setPicker(picker === k ? '' : k); if (!pics) setPics(await loadImages(item.title.source_id, kind)); };
   const upload = (k: 'poster' | 'backdrop') => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
     setUploading(k); setNote('');
@@ -417,7 +421,7 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
         </div>
         {picker === k && (!list
           ? <span className="muted small">Loading images…</span>
-          : list.length === 0 ? <span className="muted small">No other images found for this movie.</span>
+          : list.length === 0 ? <span className="muted small">No other images found.</span>
           : <div className={k === 'poster' ? 'pp-grid' : 'bd-grid'}>{list.map((b) => (
               <button key={b.full} className={'bd-pick' + (cur === b.full ? ' on' : '')} aria-pressed={cur === b.full} aria-label={'Use this ' + (k === 'poster' ? 'poster' : 'background')} onClick={() => set(b.full)}><img src={b.thumb} alt="" loading="lazy" /></button>
             ))}</div>)}
@@ -436,7 +440,7 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
     const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im, backdrop_url: backdrop, poster_url: poster };
     setBusy(true); await updateItem(item.id, { overrides: diffOverrides(item.title, edited) }); setBusy(false); onSaved();
   };
-  const refresh = async () => { setBusy(true); try { if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle('movie', item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
+  const refresh = async () => { setBusy(true); try { if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle(kind, item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
   const clearEdits = async () => { await updateItem(item.id, { overrides: {} }); onSaved(); };
 
   const field = (k: keyof typeof f, label: string, mode: 'text' | 'numeric' | 'decimal', ph: string) => (
@@ -451,17 +455,17 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
         {note && <p className="muted small">{note}</p>}
         {imageBlock('poster')}
         {imageBlock('backdrop')}
-        {field('title', 'Title', 'text', 'Movie title')}
-        {field('release_date', 'Release date (YYYY-MM-DD)', 'numeric', '2019-11-22')}
-        {field('runtime', 'Runtime, minutes', 'numeric', '103')}
-        {field('directors', 'Director', 'text', 'Name, Name')}
+        {field('title', 'Title', 'text', 'Title')}
+        {field('release_date', kind === 'tv' ? 'First aired (YYYY-MM-DD)' : 'Release date (YYYY-MM-DD)', 'numeric', '2019-11-22')}
+        {field('runtime', kind === 'tv' ? 'Episode runtime, minutes' : 'Runtime, minutes', 'numeric', '103')}
+        {field('directors', kind === 'tv' ? 'Created by' : 'Director', 'text', 'Name, Name')}
         {field('genres', 'Genres', 'text', 'Drama, Comedy')}
         {field('metascore', 'Metascore (0–100)', 'numeric', '64')}
         {field('imdb_rating', 'IMDb (0–10)', 'decimal', '6.8')}
         {Object.keys(item.overrides ?? {}).length > 0 && <button className="link left" onClick={clearEdits}>Clear my edits</button>}
         {confirm
           ? <div className="row"><span className="small">Delete “{m.title}” and its viewings?</span><button className="btn sm" onClick={() => setConfirm(false)}>Cancel</button><button className="btn sm danger-fill" onClick={onDeleted}>Delete</button></div>
-          : <button className="btn danger" onClick={() => setConfirm(true)}>Delete movie</button>}
+          : <button className="btn danger" onClick={() => setConfirm(true)}>{kind === 'tv' ? 'Delete show' : 'Delete movie'}</button>}
       </div>
     </div>
   );

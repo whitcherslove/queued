@@ -14,9 +14,10 @@ export type Overrides = Partial<Pick<Title, 'title' | 'release_date' | 'runtime'
 export interface LibItem {
   id: string; title_id: string; section: Section; status: Status; up_next: boolean; position: number;
   tier: string | null; score: number | null; rewatch?: boolean; overrides: Overrides; title: Title;
+  plan_from?: number | null; plan_to?: number | null; run_started_at?: string | null; started_on?: string | null;
 }
 
-export interface ItemLog { id: string; watched_at: string; tier: string | null; score: number | null; rewatch: boolean }
+export interface ItemLog { id: string; watched_at: string; tier: string | null; score: number | null; rewatch: boolean; scope?: 'item' | 'season' | 'seasons' | 'show'; season_from?: number | null; season_to?: number | null }
 export interface ChatMsg { id: string; role: 'user' | 'model'; content: string; created_at: string; pending?: boolean }
 export interface CollectionPart { sourceId: string; title: string; year: number; posterUrl: string | null }
 
@@ -27,3 +28,9 @@ export interface LogRow {
 }
 
 export interface SearchHit { sourceId: string; title: string; year: number | null; releaseDate: string | null; posterUrl: string | null }
+
+export interface TvSeason { n: number; name: string; air_date: string | null; episode_count: number }
+export interface TvEpisode { n: number; name: string; air_date: string | null; runtime?: number | null }
+export interface SeasonEps { title_id: string; season: number; name: string | null; air_date: string | null; episodes: TvEpisode[] }
+export interface Mark { library_id: string; season: number; episode: number; watched_at: string }
+export interface SeasonRating { library_id: string; season: number; tier: string | null; score: number | null; rated_at: string }

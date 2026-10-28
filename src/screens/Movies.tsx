@@ -1,8 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LibItem, LogRow, SearchHit } from '../lib/types';
+import type { LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
-import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, insertLog, loadLibrary, loadLogs, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
+import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
+import ShowCard from './ShowCard';
+import ScopeSheet from '../components/ScopeSheet';
+import { epLabel, isEnded, progress, scopeLabel, todayIso } from '../lib/tv';
 import MovieCard from './MovieCard';
 import ScoreRing from '../components/ScoreRing';
 import { useBackLayer } from '../lib/back';
@@ -12,7 +15,8 @@ import { GripIcon, Metascore, Poster } from '../components/Rows';
 import { IconMenu, IconSearch } from '../components/Icons';
 import { TIERS } from '../lib/scores';
 
-interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void }
+interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void; kind?: 'movie' | 'tv' }
+type Tab = 'watched' | 'playing' | 'backlog';
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const EyePlus = ({ size = 15 }: { size?: number }) => (
@@ -20,8 +24,15 @@ const EyePlus = ({ size = 15 }: { size?: number }) => (
 );
 
 
-export default function Movies({ settings, onSettings, onMenu }: Props) {
-  const [tab, setTab] = useState<'watched' | 'backlog'>('watched');
+export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }: Props) {
+  const isTv = kind === 'tv';
+  const section = isTv ? 'tv' : 'movies';
+  const noun = isTv ? 'show' : 'movie';
+  const [tab, setTab] = useState<Tab>('watched');
+  const [tvEps, setTvEps] = useState<SeasonEps[]>([]);
+  const [tvMarks, setTvMarks] = useState<Mark[]>([]);
+  const [scopeAdd, setScopeAdd] = useState<Title | null>(null);
+  const warmed = useRef(false);
   const [items, setItems] = useState<LibItem[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -38,19 +49,29 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const [menu, setMenu] = useState<null | { item: LibItem; log: LogRow | null }>(null);
   const [menuConfirm, setMenuConfirm] = useState<null | 'remove' | 'viewing'>(null);
   const currentSeq = () => {
-    const ids = tab === 'watched' && !(q.trim().length >= 2) ? watched.map((l) => l.library.id) : q.trim().length >= 2 ? matchLibrary(items, q).map((i) => i.id) : splitBacklog(items).next.concat(splitBacklog(items).rest).map((i) => i.id);
+    const ids = q.trim().length >= 2 ? matchLibrary(items, q).map((i) => i.id) : tab === 'watched' ? watched.map((l) => l.library.id) : tab === 'playing' ? watchingRows.prog.concat(watchingRows.caught).map((r) => r.it.id) : splitBacklog(items).next.concat(splitBacklog(items).rest).map((i) => i.id);
     return ids.filter((id, i) => ids.indexOf(id) === i);
   };
   const setSheet = (it: LibItem) => { setCardSeq(currentSeq()); setCardEnter(null); setCardId(it.id); };
   const view = settings.view;
 
   const refresh = useCallback(async () => {
-    try { const [a, b] = await Promise.all([loadLibrary('movies'), loadLogs('movies')]);
+    try { const [a, b] = await Promise.all([loadLibrary(section), loadLogs(section)]);
       setItems(a.map((i) => ({ ...i, title: merged(i.title, i.overrides) })));
+      if (isTv) {
+        const playing = a.filter((i) => i.status === 'playing');
+        const [e, m] = await Promise.all([loadEpisodes(playing.map((i) => i.title_id)), loadMarks(playing.map((i) => i.id))]);
+        setTvEps(e); setTvMarks(m);
+        if (!warmed.current) {
+          warmed.current = true;
+          const running = playing.filter((i) => !isEnded(i.title)).map((i) => i.title.source_id);
+          if (running.length) refreshEpisodes(running).then(async () => { setTvEps(await loadEpisodes(playing.map((i) => i.title_id))); });
+        }
+      }
       setLogs(b.map((l) => ({ ...l, library: { ...l.library, title: merged(l.library.title, l.library.overrides) } }))); setError(''); }
     catch (e) { setError('Couldn’t load your lists. Check your connection and pull to refresh.'); }
     setLoading(false);
-  }, []);
+  }, [section]);
   useEffect(() => { refresh(); }, [refresh]);
 
   // live search with debounce
@@ -60,7 +81,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     if (s.length < 2) { setHits([]); setSearching(false); return; }
     const my = ++seq.current; setSearching(true);
     const t = setTimeout(async () => {
-      try { const r = await searchTitles(s, 'movie'); if (my === seq.current) setHits(r); }
+      try { const r = await searchTitles(s, kind); if (my === seq.current) setHits(r); }
       catch { if (my === seq.current) setHits([]); }
       if (my === seq.current) setSearching(false);
     }, 350);
@@ -72,18 +93,24 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const libMatches = useMemo(() => matchLibrary(items, q), [items, q]);
   const fresh = useMemo(() => newHits(hits, items), [hits, items]);
   const customOrder = logs.some((l) => l.position !== null);
+  const today = todayIso();
+  const watchingRows = useMemo(() => {
+    const rows = items.filter((i) => i.status === 'playing').map((it) => ({ it, p: progress(it, it.title, tvEps.filter((e) => e.title_id === it.title_id), tvMarks.filter((m) => m.library_id === it.id), today) }));
+    return { prog: rows.filter((r) => r.p.nextEp || !r.p.caughtUp), caught: rows.filter((r) => !r.p.nextEp && r.p.caughtUp) };
+  }, [items, tvEps, tvMarks, today]);
+  const playingCount = items.filter((i) => i.status === 'playing').length;
 
   const imdbInQuery = (q.match(/tt\d{6,10}/) ?? [null])[0];
   const addByImdb = async () => {
     if (!imdbInQuery) return;
     setAdding(imdbInQuery);
-    try { const t = await ensureTitleByImdb(imdbInQuery); if (!items.some((i) => i.title_id === t.id)) await addToBacklog(t.id, 'movies', topPosition(items)); setQ(''); await refresh(); }
+    try { const t = await ensureTitleByImdb(imdbInQuery, false, kind); if (items.some((i) => i.title_id === t.id)) { setQ(''); } else if (isTv) setScopeAdd(t); else { await addToBacklog(t.id, 'movies', topPosition(items)); setQ(''); await refresh(); } }
     catch { setError('Nothing found for ' + imdbInQuery + '.'); }
     setAdding(null);
   };
   const add = async (h: SearchHit) => {
     setAdding(h.sourceId);
-    try { const t = await ensureTitle('movie', h.sourceId); await addToBacklog(t.id, 'movies', topPosition(items)); await refresh(); }
+    try { const t = await ensureTitle(kind, h.sourceId); if (isTv) setScopeAdd(t); else { await addToBacklog(t.id, 'movies', topPosition(items)); await refresh(); } }
     catch { setError('Couldn’t add “' + h.title + '”. Try again in a moment.'); }
     setAdding(null);
   };
@@ -125,13 +152,31 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         <Poster t={it.title} w={56} h={84}></Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
-          <span className="row-meta">{[releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{it.rewatch && <EyePlus />}</span>
+          <span className="row-meta">{isTv ? scopeLabel(it.plan_from, it.plan_to, it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{it.rewatch && <EyePlus />}</span>
           <span className="row-meta"><Metascore v={it.title.metascore} size="sm" /></span>
         </span>
       </button>
       {grip(list, it.id, it.title.title)}
     </div>
   );
+
+  const watchRow = (it: LibItem, p: ReturnType<typeof progress>, caught: boolean) => {
+    const isNew = !!(p.nextEp && p.nextEp.air_date && p.seen > 0 && (Date.now() - new Date(p.nextEp.air_date).getTime()) < 10 * 864e5);
+    const d = caught ? (p.nextFuture?.air_date ? dateParts(p.nextFuture.air_date) : null) : (it.started_on ? dateParts(it.started_on) : null);
+    return (
+      <div key={it.id} className="row-card" data-rowid={it.id} data-list="p">
+        <button className="row-main" {...longPress(it.id)} onClick={() => setSheet(it)}>
+          <Poster t={it.title} w={56} h={84} />
+          <span className="row-text">
+            <span className="row-title">{it.title.title}{isNew && <> <span className="new-pill">NEW</span></>}</span>
+            <span className="row-meta">{p.nextEp ? 'Next: ' + epLabel(p.nextEp) : 'Caught up'}{it.rewatch && <EyePlus />}</span>
+            <span className="row-meta"><span className="mini-bar w72"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.seen}/{p.aired}</strong></span>
+          </span>
+        </button>
+        <span className="date-col"><span className="date-cap">{caught ? 'Next episode' : 'Started on'}</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">TBA</span>}</span>
+      </div>
+    );
+  };
 
   const watchedRow = (l: LogRow) => {
     const t = l.library.title, tr = tierOf(l.tier), d = dateParts(l.watched_at);
@@ -141,12 +186,12 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
           <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
-            <span className="row-meta">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{settings.listMetascore && <Metascore v={t.metascore} size="sm" />}</span>
-            {tr && <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span>}
+            <span className="row-meta">{isTv ? scopeLabel(l.scope === 'show' ? null : l.season_from, l.season_to, t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{settings.listMetascore && <Metascore v={t.metascore} size="sm" />}</span>
+            {tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : isTv && <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
           </span>
         </button>
         {edit ? grip('w', l.id, t.title) : (
-          <span className="date-col"><span className="date-cap">Watched on</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}{l.rewatch && <EyePlus size={13} />}</span></span>
+          <span className="date-col"><span className="date-cap">{isTv ? 'Finished on' : 'Watched on'}</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}{l.rewatch && <EyePlus size={13} />}</span></span>
         )}
       </div>
     );
@@ -166,7 +211,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   ); };
 
   const searchingMode = q.trim().length >= 2;
-  const TABS: ('watched' | 'backlog')[] = ['watched', 'backlog'];
+  const TABS: Tab[] = isTv ? ['watched', 'playing', 'backlog'] : ['watched', 'backlog'];
   const tabIndex = TABS.indexOf(tab);
   // Swipe between tabs. While the finger moves we write transforms straight to the DOM (no React re-render) so it stays smooth.
   const [anim, setAnim] = useState<'' | 'enter-right' | 'enter-left'>('');
@@ -249,8 +294,8 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         <div className="title-row">
           <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>
           <div className="title-block">
-            <h1 className="section-title">Movies</h1>
-            <span className="muted small">{watched.length} watched · {next.length + rest.length} in backlog</span>
+            <h1 className="section-title">{isTv ? 'TV Shows' : 'Movies'}</h1>
+            <span className="muted small">{isTv ? `${watched.length} logged · ${playingCount} watching · ${next.length + rest.length} in backlog` : `${watched.length} watched · ${next.length + rest.length} in backlog`}</span>
           </div>
           <button className="icon-btn boxed" aria-label={view === 'list' ? 'Show as grid' : 'Show as list'} onClick={() => onSettings({ ...settings, view: view === 'list' ? 'grid' : 'list' })}>
             {view === 'list'
@@ -263,15 +308,18 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         </div>
         <div className={'search' + (searchingMode ? ' active' : '')}>
           <IconSearch />
-          <label htmlFor="q" className="sr">Search your lists or add a movie</label>
-          <input id="q" type="text" enterKeyHint="search" placeholder="Search your lists or add a movie" value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
+          <label htmlFor="q" className="sr">{`Search your lists or add a ${noun}`}</label>
+          <input id="q" type="text" enterKeyHint="search" placeholder={`Search your lists or add a ${noun}`} value={q} onChange={(e) => setQ(e.target.value)} autoComplete="off" />
           {q && <button className="clear" aria-label="Clear search" onClick={() => setQ('')}>×</button>}
         </div>
         {!searchingMode && (
           <div className="segmented sliding" role="tablist" ref={segW}>
             <span className="seg-pill" ref={pillRef} aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: pillAt(tabIndex) }} />
-            <button role="tab" aria-selected={tab === 'watched'} onClick={() => tab !== 'watched' && goTab(0, 'from-left')}>Watched <span className="muted">{watched.length}</span></button>
-            <button role="tab" aria-selected={tab === 'backlog'} onClick={() => tab !== 'backlog' && goTab(1, 'from-right')}>Backlog <span className="muted">{next.length + rest.length}</span></button>
+            {TABS.map((tb, i) => (
+              <button key={tb} role="tab" aria-selected={tab === tb} onClick={() => tab !== tb && goTab(i, i > tabIndex ? 'from-right' : 'from-left')}>
+                {tb === 'watched' ? 'Watched' : tb === 'playing' ? 'Watching' : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? playingCount : next.length + rest.length}</span>
+              </button>
+            ))}
           </div>
         )}
         {edit && !searchingMode && (
@@ -293,10 +341,10 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
                 ? rows.map(({ it, lg }) => (lg ? watchedRow(lg) : backlogRow(it, 's')))
                 : <div className="grid">{rows.map(({ it, lg }) => (lg ? tile(lg.library, 'w', () => setSheet(lg.library), lg.id, lg.score, lg.tier, lg.watched_at, lg.rewatch) : tile(it, it.up_next ? 'n' : 'r', () => setSheet(it), it.id)))}</div>;
             })()}
-            <div className="sec-head mt"><span className="h2">Add a new movie</span><span className="muted small">{searching ? 'Searching…' : fresh.length || ''}</span></div>
+            <div className="sec-head mt"><span className="h2">{`Add a new ${noun}`}</span><span className="muted small">{searching ? 'Searching…' : fresh.length || ''}</span></div>
             {imdbInQuery && (
               <div className="hit">
-                <span className="row-text"><span className="row-title">Add by IMDb ID</span><span className="row-meta">{imdbInQuery} · for movies search can’t find</span></span>
+                <span className="row-text"><span className="row-title">Add by IMDb ID</span><span className="row-meta">{imdbInQuery} · {`for ${noun}s search can’t find`}</span></span>
                 <button className="add-btn" aria-label={'Add ' + imdbInQuery} disabled={adding === imdbInQuery} onClick={addByImdb}>{adding === imdbInQuery ? '…' : '+'}</button>
               </div>
             )}
@@ -309,10 +357,20 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
               </div>
             ))}
           </div>
+        ) : tab === 'playing' ? (
+          <div className="stack">
+            <span className="h2">In progress</span>
+            {watchingRows.prog.length === 0 && <div className="empty small-pad">Mark an episode in a show from your Backlog — it moves here.</div>}
+            {watchingRows.prog.map(({ it, p }) => watchRow(it, p, false))}
+            <span className="h2 mt-block">Caught up</span>
+            <span className="muted small">Still airing — they jump back to In progress when a new episode is out.</span>
+            {watchingRows.caught.length === 0 && <div className="empty small-pad">Nothing here yet.</div>}
+            {watchingRows.caught.map(({ it, p }) => watchRow(it, p, true))}
+          </div>
         ) : tab === 'watched' ? (
           <div className="stack">
             {customOrder && <div className="sec-head"><span className="muted small">Custom order</span><button className="link" onClick={async () => { await resetLogOrder(logs.map((l) => l.id)); refresh(); }}>Sort by date</button></div>}
-            {watched.length === 0 && <div className="empty"><p><strong>Nothing watched yet.</strong></p><p className="muted">Movies you rate land here. Rating arrives with the movie card in the next update.</p></div>}
+            {watched.length === 0 && <div className="empty"><p><strong>Nothing watched yet.</strong></p><p className="muted">{isTv ? 'Finished seasons and series land here as journal entries.' : 'Movies you rate land here.'}</p></div>}
             {view === 'list' ? watched.map((l) => watchedRow(l)) : <div className="grid">{watched.map((l) => tile(l.library, 'w', () => setSheet(l.library), l.id, l.score, l.tier, l.watched_at, l.rewatch))}</div>}
           </div>
         ) : (
@@ -321,7 +379,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
             {next.length === 0 && <div className="empty small-pad">Open something in your Backlog and turn on “Up next” — it’ll show up here.</div>}
             {view === 'list' ? next.map((it) => backlogRow(it, 'n')) : <div className="grid">{next.map((it) => tile(it, 'n', () => setSheet(it), it.id))}</div>}
             <div className="sec-head mt"><span className="h2">Deep backlog</span><span className="muted small">{rest.length}</span></div>
-            {rest.length === 0 && <div className="empty small-pad">Search above to add movies.</div>}
+            {rest.length === 0 && <div className="empty small-pad">{`Search above to add ${noun}s.`}</div>}
             {view === 'list' ? rest.map((it) => backlogRow(it, 'r')) : <div className="grid">{rest.map((it) => tile(it, 'r', () => setSheet(it), it.id))}</div>}
           </div>
         )}
@@ -352,11 +410,11 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
               ) : (
                 <div className="action-list">
                   <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Open</button>
-                  {isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Mark as watched…</button>}
+                  {isBack && !isTv && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Mark as watched…</button>}
                   {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, topPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
-                  {!isBack && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Change rating…</button>}
-                  {!isBack && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>Log a rewatch → Backlog</button>}
-                  <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>
+                  {!isBack && item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Change rating…</button>}
+                  {!isBack && !isTv && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>Log a rewatch → Backlog</button>}
+                  {item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>}
                   {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>Delete this viewing</button>}
                   <button role="menuitem" className="danger" onClick={() => setMenuConfirm('remove')}>Remove from my lists</button>
                 </div>
@@ -365,7 +423,15 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
           </div>
         );
       })()}
-      {cardId && <MovieCard key={cardId} itemId={cardId} openTake={cardTake} enterFrom={cardEnter}
+      {scopeAdd && <ScopeSheet t={scopeAdd} title="What will you watch?" confirm="Add to Backlog" onCancel={() => setScopeAdd(null)}
+        onDone={async (from, to) => { const t = scopeAdd; setScopeAdd(null); try { await addToBacklog(t.id, 'tv', topPosition(items), { plan_from: from, plan_to: to, run_started_at: new Date().toISOString() }); refreshEpisodes([t.source_id]); await refresh(); } catch { setError('Couldn’t add “' + t.title + '”.'); } }} />}
+      {cardId && isTv && <ShowCard key={cardId} itemId={cardId} openTake={cardTake} enterFrom={cardEnter} settings={settings} topPos={topPosition(items)}
+        initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
+        initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch, scope: l.scope, season_from: l.season_from, season_to: l.season_to })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}
+        onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
+        onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null}
+        onClose={() => { setCardId(null); setCardTake(false); }} onChanged={refresh} />}
+      {cardId && !isTv && <MovieCard key={cardId} itemId={cardId} openTake={cardTake} enterFrom={cardEnter}
         onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
         onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
         initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}

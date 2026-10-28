@@ -22,7 +22,17 @@ Deno.serve(async (req) => {
     const { q, kind } = await req.json();
     const query = String(q ?? '').trim();
     if (query.length < 2) return Response.json({ results: [] }, { headers: CORS });
-    if (kind !== 'movie') return Response.json({ results: [], error: 'Only movies are supported yet' }, { headers: CORS });
+    if (kind === 'tv') {
+      const r = await tmdbFetch('/search/tv', { query, include_adult: 'false', language: 'en-US', page: '1' });
+      if (!r.ok) return Response.json({ error: 'TMDB ' + r.status }, { status: 502, headers: CORS });
+      const j = await r.json();
+      const results = (j.results ?? []).slice(0, 10).map((m: any) => ({
+        sourceId: String(m.id), title: m.name, year: m.first_air_date ? Number(m.first_air_date.slice(0, 4)) : null,
+        releaseDate: m.first_air_date || null, posterUrl: m.poster_path ? IMG + 'w185' + m.poster_path : null
+      }));
+      return Response.json({ results }, { headers: CORS });
+    }
+    if (kind !== 'movie') return Response.json({ results: [] }, { headers: CORS });
     const r = await tmdbFetch('/search/movie', { query, include_adult: 'false', language: 'en-US', page: '1' });
     if (!r.ok) return Response.json({ error: 'TMDB ' + r.status }, { status: 502, headers: CORS });
     const j = await r.json();

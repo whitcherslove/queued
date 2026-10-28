@@ -46,15 +46,15 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
           <span className="drawer-who"><strong>Your profile</strong><span className="muted small">{profile.email}</span></span>
         </button>
         <button className="drawer-item" onClick={() => { setDrawer(false); setProfileOpen(true); }}>Profile and settings</button>
-        <span className="muted small drawer-foot">Queued · v0.3</span>
+        <span className="muted small drawer-foot">Queued · v0.4</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
   );
 
-  if (section === 'movies') return (
+  if (section === 'movies' || section === 'tv') return (
     <div className="screen">
-      <Movies settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} />
+      <Movies key={section} kind={section === 'tv' ? 'tv' : 'movie'} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} />
       {nav}{drawerEl}
     </div>
   );
