@@ -4,7 +4,7 @@ import type { Settings } from '../lib/theme';
 import { TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
 import { diffOverrides, latestLog, longDate, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import {
-  addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadBackdrops, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
+  addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import { IconBack } from '../components/Icons';
@@ -31,14 +31,19 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
   const [draft, setDraft] = useState('');
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
-  const [sx, setSx] = useState(0);
-  const [leave, setLeave] = useState<'' | 'left' | 'right'>('');
-  const swRef = useRef<{ x: number; y: number; t: number; mode: '' | 'h' | 'v'; vx: number; lx: number; lt: number } | null>(null);
+  const swipeEl = useRef<HTMLDivElement>(null);
+  const raf = useRef(0);
+  const swRef = useRef<{ x: number; y: number; mode: '' | 'h' | 'v'; dx: number; vx: number; lx: number; lt: number } | null>(null);
   const lastSwipe = useRef(0);
+  const paint = (dx: number) => {
+    cancelAnimationFrame(raf.current);
+    raf.current = requestAnimationFrame(() => { const el = swipeEl.current; if (!el) return; el.style.transition = 'none'; el.style.transform = `translate3d(${dx}px,0,0)`; el.style.opacity = String(1 - Math.min(Math.abs(dx) / 800, 0.25)); });
+  };
+  const snapBack = () => { cancelAnimationFrame(raf.current); const el = swipeEl.current; if (!el) return; el.style.transition = 'transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s ease'; el.style.transform = ''; el.style.opacity = ''; };
   const swipe = {
     onPointerDown: (e: React.PointerEvent) => {
-      if (e.button > 0 || (e.target as HTMLElement).closest('input, textarea, .chips.scroll, .bd-grid, .cands, .chat-log, .no-swipe')) return;
-      swRef.current = { x: e.clientX, y: e.clientY, t: e.timeStamp, mode: '', vx: 0, lx: e.clientX, lt: e.timeStamp };
+      if (e.button > 0 || (e.target as HTMLElement).closest('input, textarea, .chips.scroll, .bd-grid, .pp-grid, .cands, .chat-log, .no-swipe')) return;
+      swRef.current = { x: e.clientX, y: e.clientY, mode: '', dx: 0, vx: 0, lx: e.clientX, lt: e.timeStamp };
     },
     onPointerMove: (e: React.PointerEvent) => {
       const st = swRef.current; if (!st) return;
@@ -48,21 +53,21 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
         else if (Math.abs(dy) > 14) { st.mode = 'v'; return; }
       }
       if (st.mode === 'h') {
-        const dt = e.timeStamp - st.lt; if (dt > 0) st.vx = (e.clientX - st.lx) / dt;
+        const dt = e.timeStamp - st.lt; if (dt > 0) st.vx = 0.7 * st.vx + 0.3 * ((e.clientX - st.lx) / dt);
         st.lx = e.clientX; st.lt = e.timeStamp;
-        const edge = (dx > 0 && !onPrev) || (dx < 0 && !onNext); setSx(edge ? dx * 0.2 : dx);
+        const edge = (dx > 0 && !onPrev) || (dx < 0 && !onNext); st.dx = edge ? dx * 0.2 : dx; paint(st.dx);
       }
     },
     onPointerUp: () => {
       const st = swRef.current; swRef.current = null;
       if (!st || st.mode !== 'h') return;
       lastSwipe.current = Date.now();
-      const dx = sx, flick = Math.abs(st.vx) > 0.45 && Math.abs(dx) > 25;
+      const dx = st.dx, flick = Math.abs(st.vx) > 0.4 && Math.abs(dx) > 25;
       if ((dx < -60 || (flick && st.vx < 0)) && onNext) onNext();
       else if ((dx > 60 || (flick && st.vx > 0)) && onPrev) onPrev();
-      else setSx(0);
+      else snapBack();
     },
-    onPointerCancel: () => { swRef.current = null; setSx(0); },
+    onPointerCancel: () => { if (swRef.current?.mode === 'h') snapBack(); swRef.current = null; },
     onClickCapture: (e: React.MouseEvent) => { if (Date.now() - lastSwipe.current < 350) { e.preventDefault(); e.stopPropagation(); } }
   };
   const [error, setError] = useState('');
@@ -156,7 +161,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
 
   return (
     <div className={'card-screen' + (enterFrom ? ' enter-' + enterFrom : '')} {...swipe}>
-      <div className={'card-swipe' + (leave ? ' leave-' + leave : '')} style={{ ['--sx' as string]: sx + 'px', transform: sx && !leave ? `translateX(${sx}px)` : undefined, opacity: sx && !leave ? 1 - Math.min(Math.abs(sx) / 700, 0.3) : undefined, transition: sx ? 'none' : undefined }}>
+      <div ref={swipeEl} className="card-swipe">
       <div className="hero">
         {t.backdrop_url && <img src={t.backdrop_url} alt="" />}
         <div className="hero-shade" />
@@ -385,9 +390,40 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
     genres: m.genres.join(', '), metascore: m.metascore === null ? '' : String(m.metascore), imdb_rating: m.imdb_rating === null ? '' : String(m.imdb_rating)
   });
   const [backdrop, setBackdrop] = useState<string | null>(m.backdrop_url);
-  const [shots, setShots] = useState<{ thumb: string; full: string }[] | null>(null);
-  const [link, setLink] = useState('');
+  const [poster, setPoster] = useState<string | null>(m.poster_url);
+  const [pics, setPics] = useState<null | { backdrops: { thumb: string; full: string }[]; posters: { thumb: string; full: string }[] }>(null);
+  const [picker, setPicker] = useState<'' | 'poster' | 'backdrop'>('');
+  const [uploading, setUploading] = useState<'' | 'poster' | 'backdrop'>('');
   const isTmdb = item.title.source === 'tmdb';
+  const openPicker = async (k: 'poster' | 'backdrop') => { setPicker(picker === k ? '' : k); if (!pics) setPics(await loadImages(item.title.source_id)); };
+  const upload = (k: 'poster' | 'backdrop') => async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
+    setUploading(k); setNote('');
+    try { const url = await uploadCover(file, k); if (k === 'poster') setPoster(url); else setBackdrop(url); }
+    catch { setNote('Couldn’t upload the image. Try a smaller file.'); }
+    setUploading('');
+  };
+  const imageBlock = (k: 'poster' | 'backdrop') => {
+    const cur = k === 'poster' ? poster : backdrop, def = k === 'poster' ? item.title.poster_url : item.title.backdrop_url;
+    const set = k === 'poster' ? setPoster : setBackdrop, list = pics ? (k === 'poster' ? pics.posters : pics.backdrops) : null;
+    return (
+      <div className="stack-sm">
+        <span className="muted small strong">{k === 'poster' ? 'Poster' : 'Background'}</span>
+        <div className={k === 'poster' ? 'pp-preview' : 'bd-preview'}>{cur ? <img src={cur} alt="" /> : <span className="muted small">None</span>}</div>
+        <div className="row">
+          {isTmdb && <button className="btn sm" aria-expanded={picker === k} onClick={() => openPicker(k)}>{k === 'poster' ? 'Choose a different poster' : 'Choose a different background'}</button>}
+          <label className="btn sm file-btn">{uploading === k ? 'Uploading…' : 'Upload from device'}<input type="file" accept="image/*" onChange={upload(k)} /></label>
+          {cur !== def && <button className="btn sm" onClick={() => set(def)}>Reset</button>}
+        </div>
+        {picker === k && (!list
+          ? <span className="muted small">Loading images…</span>
+          : list.length === 0 ? <span className="muted small">No other images found for this movie.</span>
+          : <div className={k === 'poster' ? 'pp-grid' : 'bd-grid'}>{list.map((b) => (
+              <button key={b.full} className={'bd-pick' + (cur === b.full ? ' on' : '')} aria-pressed={cur === b.full} aria-label={'Use this ' + (k === 'poster' ? 'poster' : 'background')} onClick={() => set(b.full)}><img src={b.thumb} alt="" loading="lazy" /></button>
+            ))}</div>)}
+      </div>
+    );
+  };
   const [busy, setBusy] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [note, setNote] = useState('');
@@ -397,10 +433,10 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
   const save = async () => {
     const ms = numOrNull(f.metascore, 100), im = numOrNull(f.imdb_rating, 10), rt = f.runtime.trim() ? parseInt(f.runtime, 10) : null;
     if (ms === undefined || im === undefined || (f.release_date && !/^\d{4}-\d{2}-\d{2}$/.test(f.release_date))) { setNote('Check the highlighted values: dates as YYYY-MM-DD, Metascore 0–100, IMDb 0–10.'); return; }
-    const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im, backdrop_url: backdrop };
+    const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im, backdrop_url: backdrop, poster_url: poster };
     setBusy(true); await updateItem(item.id, { overrides: diffOverrides(item.title, edited) }); setBusy(false); onSaved();
   };
-  const refresh = async () => { setBusy(true); try { if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle('movie', item.title.source_id, true); setNote('Fresh data loaded from TMDB and OMDb. Your own edits are kept.'); } catch { setNote('Couldn’t refresh right now.'); } setBusy(false); };
+  const refresh = async () => { setBusy(true); try { if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle('movie', item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
   const clearEdits = async () => { await updateItem(item.id, { overrides: {} }); onSaved(); };
 
   const field = (k: keyof typeof f, label: string, mode: 'text' | 'numeric' | 'decimal', ph: string) => (
@@ -411,26 +447,10 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
     <div className="edit-screen" role="dialog" aria-label="Edit details">
       <div className="edit-head"><button className="link" onClick={onClose}>Cancel</button><span className="h2">Edit details</span><button className="btn primary sm" onClick={save} disabled={busy}>Save</button></div>
       <div className="card-body">
-        <button className="btn wide" onClick={refresh} disabled={busy}>↻ Refresh from TMDB + OMDb</button>
+        <button className="btn wide" onClick={refresh} disabled={busy}>↻ Update the info</button>
         {note && <p className="muted small">{note}</p>}
-        <div className="stack-sm">
-          <span className="muted small strong">Backdrop</span>
-          <div className="bd-preview">{backdrop ? <img src={backdrop} alt="" /> : <span className="muted small">No backdrop</span>}</div>
-          <div className="row">
-            {isTmdb && <button className="btn sm" onClick={async () => { setShots([]); setShots(await loadBackdrops(item.title.source_id)); }}>Choose from TMDB</button>}
-            {backdrop !== item.title.backdrop_url && <button className="btn sm" onClick={() => setBackdrop(item.title.backdrop_url)}>Reset to default</button>}
-          </div>
-          {shots && (shots.length === 0
-            ? <span className="muted small">Loading images… If nothing shows up, TMDB has no other backdrops for this movie.</span>
-            : <div className="bd-grid">{shots.map((b) => (
-                <button key={b.full} className={'bd-pick' + (backdrop === b.full ? ' on' : '')} aria-pressed={backdrop === b.full} aria-label="Use this backdrop" onClick={() => setBackdrop(b.full)}><img src={b.thumb} alt="" loading="lazy" /></button>
-              ))}</div>)}
-          <div className="row nowrap">
-            <label htmlFor="bd-link" className="sr">Image link</label>
-            <input id="bd-link" className="text-input grow" value={link} onChange={(e) => setLink(e.target.value)} placeholder="…or paste an image link (https://…)" />
-            <button className="btn sm" onClick={() => { if (/^https:\/\/\S+$/.test(link.trim())) { setBackdrop(link.trim()); setLink(''); } else setNote('Paste a full image link starting with https://'); }}>Use</button>
-          </div>
-        </div>
+        {imageBlock('poster')}
+        {imageBlock('backdrop')}
         {field('title', 'Title', 'text', 'Movie title')}
         {field('release_date', 'Release date (YYYY-MM-DD)', 'numeric', '2019-11-22')}
         {field('runtime', 'Runtime, minutes', 'numeric', '103')}
@@ -438,7 +458,7 @@ function EditDetails({ item, onClose, onSaved, onDeleted }: { item: LibItem; onC
         {field('genres', 'Genres', 'text', 'Drama, Comedy')}
         {field('metascore', 'Metascore (0–100)', 'numeric', '64')}
         {field('imdb_rating', 'IMDb (0–10)', 'decimal', '6.8')}
-        {Object.keys(item.overrides ?? {}).length > 0 && <button className="link left" onClick={clearEdits}>Clear my edits and use TMDB data</button>}
+        {Object.keys(item.overrides ?? {}).length > 0 && <button className="link left" onClick={clearEdits}>Clear my edits</button>}
         {confirm
           ? <div className="row"><span className="small">Delete “{m.title}” and its viewings?</span><button className="btn sm" onClick={() => setConfirm(false)}>Cancel</button><button className="btn sm danger-fill" onClick={onDeleted}>Delete</button></div>
           : <button className="btn danger" onClick={() => setConfirm(true)}>Delete movie</button>}

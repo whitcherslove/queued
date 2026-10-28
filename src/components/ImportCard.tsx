@@ -114,11 +114,11 @@ function ManualPick({ item, onDone }: { item: ReviewItem; onDone: () => void }) 
   return (
     <div className="stack-sm">
       <div className="row nowrap">
-        <label htmlFor={'mp-' + item.id} className="sr">Search TMDB or paste a TMDB / IMDb link</label>
-        <input id={'mp-' + item.id} className="text-input grow" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} placeholder="Title, or a TMDB / IMDb link" />
+        <label htmlFor={'mp-' + item.id} className="sr">Search for the movie or paste an IMDb link</label>
+        <input id={'mp-' + item.id} className="text-input grow" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} placeholder="Title, or an IMDb link" />
         <button className="btn primary sm" onClick={run} disabled={busy}>{busy ? '…' : 'Find'}</button>
       </div>
-      <span className="muted small">Try another spelling, the original title, or paste a link like imdb.com/title/tt0111161 or themoviedb.org/movie/278.</span>
+      <span className="muted small">Try another spelling or the original title, or paste an IMDb link like imdb.com/title/tt0111161.</span>
       {msg && <span className="error small">{msg}</span>}
       {hits.length > 0 && (
         <div className="cands">

@@ -30,11 +30,15 @@ Deno.serve(async (req) => {
     const body = await req.json();
     if (body.action === 'images') {
       const r = await tmdbFetch('/movie/' + body.sourceId + '/images', { include_image_language: 'en,null' });
-      if (!r.ok) return Response.json({ backdrops: [] }, { headers: CORS });
+      if (!r.ok) return Response.json({ backdrops: [], posters: [] }, { headers: CORS });
       const j = await r.json();
       const backdrops = (j.backdrops ?? []).sort((a: any, b: any) => (b.vote_count ?? 0) - (a.vote_count ?? 0)).slice(0, 24)
         .map((b: any) => ({ thumb: IMG + 'w780' + b.file_path, full: IMG + 'w1280' + b.file_path }));
-      return Response.json({ backdrops }, { headers: CORS });
+      const pr = await tmdbFetch('/movie/' + body.sourceId + '/images', { include_image_language: 'en,null,ru' });
+      const pj = pr.ok ? await pr.json() : { posters: [] };
+      const posters = (pj.posters ?? []).sort((a: any, b: any) => (b.vote_count ?? 0) - (a.vote_count ?? 0)).slice(0, 30)
+        .map((p: any) => ({ thumb: IMG + 'w185' + p.file_path, full: IMG + 'w342' + p.file_path }));
+      return Response.json({ backdrops, posters }, { headers: CORS });
     }
     const { kind, force } = body;
     let sourceId = body.sourceId as string | undefined;

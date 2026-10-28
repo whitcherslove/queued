@@ -78,7 +78,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
     if (!imdbInQuery) return;
     setAdding(imdbInQuery);
     try { const t = await ensureTitleByImdb(imdbInQuery); if (!items.some((i) => i.title_id === t.id)) await addToBacklog(t.id, 'movies', topPosition(items)); setQ(''); await refresh(); }
-    catch { setError('Nothing found for ' + imdbInQuery + ' on TMDB or IMDb.'); }
+    catch { setError('Nothing found for ' + imdbInQuery + '.'); }
     setAdding(null);
   };
   const add = async (h: SearchHit) => {
@@ -168,50 +168,70 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
   const searchingMode = q.trim().length >= 2;
   const TABS: ('watched' | 'backlog')[] = ['watched', 'backlog'];
   const tabIndex = TABS.indexOf(tab);
-  const [swipeX, setSwipeX] = useState(0);
-  const [swiping, setSwiping] = useState(false);
-  const [anim, setAnim] = useState<'' | 'leave-left' | 'leave-right' | 'enter-right' | 'enter-left'>('');
-  const [pillTarget, setPillTarget] = useState<number | null>(null);
+  // Swipe between tabs. While the finger moves we write transforms straight to the DOM (no React re-render) so it stays smooth.
+  const [anim, setAnim] = useState<'' | 'enter-right' | 'enter-left'>('');
   const lastSwipe = useRef(0);
-  const sw = useRef<{ x: number; y: number; mode: '' | 'h' | 'v'; w: number; moved: boolean; vx: number; lx: number; lt: number } | null>(null);
+  const paneRef = useRef<HTMLDivElement>(null);
+  const pillRef = useRef<HTMLSpanElement>(null);
+  const segW = useRef<HTMLDivElement>(null);
+  const raf = useRef(0);
+  const sw = useRef<{ x: number; y: number; mode: '' | 'h' | 'v'; dx: number; vx: number; lx: number; lt: number } | null>(null);
+  const pillAt = (pos: number) => `translateX(calc(${pos} * 100%))`;
+  const paint = (dx: number) => {
+    cancelAnimationFrame(raf.current);
+    raf.current = requestAnimationFrame(() => {
+      const pane = paneRef.current, pill = pillRef.current, w = segW.current?.clientWidth || 360;
+      if (pane) { pane.style.transition = 'none'; pane.style.transform = `translate3d(${dx}px,0,0)`; pane.style.opacity = String(1 - Math.min(Math.abs(dx) / 700, 0.3)); }
+      if (pill) { pill.style.transition = 'none'; pill.style.transform = pillAt(tabIndex + Math.max(-1, Math.min(1, -dx / w))); }
+    });
+  };
+  const release = (toIndex: number) => {
+    cancelAnimationFrame(raf.current);
+    const pane = paneRef.current, pill = pillRef.current;
+    if (pill) { pill.style.transition = ''; pill.style.transform = pillAt(toIndex); }
+    if (pane) {
+      pane.style.transition = toIndex === tabIndex ? 'transform .22s cubic-bezier(.2,.8,.2,1), opacity .22s ease' : 'none';
+      pane.style.transform = ''; pane.style.opacity = '';
+    }
+  };
   const goTab = (i: number, dir: 'from-right' | 'from-left') => {
-    setTab(TABS[i]); setSwipeX(0); setPillTarget(null);
+    release(i);
+    setTab(TABS[i]);
     setAnim(dir === 'from-right' ? 'enter-right' : 'enter-left');
     window.setTimeout(() => setAnim(''), 220);
   };
   const swipeHandlers = {
     onPointerDown: (e: React.PointerEvent) => {
       if (edit || searchingMode || drag || e.button > 0) return;
-      sw.current = { x: e.clientX, y: e.clientY, mode: '', w: (e.currentTarget as HTMLElement).clientWidth || 360, moved: false, vx: 0, lx: e.clientX, lt: e.timeStamp };
+      sw.current = { x: e.clientX, y: e.clientY, mode: '', dx: 0, vx: 0, lx: e.clientX, lt: e.timeStamp };
     },
     onPointerMove: (e: React.PointerEvent) => {
       const st = sw.current; if (!st || drag) return;
       const dx = e.clientX - st.x, dy = e.clientY - st.y;
       if (!st.mode) {
-        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { st.mode = 'h'; setSwiping(true); try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ } }
+        if (Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy)) { st.mode = 'h'; try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ } }
         else if (Math.abs(dy) > 14) { st.mode = 'v'; }
       }
       if (st.mode === 'h') {
-        st.moved = true;
-        const dt = e.timeStamp - st.lt; if (dt > 0) st.vx = (e.clientX - st.lx) / dt; st.lx = e.clientX; st.lt = e.timeStamp;
+        const dt = e.timeStamp - st.lt; if (dt > 0) st.vx = 0.7 * st.vx + 0.3 * ((e.clientX - st.lx) / dt);
+        st.lx = e.clientX; st.lt = e.timeStamp;
         const atEdge = (dx > 0 && tabIndex === 0) || (dx < 0 && tabIndex === TABS.length - 1);
-        setSwipeX(atEdge ? dx * 0.25 : dx);
+        st.dx = atEdge ? dx * 0.25 : dx;
+        paint(st.dx);
       }
     },
     onPointerUp: () => {
       const st = sw.current; sw.current = null;
       if (!st || st.mode !== 'h') return;
-      const dx = swipeX; lastSwipe.current = Date.now(); setSwiping(false);
-      const flick = Math.abs(st.vx) > 0.45 && Math.abs(dx) > 25;
+      lastSwipe.current = Date.now();
+      const dx = st.dx, flick = Math.abs(st.vx) > 0.4 && Math.abs(dx) > 25;
       if ((dx < -60 || (flick && st.vx < 0)) && tabIndex < TABS.length - 1) goTab(tabIndex + 1, 'from-right');
       else if ((dx > 60 || (flick && st.vx > 0)) && tabIndex > 0) goTab(tabIndex - 1, 'from-left');
-      else setSwipeX(0);
+      else release(tabIndex);
     },
-    onPointerCancel: () => { sw.current = null; setSwiping(false); setSwipeX(0); },
-    onClickCapture: (e: React.MouseEvent) => { if (swiping || Date.now() - lastSwipe.current < 350) { e.preventDefault(); e.stopPropagation(); } }
+    onPointerCancel: () => { if (sw.current?.mode === 'h') release(tabIndex); sw.current = null; },
+    onClickCapture: (e: React.MouseEvent) => { if (Date.now() - lastSwipe.current < 350) { e.preventDefault(); e.stopPropagation(); } }
   };
-  const segW = useRef<HTMLDivElement>(null);
-  const progress = swiping ? Math.max(-1, Math.min(1, -swipeX / (segW.current?.parentElement?.clientWidth || 360))) : 0;
   const longPress = useLongPress((key) => {
     if (edit) return;
     const lg = logs.find((l) => l.id === key);
@@ -249,7 +269,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
         </div>
         {!searchingMode && (
           <div className="segmented sliding" role="tablist" ref={segW}>
-            <span className="seg-pill" aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: `translateX(calc(${pillTarget ?? tabIndex + progress} * 100%))`, transition: swiping ? 'none' : undefined }} />
+            <span className="seg-pill" ref={pillRef} aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: pillAt(tabIndex) }} />
             <button role="tab" aria-selected={tab === 'watched'} onClick={() => tab !== 'watched' && goTab(0, 'from-left')}>Watched <span className="muted">{watched.length}</span></button>
             <button role="tab" aria-selected={tab === 'backlog'} onClick={() => tab !== 'backlog' && goTab(1, 'from-right')}>Backlog <span className="muted">{next.length + rest.length}</span></button>
           </div>
@@ -260,7 +280,7 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
       </header>
 
       <main className="content swipe-area" {...swipeHandlers}>
-        <div className={'swipe-pane' + (anim ? ' ' + anim : '')} style={{ ['--sx' as string]: swipeX + 'px', transform: swipeX && !anim ? `translateX(${swipeX}px)` : undefined, opacity: swipeX && !anim ? 1 - Math.min(Math.abs(swipeX) / 600, 0.35) : undefined, transition: swiping ? 'none' : undefined }}>
+        <div ref={paneRef} className={'swipe-pane' + (anim ? ' ' + anim : '')}>
         {error && <p className="error" role="alert">{error}</p>}
         {loading ? <p className="muted">Loading…</p> : searchingMode ? (
           <div className="stack">
@@ -273,14 +293,14 @@ export default function Movies({ settings, onSettings, onMenu }: Props) {
                 ? rows.map(({ it, lg }) => (lg ? watchedRow(lg) : backlogRow(it, 's')))
                 : <div className="grid">{rows.map(({ it, lg }) => (lg ? tile(lg.library, 'w', () => setSheet(lg.library), lg.id, lg.score, lg.tier, lg.watched_at, lg.rewatch) : tile(it, it.up_next ? 'n' : 'r', () => setSheet(it), it.id)))}</div>;
             })()}
-            <div className="sec-head mt"><span className="h2">Add from TMDB</span><span className="muted small">{searching ? 'Searching…' : fresh.length || ''}</span></div>
+            <div className="sec-head mt"><span className="h2">Add a new movie</span><span className="muted small">{searching ? 'Searching…' : fresh.length || ''}</span></div>
             {imdbInQuery && (
               <div className="hit">
-                <span className="row-text"><span className="row-title">Add by IMDb ID</span><span className="row-meta">{imdbInQuery} · works for titles TMDB doesn’t have</span></span>
+                <span className="row-text"><span className="row-title">Add by IMDb ID</span><span className="row-meta">{imdbInQuery} · for movies search can’t find</span></span>
                 <button className="add-btn" aria-label={'Add ' + imdbInQuery} disabled={adding === imdbInQuery} onClick={addByImdb}>{adding === imdbInQuery ? '…' : '+'}</button>
               </div>
             )}
-            {!searching && !imdbInQuery && fresh.length === 0 && <p className="muted small">Nothing new found for “{q.trim()}”. Not on TMDB? Paste the IMDb link here.</p>}
+            {!searching && !imdbInQuery && fresh.length === 0 && <p className="muted small">Nothing new found for “{q.trim()}”. Can’t find it? Paste its IMDb link here.</p>}
             {fresh.map((h) => (
               <div className="hit" key={h.sourceId}>
                 <Poster t={{ poster_url: h.posterUrl, title: h.title }} w={46} h={68} />

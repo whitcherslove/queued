@@ -118,8 +118,20 @@ export async function findOwnedBySource(sourceIds: string[], section: Section): 
   return out;
 }
 
-export async function loadBackdrops(sourceId: string): Promise<{ thumb: string; full: string }[]> {
+export type Pic = { thumb: string; full: string };
+export async function loadImages(sourceId: string): Promise<{ backdrops: Pic[]; posters: Pic[] }> {
   const { data, error } = await supabase.functions.invoke('title', { body: { action: 'images', sourceId } });
-  if (error) return [];
-  return (data?.backdrops ?? []) as { thumb: string; full: string }[];
+  if (error) return { backdrops: [], posters: [] };
+  return { backdrops: (data?.backdrops ?? []) as Pic[], posters: (data?.posters ?? []) as Pic[] };
+}
+
+/** Upload an image from the device to the user's own folder and return its public link. */
+export async function uploadCover(file: File, kind: 'poster' | 'backdrop'): Promise<string> {
+  const { data: u } = await supabase.auth.getUser();
+  const uid = u.user?.id; if (!uid) throw new Error('Not signed in');
+  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '') || 'jpg';
+  const path = `${uid}/${kind}-${Date.now()}.${ext}`;
+  const up = await supabase.storage.from('covers').upload(path, file, { contentType: file.type || 'image/jpeg' });
+  if (up.error) throw up.error;
+  return supabase.storage.from('covers').getPublicUrl(path).data.publicUrl;
 }
