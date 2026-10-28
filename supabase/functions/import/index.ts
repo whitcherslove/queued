@@ -127,6 +127,159 @@ async function finishGroup(admin: any, user: any, g: Group, t: any, basePos: num
   return { key: g.key, status: 'ok', title: t.title };
 }
 
+
+// ---------------------------------------------------------------- TV shows
+interface TvSeasonCell { n: number; value: string; date: string | null }
+interface TvRow { title: string; year: number | null; rating: string | null; score: number | null; finishAt: string | null; rewatch: boolean; seasons: TvSeasonCell[]; metascore: number | null; imdb: number | null; ask: string | null; answer: string | null; order: number }
+interface TvGroup { key: string; kind: 'tv'; sourceId?: string; imdbId?: string | null; title: string; year: number | null; rows: TvRow[]; manual?: boolean }
+
+async function omdbScores(imdbId: string | null) {
+  const key = Deno.env.get('OMDB_API_KEY');
+  if (!imdbId || !key) return { metascore: null as number | null, imdb: null as number | null };
+  const o = await fetch(`https://www.omdbapi.com/?i=${imdbId}&apikey=${key}`);
+  if (!o.ok) return { metascore: null, imdb: null };
+  const j = await o.json(); const ms = num(j.Metascore);
+  return { metascore: ms !== null ? Math.round(ms) : null, imdb: num(j.imdbRating) };
+}
+
+async function fetchTv(db: any, id: string) {
+  const { data: cached } = await db.from('titles').select('*').eq('kind', 'tv').eq('source', 'tmdb').eq('source_id', id).maybeSingle();
+  if (cached) return cached;
+  const m = await tmdb('/tv/' + id, { language: 'en-US', append_to_response: 'credits,external_ids' });
+  if (!m) throw new Error('TMDB show ' + id + ' not found');
+  const imdbId = m.external_ids?.imdb_id || null;
+  const sc = await omdbScores(imdbId);
+  const seasons = (m.seasons ?? []).filter((x: any) => x.season_number > 0).map((x: any) => ({ n: x.season_number, name: x.name, air_date: x.air_date || null, episode_count: x.episode_count || 0 }));
+  const row = {
+    kind: 'tv', source: 'tmdb', source_id: String(m.id), imdb_id: imdbId, title: m.name,
+    release_date: m.first_air_date || null, year: m.first_air_date ? Number(m.first_air_date.slice(0, 4)) : null, runtime: (m.episode_run_time ?? [])[0] || null,
+    directors: (m.created_by ?? []).map((c: any) => c.name), genres: (m.genres ?? []).map((g: any) => g.name), overview: m.overview || null,
+    poster_url: m.poster_path ? IMG + 'w342' + m.poster_path : null, backdrop_url: m.backdrop_path ? IMG + 'w1280' + m.backdrop_path : null,
+    metascore: sc.metascore, imdb_rating: sc.imdb,
+    data: { status: m.status, network: (m.networks ?? [])[0]?.name ?? null, seasons, number_of_episodes: m.number_of_episodes ?? null, last_air_date: m.last_air_date ?? null,
+      next_episode: m.next_episode_to_air ? { season: m.next_episode_to_air.season_number, episode: m.next_episode_to_air.episode_number, air_date: m.next_episode_to_air.air_date } : null,
+      cast: (m.credits?.cast ?? []).slice(0, 8).map((c: any) => ({ name: c.name, role: c.character })), countries: m.origin_country ?? [], language: m.original_language },
+    fetched_at: new Date().toISOString()
+  };
+  const { data, error } = await db.from('titles').upsert(row, { onConflict: 'kind,source,source_id' }).select('*').single();
+  if (error) throw error;
+  return data;
+}
+
+async function episodesOf(db: any, t: any): Promise<Map<number, number[]>> {
+  const { data: have } = await db.from('title_seasons').select('season, episodes').eq('title_id', t.id);
+  const map = new Map<number, number[]>((have ?? []).map((h: any) => [h.season, (h.episodes ?? []).map((e: any) => e.n)]));
+  for (const s of t.data?.seasons ?? []) {
+    if (map.has(s.n)) continue;
+    const j = await tmdb('/tv/' + t.source_id + '/season/' + s.n, { language: 'en-US' });
+    if (!j) continue;
+    const episodes = (j.episodes ?? []).map((e: any) => ({ n: e.episode_number, name: e.name, air_date: e.air_date || null, runtime: e.runtime || null }));
+    await db.from('title_seasons').upsert({ title_id: t.id, season: s.n, name: j.name ?? s.name, air_date: j.air_date || s.air_date, episodes, fetched_at: new Date().toISOString() }, { onConflict: 'title_id,season' });
+    map.set(s.n, episodes.map((e: any) => e.n));
+  }
+  return map;
+}
+
+async function resolveTv(g: TvGroup): Promise<{ id?: string; candidates?: unknown[] }> {
+  if (g.sourceId) return { id: g.sourceId };
+  if (g.imdbId) { const f = await tmdb('/find/' + g.imdbId, { external_source: 'imdb_id' }); if (f?.tv_results?.[0]) return { id: String(f.tv_results[0].id) }; }
+  const params: Record<string, string> = { query: g.title, include_adult: 'false', language: 'en-US' };
+  if (g.year) params.first_air_date_year = String(g.year);
+  let res = (await tmdb('/search/tv', params))?.results ?? [];
+  if (!res.length && g.year) res = (await tmdb('/search/tv', { query: g.title, include_adult: 'false', language: 'en-US' }))?.results ?? [];
+  const exact = res.filter((m: any) => norm(m.name) === norm(g.title) || norm(m.original_name ?? '') === norm(g.title));
+  const sameYear = (m: any) => !g.year || String(m.first_air_date ?? '').startsWith(String(g.year));
+  const strong = exact.filter(sameYear);
+  if (strong.length === 1) return { id: String(strong[0].id) };
+  if (strong.length === 0 && exact.length === 1 && res.length <= 3) return { id: String(exact[0].id) };
+  return { candidates: res.slice(0, 4).map((m: any) => ({ sourceId: String(m.id), title: m.name, year: m.first_air_date ? Number(m.first_air_date.slice(0, 4)) : null, posterUrl: m.poster_path ? IMG + 'w185' + m.poster_path : null })) };
+}
+
+const isTier = (v: string | null | undefined) => !!v && !!TIER[v.toLowerCase()];
+const kindOf = (v: string | null | undefined) => (v ?? '').toLowerCase();
+
+async function importTvGroup(admin: any, user: any, g: TvGroup, basePos: number) {
+  const r = await resolveTv(g);
+  if (!r.id) { await user.from('import_reviews').insert({ section: 'tv', payload: g, candidates: r.candidates ?? [] }); return { key: g.key, status: 'review' }; }
+  const t = await fetchTv(admin, r.id);
+  const eps = await episodesOf(admin, t);
+  const allSeasons: number[] = (t.data?.seasons ?? []).map((x: any) => x.n);
+  const ended = ['Ended', 'Canceled'].includes(t.data?.status);
+  const rows = g.rows.slice().sort((a, b) => String(a.finishAt ?? '9999').localeCompare(String(b.finishAt ?? '9999')));
+
+  const logs: any[] = [], ratings = new Map<number, { tier: string; score: null; rated_at: string }>(), marks = new Map<string, string>();
+  let covered = 0, plan: number[] | null | undefined, status: 'done' | 'playing' | 'backlog' = 'done', runStart: string | null = null, startedOn: string | null = null, rewPlan = false;
+  const markSeason = (n: number, at: string) => (eps.get(n) ?? []).forEach((e) => marks.set(n + ':' + e, at));
+
+  for (const row of rows) {
+    const kind = kindOf(row.rating);
+    if (kind === 'in progress') {
+      const listed = row.seasons.map((c) => c.n).sort((a, b) => a - b);
+      plan = listed.length ? listed : null;
+      status = 'playing';
+      const dates = row.seasons.map((c) => c.date).filter(Boolean).sort() as string[];
+      runStart = dates[0] ? new Date(new Date(dates[0]).getTime() - 864e5).toISOString() : new Date().toISOString();
+      startedOn = (dates[0] ?? new Date().toISOString()).slice(0, 10);
+      row.seasons.filter((c) => isTier(c.value)).forEach((c) => {
+        const at = c.date ?? row.finishAt ?? new Date().toISOString();
+        markSeason(c.n, at);
+        ratings.set(c.n, { tier: TIER[c.value.toLowerCase()], score: null, rated_at: at.slice(0, 10) });
+      });
+      rewPlan = row.rewatch;
+      continue;
+    }
+    if (kind === 'backlog' || !kind) {
+      if (status !== 'playing') {
+        const listed = row.seasons.map((c) => c.n).sort((a, b) => a - b);
+        plan = listed.length ? listed : null; status = 'backlog'; runStart = new Date().toISOString(); rewPlan = row.rewatch;
+      }
+      continue;
+    }
+    if (!isTier(row.rating)) continue;
+    // seasons this entry covers (fixing the two known quirks: a dated "Backlog" cell, or no seasons at all)
+    let cells = row.seasons.filter((c) => isTier(c.value));
+    if (!cells.length) cells = row.seasons.filter((c) => c.date).map((c) => ({ ...c, value: row.rating! }));
+    if (!cells.length) { const n = covered + 1; if (allSeasons.includes(n)) cells = [{ n, value: row.rating!, date: row.finishAt }]; }
+    if (!cells.length) continue;
+    const list = cells.map((c) => c.n).sort((a, b) => a - b);
+    const at = row.finishAt ?? cells.map((c) => c.date).filter(Boolean).sort().pop() ?? new Date().toISOString();
+    const full = ended && allSeasons.length > 0 && allSeasons.every((n) => list.includes(n));
+    logs.push({ scope: full ? 'show' : list.length === 1 ? 'season' : 'seasons', season_from: full ? null : list[0], season_to: full ? null : list[list.length - 1], seasons: full ? null : list,
+      watched_at: new Date(at).toISOString(), tier: TIER[row.rating!.toLowerCase()], score: row.score === null ? null : Math.min(5, Math.max(0, row.score)), rewatch: row.rewatch });
+    cells.forEach((c) => { const d = c.date ?? at; markSeason(c.n, d); ratings.set(c.n, { tier: TIER[c.value.toLowerCase()] ?? TIER[row.rating!.toLowerCase()], score: null, rated_at: d.slice(0, 10) }); });
+    covered = Math.max(covered, ...list);
+    if (status === 'done') plan = undefined;
+  }
+  if (!logs.length && status === 'done') { status = 'backlog'; runStart = new Date().toISOString(); }
+
+  const fallback: Record<string, unknown> = {};
+  const ms = rows.find((x) => x.metascore !== null); if (t.metascore === null && ms) fallback.metascore = ms.metascore;
+  const im = rows.find((x) => x.imdb !== null); if (t.imdb_rating === null && im) fallback.imdb_rating = im.imdb;
+  const planPatch = plan === undefined ? {} : { plan_seasons: plan, plan_from: plan ? plan[0] : null, plan_to: plan ? plan[plan.length - 1] : null };
+  const { data: existing } = await user.from('library').select('id').eq('title_id', t.id).maybeSingle();
+  let libId: string;
+  const base = { status, ...planPatch, run_started_at: runStart, started_on: startedOn, rewatch: status !== 'done' && rewPlan, overrides: fallback };
+  if (existing) { libId = existing.id; await user.from('library').update(base).eq('id', libId); }
+  else {
+    const ins = await user.from('library').insert({ title_id: t.id, section: 'tv', position: basePos + Math.min(...rows.map((x) => x.order)), ...base }).select('id').single();
+    if (ins.error) throw ins.error; libId = ins.data.id;
+  }
+  if (logs.length) {
+    const { data: have } = await user.from('logs').select('watched_at').eq('library_id', libId);
+    const seen = new Set((have ?? []).map((h: any) => new Date(h.watched_at).toISOString()));
+    const fresh = logs.filter((l) => !seen.has(l.watched_at)).map((l) => ({ ...l, library_id: libId }));
+    if (fresh.length) { const e = await user.from('logs').insert(fresh); if (e.error) throw e.error; }
+  }
+  const markRows = [...marks.entries()].map(([k, at]) => { const [s, e] = k.split(':').map(Number); return { library_id: libId, season: s, episode: e, watched_at: new Date(at).toISOString() }; });
+  for (let i = 0; i < markRows.length; i += 500) { const e = await user.from('episode_marks').upsert(markRows.slice(i, i + 500), { onConflict: 'library_id,season,episode' }); if (e.error) throw e.error; }
+  const rateRows = [...ratings.entries()].map(([n, v]) => ({ library_id: libId, season: n, tier: v.tier, rated_at: v.rated_at }));
+  if (rateRows.length) { const e = await user.from('season_ratings').upsert(rateRows, { onConflict: 'library_id,season' }); if (e.error) throw e.error; }
+  const chats: any[] = [];
+  rows.forEach((x) => { if (x.ask) { chats.push({ library_id: libId, role: 'user', content: x.ask }); if (x.answer) chats.push({ library_id: libId, role: 'model', content: x.answer }); } });
+  if (chats.length) { const { count } = await user.from('chats').select('id', { count: 'exact', head: true }).eq('library_id', libId); if (!count) await user.from('chats').insert(chats); }
+  return { key: g.key, status: 'ok', title: t.title };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
@@ -142,15 +295,26 @@ Deno.serve(async (req) => {
     if (body.action === 'pending') {
       const adminEmail = (Deno.env.get('ADMIN_EMAIL') ?? '').toLowerCase();
       if (adminEmail && adminEmail !== email) return Response.json({ error: 'Only the admin can store rows for other people' }, { status: 403, headers: CORS });
-      const rows = (body.rows ?? []).filter((r: any) => r.email && r.email.toLowerCase() !== email).map((r: any) => ({ email: r.email.toLowerCase(), section: 'movies', payload: r, created_by: uid }));
+      const section = body.section === 'tv' ? 'tv' : 'movies';
+      const rows = (body.rows ?? []).filter((r: any) => r.email && r.email.toLowerCase() !== email).map((r: any) => ({ email: r.email.toLowerCase(), section, payload: r, created_by: uid }));
       for (let i = 0; i < rows.length; i += 200) { const e = await admin.from('pending_imports').insert(rows.slice(i, i + 200)); if (e.error) throw e.error; }
       return Response.json({ stored: rows.length }, { headers: CORS });
     }
     if (body.action === 'claim') {
-      const { data } = await admin.from('pending_imports').select('id, payload').eq('email', email);
+      const { data } = await admin.from('pending_imports').select('id, payload, section').eq('email', email);
       const ids = (data ?? []).map((d: any) => d.id);
       if (ids.length) await admin.from('pending_imports').delete().in('id', ids);
-      return Response.json({ rows: (data ?? []).map((d: any) => d.payload) }, { headers: CORS });
+      return Response.json({ rows: (data ?? []).filter((d: any) => d.section !== 'tv').map((d: any) => d.payload), tvRows: (data ?? []).filter((d: any) => d.section === 'tv').map((d: any) => d.payload) }, { headers: CORS });
+    }
+    if (body.action === 'tv') {
+      const { data: maxRow } = await user.from('library').select('position').eq('section', 'tv').order('position', { ascending: false }).limit(1).maybeSingle();
+      const basePos = (maxRow?.position ?? 0) + 1;
+      const results = [];
+      for (const g of (body.groups ?? []) as TvGroup[]) {
+        try { results.push(await importTvGroup(admin, user, g, basePos)); }
+        catch (e) { results.push({ key: g.key, status: 'error', message: String(e) }); }
+      }
+      return Response.json({ results }, { headers: CORS });
     }
     if (body.action === 'movies') {
       const { data: maxRow } = await user.from('library').select('position').order('position', { ascending: false }).limit(1).maybeSingle();

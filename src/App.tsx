@@ -5,7 +5,7 @@ import { applyTheme, DEFAULT_SETTINGS, Settings } from './lib/theme';
 import { loadProfile, Profile, saveSettings } from './lib/profile';
 import Login from './screens/Login';
 import Shell from './screens/Shell';
-import { claimPending, groupRows, importGroups } from './lib/importer';
+import { claimPending, groupRows, groupTvRows, importGroups } from './lib/importer';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -23,11 +23,12 @@ export default function App() {
     if (!session) { setProfile(null); applyTheme(DEFAULT_SETTINGS); return; }
     loadProfile(session.user.id, session.user.email ?? '')
       .then((p) => { setProfile(p); applyTheme(p.settings);
-        claimPending().then(async (rows) => {
-          if (!rows.length) return;
-          const groups = groupRows(rows);
-          setClaiming(`Bringing in ${groups.length} movies from AppSheet…`);
-          await importGroups(groups);
+        claimPending().then(async ({ movies, tv }) => {
+          if (!movies.length && !tv.length) return;
+          const mg = groupRows(movies), tg = groupTvRows(tv);
+          setClaiming(`Bringing in ${mg.length + tg.length} titles from AppSheet…`);
+          if (mg.length) await importGroups(mg);
+          if (tg.length) await importGroups(tg);
           setClaiming(''); window.location.reload();
         });
       })

@@ -1,10 +1,10 @@
 import { ChangeEvent, useEffect, useState } from 'react';
-import { groupRows, importGroups, ImportRow, loadReviews, parseFile, parseManualId, resolveReview, resolveReviewManual, ReviewItem, storePending } from '../lib/importer';
+import { groupRows, groupTvRows, importGroups, loadReviews, parseFile, parseManualId, Parsed, resolveReview, resolveReviewManual, ReviewItem, storePending } from '../lib/importer';
 import { searchTitles } from '../lib/remote';
 import type { SearchHit } from '../lib/types';
 
 export default function ImportCard({ email }: { email: string }) {
-  const [rows, setRows] = useState<ImportRow[] | null>(null);
+  const [parsed, setParsed] = useState<Parsed | null>(null);
   const [phase, setPhase] = useState<'idle' | 'ready' | 'running' | 'done'>('idle');
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [result, setResult] = useState<{ ok: number; review: number; errors: string[]; friends: number } | null>(null);
@@ -17,20 +17,23 @@ export default function ImportCard({ email }: { email: string }) {
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
     setError('');
-    try { const r = await parseFile(f); setRows(r); setPhase('ready'); }
+    try { const r = await parseFile(f); setParsed(r); setPhase('ready'); }
     catch { setError('Couldn’t read this file. Export the sheet from AppSheet as .xlsx or .csv and try again.'); }
   };
 
-  const mine = rows?.filter((r) => r.email === me) ?? [];
-  const others = rows?.filter((r) => r.email && r.email !== me) ?? [];
-  const groups = groupRows(mine);
+  const isTv = parsed?.kind === 'tv';
+  const all = (parsed?.rows ?? []) as { email: string }[];
+  const mine = all.filter((r) => r.email === me);
+  const others = all.filter((r) => r.email && r.email !== me);
+  const groups = parsed?.kind === 'tv' ? groupTvRows(parsed.rows.filter((r) => r.email === me)) : parsed ? groupRows(parsed.rows.filter((r) => r.email === me)) : [];
   const people = new Set(others.map((r) => r.email)).size;
+  const noun = isTv ? 'shows' : 'movies';
 
   const start = async () => {
     setPhase('running'); setProgress({ done: 0, total: groups.length });
     const res = await importGroups(groups, (done, total) => setProgress({ done, total }));
     let friends = 0;
-    try { friends = await storePending(others); } catch { res.errors.push('Could not store rows for other people.'); }
+    try { friends = await storePending(others as never[], isTv ? 'tv' : 'movies'); } catch { res.errors.push('Could not store rows for other people.'); }
     setResult({ ...res, friends }); setPhase('done'); setReviews(await loadReviews());
   };
 
@@ -49,22 +52,22 @@ export default function ImportCard({ email }: { email: string }) {
       {phase === 'ready' && <>
         <div className="facts">
           <div><span className="muted small">Your rows</span><strong>{mine.length}</strong></div>
-          <div><span className="muted small">Movies</span><strong>{groups.length}</strong></div>
-          <div><span className="muted small">With IMDb ID</span><strong>{groups.filter((g) => g.imdbId).length}</strong></div>
+          <div><span className="muted small">{isTv ? 'Shows' : 'Movies'}</span><strong>{groups.length}</strong></div>
+          {!isTv && <div><span className="muted small">With IMDb ID</span><strong>{groups.filter((g) => g.imdbId).length}</strong></div>}
           <div><span className="muted small">Other people</span><strong>{people} · {others.length} rows</strong></div>
         </div>
-        <span className="muted small">Movies without an IMDb ID are matched by title and year. Unsure matches go to a review list. Other people’s rows wait until they sign in with their email.</span>
-        <div className="row nowrap"><button className="btn grow" onClick={() => { setRows(null); setPhase('idle'); }}>Cancel</button><button className="btn primary grow" onClick={start} disabled={!groups.length && !others.length}>Start import</button></div>
+        <span className="muted small">{isTv ? 'Shows are matched by title and first year. Seasons, ratings and watch dates come along.' : 'Movies without an IMDb ID are matched by title and year.'} Unsure matches go to a review list. Other people’s rows wait until they sign in with their email.</span>
+        <div className="row nowrap"><button className="btn grow" onClick={() => { setParsed(null); setPhase('idle'); }}>Cancel</button><button className="btn primary grow" onClick={start} disabled={!groups.length && !others.length}>Start import</button></div>
       </>}
       {phase === 'running' && <>
-        <span className="small">Importing… {progress.done} of {progress.total} movies</span>
+        <span className="small">Importing… {progress.done} of {progress.total} {noun}</span>
         <div className="bar"><span style={{ width: (progress.total ? (progress.done / progress.total) * 100 : 0) + '%' }} /></div>
         <span className="muted small">Keep the app open — this takes a few minutes.</span>
       </>}
       {phase === 'done' && result && <>
-        <span className="small"><strong>{result.ok}</strong> movies imported · <strong>{result.review}</strong> to review{result.friends ? <> · <strong>{result.friends}</strong> rows saved for other people</> : null}</span>
-        {result.errors.length > 0 && <span className="error small">{result.errors.length} failed. You can run the import again — already imported movies are skipped.</span>}
-        <button className="btn" onClick={() => { setRows(null); setResult(null); setPhase('idle'); }}>Import another file</button>
+        <span className="small"><strong>{result.ok}</strong> {noun} imported · <strong>{result.review}</strong> to review{result.friends ? <> · <strong>{result.friends}</strong> rows saved for other people</> : null}</span>
+        {result.errors.length > 0 && <span className="error small">{result.errors.length} failed. You can run the import again — already imported titles are skipped.</span>}
+        <button className="btn" onClick={() => { setParsed(null); setResult(null); setPhase('idle'); }}>Import another file</button>
       </>}
       {error && <p className="error" role="alert">{error}</p>}
 
@@ -108,7 +111,7 @@ function ManualPick({ item, onDone }: { item: ReviewItem; onDone: () => void }) 
       if (ok) onDone(); else setMsg('Couldn’t find that title. Check the link or ID.');
       return;
     }
-    try { setHits(await searchTitles(q, 'movie')); } catch { setMsg('Search failed. Try again.'); }
+    try { setHits(await searchTitles(q, item.section === 'tv' ? 'tv' : 'movie')); } catch { setMsg('Search failed. Try again.'); }
     setBusy(false);
   };
   return (
