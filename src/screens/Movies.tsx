@@ -5,7 +5,7 @@ import { topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, 
 import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
-import { epLabel, isEnded, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, todayIso } from '../lib/tv';
+import { coveredSeasons, epLabel, isEnded, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, todayIso } from '../lib/tv';
 import { applyEpisodeMarks } from '../lib/tvActions';
 import MovieCard from './MovieCard';
 import ScoreRing from '../components/ScoreRing';
@@ -26,7 +26,8 @@ const followSeasons = (i: LibItem, logs: LogRow[]): number[] | null => {
   if (!mine.length) return null;
   const latest = mine.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
   if (latest.tier === 'dropped') return null;
-  let list = i.status === 'backlog' ? planOf(i) ?? [] : newSeasons(i.title, mine);
+  const covered = coveredSeasons(i.title, mine);
+  let list = (i.status === 'backlog' ? planOf(i) ?? [] : newSeasons(i.title, mine)).filter((n) => !covered.has(n));
   // An ended show only waits here for a season that premiered after your last entry (e.g. a final season you haven't started)
   if (isEnded(i.title)) { const since = latest.watched_at.slice(0, 10); list = list.filter((n) => { const d = seasonAir(i.title, n); return !!d && d > since; }); }
   return list.length ? list : null;

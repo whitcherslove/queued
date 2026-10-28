@@ -107,16 +107,23 @@ export function epLabel(e: { season: number; episode: number }): string {
 
 type LogLike = { scope?: string; season_from?: number | null; season_to?: number | null; seasons?: number[] | null; watched_at: string; tier?: string | null };
 
-/** Highest season covered by your journal. A "Full series" entry covers every season that had aired by then. */
-export function maxLoggedSeason(t: Title, logs: LogLike[]): number {
-  const ss = seasonsOf(t);
-  let max = 0;
+/**
+ * Seasons covered by your journal. A "Full series" entry of an ended show covers every season;
+ * of a running show — every season that had aired by then.
+ */
+export function coveredSeasons(t: Title, logs: LogLike[]): Set<number> {
+  const ss = seasonsOf(t), out = new Set<number>();
   logs.forEach((l) => {
     const list = logSeasons(l);
-    if (list) max = Math.max(max, ...list);
-    else ss.forEach((s) => { if (s.air_date && s.air_date <= l.watched_at.slice(0, 10)) max = Math.max(max, s.n); });
+    if (list) list.forEach((n) => out.add(n));
+    else ss.forEach((s) => { if (isEnded(t) || (s.air_date && s.air_date <= l.watched_at.slice(0, 10))) out.add(s.n); });
   });
-  return max;
+  return out;
+}
+
+/** Highest season covered by your journal. */
+export function maxLoggedSeason(t: Title, logs: LogLike[]): number {
+  return Math.max(0, ...coveredSeasons(t, logs));
 }
 
 /** Seasons that appeared after the ones you've logged (announced or already out). */

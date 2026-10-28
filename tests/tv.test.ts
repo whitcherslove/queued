@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { logScope, maxLoggedSeason, newSeasons, planOf, progress, scopeLabel, scopeSeasons, seasonsName, showYears } from '../src/lib/tv';
+import { coveredSeasons, logScope, maxLoggedSeason, newSeasons, planOf, progress, scopeLabel, scopeSeasons, seasonsName, showYears } from '../src/lib/tv';
 import type { Mark, SeasonEps, Title } from '../src/lib/types';
 
 const show = (status: string, seasons: [number, string, number][], extra: Record<string, unknown> = {}): Title => ({
@@ -62,5 +62,14 @@ describe('new seasons', () => {
     expect(newSeasons(t, [{ scope: 'seasons', seasons: [1, 2, 3], watched_at: '2025-04-03T20:00:00Z' }])).toEqual([4]);
     expect(maxLoggedSeason(t, [{ scope: 'show', watched_at: '2024-01-30T20:00:00Z' }])).toBe(2);
     expect(newSeasons(t, [])).toEqual([]);
+  });
+});
+
+describe('covered seasons', () => {
+  it('a full-series entry of an ended show covers everything', () => {
+    const t = show('Ended', [[1, '2019-01-01', 5], [2, '2020-01-01', 5], [3, '2021-06-01', 5]]);
+    expect([...coveredSeasons(t, [{ scope: 'show', watched_at: '2021-01-01T20:00:00Z' }])]).toEqual([1, 2, 3]);
+    const r = show('Returning Series', [[1, '2019-01-01', 5], [2, '2020-01-01', 5], [3, '2021-06-01', 5]]);
+    expect([...coveredSeasons(r, [{ scope: 'show', watched_at: '2021-01-01T20:00:00Z' }])]).toEqual([1, 2]);
   });
 });
