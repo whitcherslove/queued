@@ -518,3 +518,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .follow-icon { display: inline-flex; color: var(--accent); }
 
 .switch-row.card .follow-icon { display: inline-flex; color: var(--muted); }
+
+/* Viewings actions: on the header line, compact, tinted so they don't blend in */
+.sec-head.wrap { flex-wrap: wrap; align-items: center; gap: 8px; }
+.sec-head.wrap .act-chips { margin-left: auto; padding-bottom: 0; gap: 6px; justify-content: flex-end; }
+.act-chip { height: 32px; padding: 0 10px; font-size: 12px; font-weight: 700; border: 0; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
+.act-chip svg { color: var(--accent); }
+.act-chip.on { background: color-mix(in srgb, #39C316 18%, transparent); color: #39C316; }

@@ -176,7 +176,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   // Following: in Caught up or not. Off = "stopped following" (status dropped); on = back to where it was.
   const followable = canFollow(t, logs);
   const followingNow = status !== 'dropped' && (followSeasons(item, logs) !== null || (isPlaying && !p.nextEp));
-  const showFollow = followable && (followingNow || status === 'dropped');
+  const showFollow = followingNow || (status === 'dropped' && followable);
   const toggleFollow = () => {
     const prev = item.status;
     const back = p.anySeen && !p.complete && plan ? 'playing' : plan && !item.rewatch ? 'backlog' : 'done';
@@ -268,13 +268,6 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           </div>
         )}
 
-        {/* Following: whether the show waits in Caught up. Turn it off to keep it only in Watched; turn it back on anytime. */}
-        {showFollow && <button className="switch-row card" role="switch" aria-checked={status !== 'dropped'} onClick={toggleFollow}>
-                  <span className="follow-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg></span>
-                  <span className="stack-sm grow"><strong>Following</strong><span className="muted small">{status === 'dropped' ? 'Off — only in Watched' : 'In Caught up, waiting for new episodes and seasons'}</span></span>
-                  <span className={'switch' + (status !== 'dropped' ? ' on' : '')}><span /></span>
-                </button>}
-
         {fresh.length > 0 && (
           <div className="plan-row card">
             <span className="stack-sm grow"><span className="muted small upper">{freshAir && freshAir <= today ? 'New season out' : freshAir ? 'Premieres ' + longDate(freshAir) : 'Announced'}</span><strong>{seasonsName(fresh)}</strong></span>
@@ -318,6 +311,12 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               </>}
               <div className="divider" />
               <button className="switch-row flat" role="switch" aria-checked={rewOn} onClick={toggleRew}><span className="rew-icon">{EYE_PLUS}</span><strong className="grow">Rewatch</strong><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></button>
+              {showFollow && <><div className="divider" />
+              <button className="switch-row flat" role="switch" aria-checked={status !== 'dropped'} onClick={toggleFollow}>
+                  <span className="follow-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg></span>
+                  <span className="stack-sm grow"><strong>Following</strong><span className="muted small">{status === 'dropped' ? 'Off — only in Watched' : 'In Caught up, waiting for new episodes and seasons'}</span></span>
+                  <span className={'switch' + (status !== 'dropped' ? ' on' : '')}><span /></span>
+                </button></>}
             </div>
           )}
         </section>
@@ -382,12 +381,12 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         </section>
 
         <section className="card stack-sm">
-          <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length}</span></span></div>
+          <div className="sec-head wrap"><span className="h2">Viewings <span className="muted small normal">{logs.length}</span></span>
           <div className="act-chips">
             <button className="act-chip" onClick={() => setPastStep('seasons')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>Watched before</button>
             {isDone && <button className="act-chip" onClick={() => setScopeFor('rewatch')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12V9a3 3 0 0 1 3-3h13l-3-3M20 12v3a3 3 0 0 1-3 3H4l3 3" /></svg>Rewatch</button>}
             {isDone && moreSeasons && !followingNow && <button className="act-chip" onClick={() => setScopeFor('more')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>Plan next</button>}
-          </div>
+          </div></div>
           {logs.length === 0 && !planned && <span className="muted small">Finish the planned seasons and the entry appears here.</span>}
           {planned && (
             <div className="view-row">

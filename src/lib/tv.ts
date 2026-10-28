@@ -160,5 +160,9 @@ export function followSeasons(i: Pick<LibItem, 'section' | 'status' | 'rewatch' 
 export function canFollow(t: Title, mine: FollowLog[]): boolean {
   if (!mine.length) return false;
   const latest = mine.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
-  return latest.tier !== 'dropped' && !isEnded(t);
+  if (latest.tier === 'dropped') return false;
+  if (!isEnded(t)) return true;
+  // an ended show is still worth following if a season came out after your last entry (e.g. its final season)
+  const covered = coveredSeasons(t, mine), since = latest.watched_at.slice(0, 10);
+  return seasonsOf(t).some((x) => !covered.has(x.n) && !!x.air_date && x.air_date > since);
 }
