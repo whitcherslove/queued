@@ -16,6 +16,9 @@ import { GripIcon, Metascore, Poster } from '../components/Rows';
 import { IconMenu, IconSearch } from '../components/Icons';
 import { TIERS } from '../lib/scores';
 
+/** A running show you've already logged, with its next seasons planned in Backlog: it lives in Watching (Caught up → In progress when they air). */
+const isFollowing = (i: LibItem, logs: LogRow[]) => i.section === 'tv' && i.status === 'backlog' && !isEnded(i.title) && planOf(i) !== null && logs.some((l) => l.library.id === i.id);
+
 interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void; kind?: 'movie' | 'tv' }
 type Tab = 'watched' | 'playing' | 'backlog';
 
@@ -60,7 +63,8 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     try { const [a, b] = await Promise.all([loadLibrary(section), loadLogs(section)]);
       setItems(a.map((i) => ({ ...i, title: merged(i.title, i.overrides) })));
       if (isTv) {
-        const playing = a.filter((i) => i.status === 'playing');
+        const followed = a.filter((i) => isFollowing(i, b));
+        const playing = a.filter((i) => i.status === 'playing').concat(followed);
         const [e, m] = await Promise.all([loadEpisodes(playing.map((i) => i.title_id)), loadMarks(playing.map((i) => i.id))]);
         setTvEps(e); setTvMarks(m);
         if (!warmed.current) {
@@ -89,17 +93,19 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     return () => clearTimeout(t);
   }, [q]);
 
-  const { next, rest } = useMemo(() => splitBacklog(items), [items]);
+  const followIds = useMemo(() => new Set(isTv ? items.filter((i) => isFollowing(i, logs)).map((i) => i.id) : []), [items, logs, isTv]);
+  const { next, rest } = useMemo(() => splitBacklog(items.filter((i) => !followIds.has(i.id))), [items, followIds]);
   const watched = useMemo(() => sortLogs(logs), [logs]);
   const libMatches = useMemo(() => matchLibrary(items, q), [items, q]);
   const fresh = useMemo(() => newHits(hits, items), [hits, items]);
   const customOrder = logs.some((l) => l.position !== null);
   const today = todayIso();
   const watchingRows = useMemo(() => {
-    const rows = items.filter((i) => i.status === 'playing').map((it) => ({ it, p: progress(it, it.title, tvEps.filter((e) => e.title_id === it.title_id), tvMarks.filter((m) => m.library_id === it.id), today) }));
-    return { prog: rows.filter((r) => r.p.nextEp || !r.p.caughtUp), caught: rows.filter((r) => !r.p.nextEp && r.p.caughtUp) };
-  }, [items, tvEps, tvMarks, today]);
-  const playingCount = items.filter((i) => i.status === 'playing').length;
+    const rows = items.filter((i) => i.status === 'playing' || followIds.has(i.id)).map((it) => ({ it, p: progress(it, it.title, tvEps.filter((e) => e.title_id === it.title_id), tvMarks.filter((m) => m.library_id === it.id), today) }));
+    const waiting = (r: (typeof rows)[number]) => followIds.has(r.it.id) ? !r.p.nextEp : (!r.p.nextEp && r.p.caughtUp);
+    return { prog: rows.filter((r) => !waiting(r)), caught: rows.filter(waiting) };
+  }, [items, tvEps, tvMarks, today, followIds]);
+  const playingCount = items.filter((i) => i.status === 'playing').length + followIds.size;
 
   const imdbInQuery = (q.match(/tt\d{6,10}/) ?? [null])[0];
   const addByImdb = async () => {
@@ -162,19 +168,22 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   );
 
   const watchRow = (it: LibItem, p: ReturnType<typeof progress>, caught: boolean) => {
-    const isNew = !!(p.nextEp && p.nextEp.air_date && p.seen > 0 && (Date.now() - new Date(p.nextEp.air_date).getTime()) < 10 * 864e5);
-    const d = caught ? (p.nextFuture?.air_date ? dateParts(p.nextFuture.air_date) : null) : (it.started_on ? dateParts(it.started_on) : null);
+    const isNew = !!(p.nextEp && p.nextEp.air_date && (p.seen > 0 || followIds.has(it.id)) && (Date.now() - new Date(p.nextEp.air_date).getTime()) < 21 * 864e5);
+    const firstPlanned = (planOf(it) ?? [])[0];
+    const seasonAir = ((it.title.data as { seasons?: { n: number; air_date: string | null }[] })?.seasons ?? []).find((x) => x.n === firstPlanned)?.air_date ?? null;
+    const nextDate = p.nextFuture?.air_date ?? (seasonAir && seasonAir > today ? seasonAir : null);
+    const d = caught ? (nextDate ? dateParts(nextDate) : null) : followIds.has(it.id) ? (p.nextEp?.air_date ? dateParts(p.nextEp.air_date) : null) : (it.started_on ? dateParts(it.started_on) : null);
     return (
       <div key={it.id} className="row-card" data-rowid={it.id} data-list="p">
         <button className="row-main" {...longPress(it.id)} onClick={() => setSheet(it)}>
           <Poster t={it.title} w={56} h={84} />
           <span className="row-text">
             <span className="row-title">{it.title.title}{isNew && <> <span className="new-pill">NEW</span></>}</span>
-            <span className="row-meta">{p.nextEp ? 'Next: ' + epLabel(p.nextEp) : 'Caught up'}{it.rewatch && <EyePlus />}</span>
+            <span className="row-meta">{p.nextEp ? 'Next: ' + epLabel(p.nextEp) : followIds.has(it.id) ? 'Waiting for ' + scopeLabel(planOf(it), it.title).split(' · ')[0] : 'Caught up'}{it.rewatch && <EyePlus />}</span>
             <span className="row-meta"><span className="mini-bar w72"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>
           </span>
         </button>
-        <span className="date-col"><span className="date-cap">{caught ? 'Next episode' : 'Started on'}</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">TBA</span>}</span>
+        <span className="date-col"><span className="date-cap">{caught ? 'Next episode' : followIds.has(it.id) ? 'Aired on' : 'Started on'}</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">TBA</span>}</span>
       </div>
     );
   };
