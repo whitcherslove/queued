@@ -488,3 +488,8 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 
 .card-lower { display: flex; flex-direction: column; gap: 16px; }
 .card-lower.shown { animation: body-in .22s ease-out; }
+
+/* switching sections: a quick, soft appearance */
+.section-in { animation: section-in .18s ease-out; }
+@keyframes section-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .section-in { animation: none; } }

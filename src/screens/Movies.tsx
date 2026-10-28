@@ -389,7 +389,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   useBackLayer(edit, () => setEdit(false));
 
   return (
-    <div className="app">
+    <div className="app section-in">
       <header className="top">
         <div className="title-row">
           <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>

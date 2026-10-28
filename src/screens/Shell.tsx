@@ -71,7 +71,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   );
 
   return (
-    <div className="screen"><div className="app">
+    <div className="screen"><div className="app section-in" key={section}>
       <header className="top">
         <div className="title-row">
           {section === 'retro'
