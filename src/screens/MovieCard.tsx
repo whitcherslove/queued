@@ -25,6 +25,7 @@ export const EXT_ICON = EXT;
 export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
+  const [full, setFull] = useState(!!initial?.title?.data);
   const [logs, setLogs] = useState<ItemLog[]>(initialLogs ?? []);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [owned, setOwned] = useState<Record<string, Owned>>(initialOwned ?? {});
@@ -88,7 +89,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
 
   const reload = useCallback(async () => {
     const [it, lg, ch] = await Promise.all([loadItem(itemId), loadItemLogs(itemId), loadChat(itemId)]);
-    setItem(it); setLogs(lg); setChat(ch); setLogsReady(true);
+    setItem(it); setLogs(lg); setChat(ch); setLogsReady(true); setFull(true);
     if (firstFor.current !== it.id) { firstFor.current = it.id; setTakeOpen(!!openTake || it.status === 'backlog'); }
     const parts = ((it.title.data as any)?.collection?.parts ?? []) as CollectionPart[];
     setOwned(await findOwnedBySource(parts.map((p) => p.sourceId), 'movies'));
@@ -258,14 +259,14 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           )}
         </section>
 
-        <section className="card stack">
+        {full && <section className="card stack fade-in">
           <span className="h2">Details</span>
           {t.genres.length > 0 && <div className="stack-sm"><span className="muted small">Genres</span><div className="row">{t.genres.map((g) => <span key={g} className="pill" style={{ background: 'var(--surface2)' }}>{g}</span>)}</div></div>}
           <div className="facts">{facts.map(([k, v]) => <div key={k}><span className="muted small">{k}</span><strong>{v}</strong></div>)}</div>
           {cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
-        </section>
+        </section>}
 
-        {coll && coll.parts?.length > 1 && (
+        {full && coll && coll.parts?.length > 1 && (
           <section className="card stack-sm">
             <div className="sec-head"><span className="h2">{coll.name}</span><span className="muted small">{coll.parts.findIndex((p) => p.sourceId === item.title.source_id) + 1} of {coll.parts.length}</span></div>
             {coll.parts.map((p, i) => {

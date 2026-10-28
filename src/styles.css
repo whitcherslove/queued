@@ -463,3 +463,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .choice.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .choice.primary span { color: var(--on-accent); opacity: .8; }
 .choice.ghost { min-height: 46px; align-items: center; justify-content: center; background: transparent; border: 0; color: var(--muted); font-weight: 700; }
+
+.fade-in { animation: body-in .2s ease-out; }

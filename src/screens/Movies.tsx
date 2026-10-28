@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { localDay, topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
-import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
+import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
 import { coveredSeasons, epLabel, isEnded, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, todayIso } from '../lib/tv';
@@ -78,25 +78,49 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const view = settings.view;
 
   const refresh = useCallback(async () => {
-    try { const [a, b] = await Promise.all([loadLibrary(section), loadLogs(section)]);
-      setItems(a.map((i) => ({ ...i, title: merged(i.title, i.overrides) })));
+    try { const [raw, lite] = await Promise.all([loadLibrary(section), loadLogs(section)]);
+      const a = raw.map((i) => ({ ...i, title: merged(i.title, i.overrides) }));
+      const byId = new Map(a.map((i) => [i.id, i]));
+      // journal rows come without a copy of the title — attach the library item we already have
+      const b = lite.filter((l) => byId.has(l.library_id)).map((l) => ({ ...l, library: byId.get(l.library_id)! })) as LogRow[];
+      setItems(a); setLogs(b); setError('');
       if (isTv) {
         // episodes and marks are only needed for shows you're actually watching
         const playing = a.filter((i) => i.status === 'playing');
         const [e, m] = await Promise.all([loadEpisodes(playing.map((i) => i.title_id)), loadMarks(playing.map((i) => i.id))]);
         setTvEps(e); setTvMarks(m);
-        if (!warmed.current) {
-          warmed.current = true;
-          const watchedIds = new Set(b.map((l) => l.library.id));
-          const running = a.filter((i) => !isEnded(i.title) && (i.status === 'playing' || watchedIds.has(i.id))).map((i) => i.title.source_id).filter((x) => !x.startsWith('tt'));
-          (async () => { for (let k = 0; k < running.length; k += 10) await refreshEpisodes(running.slice(k, k + 10)); if (running.length) refresh(); })();
-        }
+        warmShows(a, b);
       }
-      setLogs(b.map((l) => ({ ...l, library: { ...l.library, title: merged(l.library.title, l.library.overrides) } }))); setError(''); }
+    }
     catch (e) { setError('Couldn’t load your lists. Check your connection and pull to refresh.'); }
     setLoading(false);
   }, [section]);
   useEffect(() => { refresh(); }, [refresh]);
+
+  /**
+   * Once a day per device: ask TMDB about running shows (new seasons, new episodes) in the background,
+   * then update just those rows — no full reload.
+   */
+  const warmShows = (a: LibItem[], b: LogRow[]) => {
+    if (warmed.current) return;
+    warmed.current = true;
+    const KEY = 'queued.tvRefreshedAt';
+    let last = 0; try { last = Number(localStorage.getItem(KEY) || 0); } catch { /* private mode */ }
+    if (Date.now() - last < 20 * 3600e3) return;
+    const logged = new Set(b.map((l) => l.library_id));
+    const running = a.filter((i) => !isEnded(i.title) && (i.status === 'playing' || logged.has(i.id))).map((i) => i.title.source_id).filter((x) => !x.startsWith('tt'));
+    if (!running.length) return;
+    (async () => {
+      for (let k = 0; k < running.length; k += 10) await refreshEpisodes(running.slice(k, k + 10));
+      try { localStorage.setItem(KEY, String(Date.now())); } catch { /* ignore */ }
+      const fresh = new Map((await loadShowTitles(running)).map((t) => [t.source_id, t]));
+      const patch = (i: LibItem) => (fresh.has(i.title.source_id) ? { ...i, title: merged({ ...i.title, ...fresh.get(i.title.source_id)! }, i.overrides) } : i);
+      setItems((prev) => prev.map(patch));
+      setLogs((prev) => prev.map((l) => ({ ...l, library: patch(l.library) })));
+      const playingNow = a.filter((i) => i.status === 'playing');
+      setTvEps(await loadEpisodes(playingNow.map((i) => i.title_id)));
+    })().catch(() => undefined);
+  };
 
   // live search with debounce
   const seq = useRef(0);

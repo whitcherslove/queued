@@ -14,7 +14,12 @@ export async function ensureTitle(kind: 'movie' | 'tv', sourceId: string, force 
   return data.title as Title;
 }
 
-const LIB_FIELDS = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, title:titles(*)';
+const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on';
+const LIB_FIELDS = LIB_BASE + ', title:titles(*)';
+// Lists only need what the rows show. Movies skip the heavy "data" (cast, collection, budget…) — the card loads it when opened.
+// Shows keep "data": seasons and status drive Watching / Caught up.
+const TITLE_LIST = 'id, kind, source, source_id, imdb_id, title, release_date, year, runtime, directors, genres, overview, poster_url, backdrop_url, metascore, imdb_rating';
+const listFields = (section: Section) => LIB_BASE + ', title:titles(' + TITLE_LIST + (section === 'tv' ? ', data' : '') + ')';
 
 /** The server returns at most 1000 rows per request, so long lists are read page by page. */
 async function allPages<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
@@ -28,13 +33,23 @@ async function allPages<T>(page: (from: number, to: number) => PromiseLike<{ dat
 }
 
 export async function loadLibrary(section: Section): Promise<LibItem[]> {
-  return allPages<LibItem>((a, b) => supabase.from('library').select(LIB_FIELDS).eq('section', section).order('position').order('id').range(a, b) as never);
+  return allPages<LibItem>((a, b) => supabase.from('library').select(listFields(section)).eq('section', section).order('position').order('id').range(a, b) as never);
 }
 
-export async function loadLogs(section: Section): Promise<LogRow[]> {
-  return allPages<LogRow>((a, b) => supabase.from('logs')
-    .select('id, library_id, scope, season_from, season_to, seasons, watched_at, tier, score, rewatch, position, library:library!inner(' + LIB_FIELDS + ')')
+/** Journal rows without a copy of the title; the caller attaches the library item it already has. */
+export type LogLite = Omit<LogRow, 'library'>;
+export async function loadLogs(section: Section): Promise<LogLite[]> {
+  return allPages<LogLite>((a, b) => supabase.from('logs')
+    .select('id, library_id, scope, season_from, season_to, seasons, watched_at, tier, score, rewatch, position, library:library!inner(section)')
     .eq('library.section', section).eq('folded', false).order('watched_at', { ascending: false }).order('id').range(a, b) as never);
+}
+
+/** Fresh list-sized rows for some shows (after the background refresh). */
+export async function loadShowTitles(sourceIds: string[]): Promise<Title[]> {
+  if (!sourceIds.length) return [];
+  const { data, error } = await supabase.from('titles').select(TITLE_LIST + ', data').eq('kind', 'tv').eq('source', 'tmdb').in('source_id', sourceIds);
+  if (error) throw error;
+  return (data ?? []) as unknown as Title[];
 }
 
 export async function addToBacklog(titleId: string, section: Section, position: number, extra: Record<string, unknown> = {}): Promise<string> {
