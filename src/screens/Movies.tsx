@@ -116,8 +116,21 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const today = todayIso();
   const watchingRows = useMemo(() => {
     const rows = items.filter((i) => i.status === 'playing').map((it) => ({ it, p: progress(it, it.title, tvEps.filter((e) => e.title_id === it.title_id), tvMarks.filter((m) => m.library_id === it.id), today) }));
-    const followed = items.filter((i) => followIds.has(i.id)).map((it) => ({ it, p: progress(it, it.title, [], [], today), seasons: followSeasons(it, logs) ?? [] }));
-    return { prog: rows.filter((r) => r.p.nextEp || !r.p.caughtUp), caught: rows.filter((r) => !r.p.nextEp && r.p.caughtUp).map((r) => ({ ...r, seasons: [] as number[] })).concat(followed) };
+    const followed = items.filter((i) => followIds.has(i.id)).map((it) => { const seasons = followSeasons(it, logs) ?? []; return { it, p: progress(it, it.title, [], [], today), seasons, when: seasonAir(it.title, seasons[0]) }; });
+    // In progress = started AND there is an aired episode to watch; most recently watched first
+    const prog = rows.filter((r) => r.p.nextEp).sort((a, b) => (b.p.lastSeen ?? b.it.started_on ?? '').localeCompare(a.p.lastSeen ?? a.it.started_on ?? ''));
+    // Caught up = started but nothing to watch yet, or a new season not started.
+    // Order: already available (newest first) → upcoming by date (soonest first) → announced without a date (A–Z)
+    const caught = rows.filter((r) => !r.p.nextEp).map((r) => ({ ...r, seasons: [] as number[], when: r.p.nextFuture?.air_date ?? null })).concat(followed)
+      .sort((a, b) => {
+        const rank = (x: { when: string | null }) => (x.when && x.when <= today ? 0 : x.when ? 1 : 2);
+        const ra = rank(a), rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        if (ra === 0) return b.when!.localeCompare(a.when!);
+        if (ra === 1) return a.when!.localeCompare(b.when!);
+        return a.it.title.title.localeCompare(b.it.title.title);
+      });
+    return { prog, caught };
   }, [items, tvEps, tvMarks, today, followIds, logs]);
   const playingCount = items.filter((i) => i.status === 'playing').length + followIds.size;
 
@@ -193,7 +206,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           <Poster t={it.title} w={56} h={84} />
           <span className="row-text">
             <span className="row-title">{it.title.title}{isNew && <> <span className="new-pill">NEW</span></>}</span>
-            <span className="row-meta">{follow.length ? seasonsName(follow) + (fOut ? ' · out now' : fAir ? ' · coming' : ' · announced') : p.nextEp ? 'Next: ' + epLabel(p.nextEp) : 'Caught up' + (p.nextFuture ? ' · next ' + epLabel(p.nextFuture) : '')}{it.rewatch && <EyePlus />}</span>
+            <span className="row-meta">{follow.length ? seasonsName(follow) + (fOut ? (isNew ? ' · out now' : ' · available') : fAir ? ' · coming' : ' · announced') : p.nextEp ? 'Next: ' + epLabel(p.nextEp) : 'Caught up' + (p.nextFuture ? ' · next ' + epLabel(p.nextFuture) : '')}{it.rewatch && <EyePlus />}</span>
             {!follow.length && <span className="row-meta"><span className="mini-bar w72"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>}
           </span>
         </button>
@@ -406,7 +419,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
             {watchingRows.prog.length === 0 && <div className="empty small-pad">Mark an episode in a show from your Backlog — it moves here.</div>}
             {view === 'list' ? watchingRows.prog.map(({ it, p }) => watchRow(it, p, false)) : <div className="grid">{watchingRows.prog.map(({ it, p }) => watchTile(it, p))}</div>}
             <span className="h2 mt-block">Caught up</span>
-            <span className="muted small">Up to date or a new season you haven’t started. Press Start watching in the card when you begin.</span>
+            <span className="muted small">Nothing to watch yet, or a new season you haven’t started. Out now first, then by premiere date.</span>
             {watchingRows.caught.length === 0 && <div className="empty small-pad">Nothing here yet.</div>}
             {view === 'list' ? watchingRows.caught.map(({ it, p, seasons }) => watchRow(it, p, true, seasons)) : <div className="grid">{watchingRows.caught.map(({ it, p, seasons }) => watchTile(it, p, seasons))}</div>}
           </div>
