@@ -434,3 +434,6 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .score-slider.compact .ticks { margin-top: -4px; }
 
 .season-card.out { opacity: 1; }
+
+.switch { transition: background-color .18s ease; }
+.switch span { transition: left .18s cubic-bezier(.2,.8,.2,1); }

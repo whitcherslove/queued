@@ -159,8 +159,15 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   })();
   const setScore = (v: number | null) => guard(async () => { setPreview(undefined); if (currentLog) await updateLog(currentLog.id, { score: v }); else await updateItem(item.id, { score: v }); })();
   const rewOn = currentLog ? currentLog.rewatch : !!item.rewatch;
-  const toggleRew = guard(async () => { if (currentLog) await updateLog(currentLog.id, { rewatch: !currentLog.rewatch }); else await updateItem(item.id, { rewatch: !item.rewatch }); });
-  const toggleNext = guard(async () => { await updateItem(item.id, { up_next: !item.up_next, position: topPos }); });
+  const optimistic = (apply: () => void, revert: () => void, save: () => Promise<void>) => {
+    apply();
+    save().then(() => onChanged()).catch(() => { revert(); setError('Couldn’t save. Try again.'); });
+  };
+  const toggleRew = () => {
+    if (currentLog) { const l = currentLog, v = !l.rewatch; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: !v } : x))), () => updateLog(l.id, { rewatch: v })); }
+    else { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }
+  };
+  const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: topPos })); };
   const cancelPlan = guard(async () => { await updateItem(item.id, { status: last?.tier === 'dropped' ? 'dropped' : 'done', rewatch: false, up_next: false, score: null }); });
   const doneScope = (list: number[] | null) => guard(async () => {
     const kind = scopeFor; setScopeFor('');

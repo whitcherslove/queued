@@ -126,14 +126,19 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
   })();
 
   const rewOn = planned || !last ? !!item.rewatch : last.rewatch;
-  const toggleRew = guard(async () => {
-    if (last && !planned) await updateLog(last.id, { rewatch: !last.rewatch });
-    else await updateItem(item.id, { rewatch: !item.rewatch });
-  });
+  // Switches flip instantly; saving happens in the background and rolls back if it fails.
+  const optimistic = (apply: () => void, revert: () => void, save: () => Promise<void>) => {
+    apply();
+    save().then(() => onChanged()).catch(() => { revert(); setError('Couldn’t save. Try again.'); });
+  };
+  const toggleRew = () => {
+    if (last && !planned) { const l = last, v = !l.rewatch; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: !v } : x))), () => updateLog(l.id, { rewatch: v })); }
+    else { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }
+  };
   const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: backlogCount }); setTakeOpen(true); };
   const cancelRewatch = async () => { await updateItem(item.id, { status: last?.tier === 'dropped' ? 'dropped' : 'done', rewatch: false, up_next: false, score: null }); };
   const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else await planRewatch(); });
-  const toggleNext = guard(async () => { await updateItem(item.id, { up_next: !item.up_next, position: backlogCount }); });
+  const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: backlogCount })); };
 
   const send = async (text: string) => {
     const q = text.trim(); if (!q) return;
