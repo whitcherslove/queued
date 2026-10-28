@@ -65,6 +65,44 @@ async function fetchTv(db: any, id: string) {
   return data;
 }
 
+
+/** Build a TV title from OMDb (IMDb data) when TMDB doesn't have the show: seasons and episodes included. */
+async function tvFromOmdb(db: any, imdbId: string) {
+  const key = Deno.env.get('OMDB_API_KEY'); if (!key) return null;
+  const o = await fetch(`https://www.omdbapi.com/?i=${imdbId}&plot=full&apikey=${key}`);
+  const j = o.ok ? await o.json() : null;
+  if (!j || j.Response !== 'True') return null;
+  const list = (v: unknown) => String(v ?? '').split(',').map((x) => x.trim()).filter((x) => x && x !== 'N/A');
+  const date = (v: unknown) => { const t = Date.parse(String(v ?? '')); return Number.isFinite(t) ? new Date(t).toISOString().slice(0, 10) : null; };
+  const total = Number(j.totalSeasons) || 0;
+  const seasons: { n: number; name: string; air_date: string | null; episode_count: number; episodes: any[] }[] = [];
+  for (let n = 1; n <= Math.min(total, 40); n++) {
+    const r = await fetch(`https://www.omdbapi.com/?i=${imdbId}&Season=${n}&apikey=${key}`);
+    const sj = r.ok ? await r.json() : null;
+    const eps = (sj?.Episodes ?? []).map((e: any) => ({ n: Number(e.Episode), name: e.Title, air_date: date(e.Released), runtime: null })).filter((e: any) => e.n > 0);
+    if (eps.length) seasons.push({ n, name: 'Season ' + n, air_date: eps[0].air_date, episode_count: eps.length, episodes: eps });
+  }
+  if (!seasons.length) seasons.push({ n: 1, name: 'Season 1', air_date: date(j.Released), episode_count: 1, episodes: [{ n: 1, name: j.Title, air_date: date(j.Released), runtime: null }] });
+  const years = String(j.Year ?? '');
+  const running = /[–-]\s*$/.test(years);
+  const ms = num(j.Metascore);
+  const row = {
+    kind: 'tv', source: 'imdb', source_id: imdbId, imdb_id: imdbId, title: j.Title,
+    release_date: seasons[0].air_date ?? date(j.Released), year: num(years.slice(0, 4)), runtime: num(j.Runtime),
+    directors: list(j.Writer).slice(0, 3), genres: list(j.Genre), overview: j.Plot && j.Plot !== 'N/A' ? j.Plot : null,
+    poster_url: j.Poster && j.Poster !== 'N/A' ? j.Poster : null, backdrop_url: null,
+    metascore: ms !== null ? Math.round(ms) : null, imdb_rating: num(j.imdbRating),
+    data: { status: running ? 'Returning Series' : 'Ended', network: null, seasons: seasons.map(({ episodes, ...s }) => s), number_of_episodes: seasons.reduce((a, s) => a + s.episode_count, 0),
+      last_air_date: seasons[seasons.length - 1].episodes.map((e) => e.air_date).filter(Boolean).pop() ?? null, next_episode: null,
+      cast: list(j.Actors).map((n) => ({ name: n, role: '' })), countries: list(j.Country), language: (list(j.Language)[0] ?? '').slice(0, 2).toLowerCase() },
+    fetched_at: new Date().toISOString()
+  };
+  const { data: t, error } = await db.from('titles').upsert(row, { onConflict: 'kind,source,source_id' }).select('*').single();
+  if (error) throw error;
+  for (const s of seasons) await db.from('title_seasons').upsert({ title_id: t.id, season: s.n, name: s.name, air_date: s.air_date, episodes: s.episodes, fetched_at: new Date().toISOString() }, { onConflict: 'title_id,season' });
+  return t;
+}
+
 const ended = (t: any) => ['Ended', 'Canceled'].includes(t?.data?.status);
 const stale = (iso: string, hours: number) => Date.now() - new Date(iso).getTime() > hours * 3600e3;
 
@@ -94,7 +132,7 @@ Deno.serve(async (req) => {
       const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
       if (body.action === 'episodes') {
         const ids: string[] = (body.sourceIds ?? [body.sourceId]).filter(Boolean).slice(0, 10);
-        for (const id of ids) { try { await ensureEpisodes(db, String(id)); } catch { /* keep going */ } }
+        for (const id of ids) { if (String(id).startsWith('tt')) continue; try { await ensureEpisodes(db, String(id)); } catch { /* keep going */ } }
         return Response.json({ ok: true }, { headers: CORS });
       }
       let sid = body.sourceId as string | undefined;
@@ -102,6 +140,12 @@ Deno.serve(async (req) => {
         const f = await tmdbFetch('/find/' + body.imdbId, { external_source: 'imdb_id' });
         const fj = f.ok ? await f.json() : null;
         if (fj?.tv_results?.[0]) sid = String(fj.tv_results[0].id);
+        else {
+          const { data: have } = await db.from('titles').select('*').eq('kind', 'tv').eq('source', 'imdb').eq('source_id', body.imdbId).maybeSingle();
+          if (have && !body.force) return Response.json({ title: have }, { headers: CORS });
+          const t = await tvFromOmdb(db, body.imdbId);
+          if (t) return Response.json({ title: t }, { headers: CORS });
+        }
       }
       if (!sid) return Response.json({ error: 'Not found' }, { status: 404, headers: CORS });
       const { data: cached } = await db.from('titles').select('*').eq('kind', 'tv').eq('source', 'tmdb').eq('source_id', String(sid)).maybeSingle();
