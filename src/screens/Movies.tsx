@@ -35,6 +35,12 @@ const followSeasons = (i: LibItem, logs: LogRow[]): number[] | null => {
 };
 const isFollowing = (i: LibItem, logs: LogRow[]) => followSeasons(i, logs) !== null;
 
+/**
+ * Lists stay in memory between section switches: going back to Movies or TV Shows shows the last lists instantly,
+ * and fresh data replaces them quietly a moment later.
+ */
+const listCache = new Map<string, { items: LibItem[]; logs: LogRow[]; eps: SeasonEps[]; marks: Mark[]; tab: Tab }>();
+
 interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void; kind?: 'movie' | 'tv' }
 type Tab = 'watched' | 'playing' | 'backlog';
 
@@ -48,16 +54,18 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const isTv = kind === 'tv';
   const section = isTv ? 'tv' : 'movies';
   const noun = isTv ? 'show' : 'movie';
-  const [tab, setTab] = useState<Tab>('watched');
-  const [tvEps, setTvEps] = useState<SeasonEps[]>([]);
-  const [tvMarks, setTvMarks] = useState<Mark[]>([]);
+  const cached = listCache.get(isTv ? 'tv' : 'movies');
+  const [tab, setTab] = useState<Tab>(cached?.tab ?? 'watched');
+  const [tvEps, setTvEps] = useState<SeasonEps[]>(cached?.eps ?? []);
+  const [tvMarks, setTvMarks] = useState<Mark[]>(cached?.marks ?? []);
   const [scopeAdd, setScopeAdd] = useState<Title | null>(null);
   const [addChoice, setAddChoice] = useState<Title | null>(null);
   const [cardPast, setCardPast] = useState(false);
   const warmed = useRef(false);
-  const [items, setItems] = useState<LibItem[]>([]);
-  const [logs, setLogs] = useState<LogRow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<LibItem[]>(cached?.items ?? []);
+  const [logs, setLogs] = useState<LogRow[]>(cached?.logs ?? []);
+  const [loading, setLoading] = useState(!cached);
+  useEffect(() => { listCache.set(section, { items, logs, eps: tvEps, marks: tvMarks, tab }); }, [section, items, logs, tvEps, tvMarks, tab]);
   const [error, setError] = useState('');
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
@@ -78,7 +86,11 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const view = settings.view;
 
   const refresh = useCallback(async () => {
-    try { const [raw, lite] = await Promise.all([loadLibrary(section), loadLogs(section)]);
+    try {
+      const libP = loadLibrary(section);
+      // shows: episodes and marks of the ones you're watching load in parallel with the journal
+      const tvP = isTv ? libP.then((raw) => { const pl = raw.filter((i) => i.status === 'playing'); return Promise.all([loadEpisodes(pl.map((i) => i.title_id)), loadMarks(pl.map((i) => i.id))] as const); }) : null;
+      const [raw, lite] = await Promise.all([libP, loadLogs(section)]);
       const a = raw.map((i) => ({ ...i, title: merged(i.title, i.overrides) }));
       const byId = new Map(a.map((i) => [i.id, i]));
       // journal rows come without a copy of the title — attach the library item we already have
@@ -86,8 +98,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
       setItems(a); setLogs(b); setError('');
       if (isTv) {
         // episodes and marks are only needed for shows you're actually watching
-        const playing = a.filter((i) => i.status === 'playing');
-        const [e, m] = await Promise.all([loadEpisodes(playing.map((i) => i.title_id)), loadMarks(playing.map((i) => i.id))]);
+        const [e, m] = await tvP!;
         setTvEps(e); setTvMarks(m);
         warmShows(a, b);
       }

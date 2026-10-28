@@ -480,3 +480,8 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .drawer-item.with-icon .drawer-duo .duo { opacity: .3; }
 .drawer-item.on { background: var(--surface2); }
 @media (prefers-reduced-motion: reduce) { .duo-icon { transition: none; } }
+
+/* long lists: the browser skips laying out and painting rows that are off screen */
+.content .row-card:not(.tile) { content-visibility: auto; contain-intrinsic-size: auto 100px; }
+.content .row-card.tile { content-visibility: auto; contain-intrinsic-size: auto 230px; }
+.row-card.dragging, .row-card.sorting { content-visibility: visible; }
