@@ -465,3 +465,18 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .choice.ghost { min-height: 46px; align-items: center; justify-content: center; background: transparent; border: 0; color: var(--muted); font-weight: 700; }
 
 .fade-in { animation: body-in .2s ease-out; }
+
+/* bottom bar: section colors + duotone icons with a slight lift on the active one */
+.duo-bar button { color: var(--muted); }
+.duo-icon { display: inline-flex; transition: transform .18s cubic-bezier(.2,.8,.2,1), filter .18s ease; }
+.duo-icon .duo { opacity: .14; transition: opacity .18s ease; }
+.duo-bar button.on { color: var(--sec); }
+.duo-bar button.on span:last-child { font-weight: 800; }
+.duo-bar button.on .duo-icon { transform: translateY(-2px); filter: drop-shadow(0 3px 4px color-mix(in srgb, var(--sec) 45%, transparent)); }
+.duo-bar button.on .duo-icon .duo { opacity: .32; }
+.drawer-sec { padding: 14px 10px 2px; text-transform: uppercase; letter-spacing: 1px; font-size: 11px; }
+.drawer-item.with-icon { display: flex; align-items: center; gap: 12px; }
+.drawer-item.with-icon .drawer-duo { color: var(--sec); }
+.drawer-item.with-icon .drawer-duo .duo { opacity: .3; }
+.drawer-item.on { background: var(--surface2); }
+@media (prefers-reduced-motion: reduce) { .duo-icon { transition: none; } }

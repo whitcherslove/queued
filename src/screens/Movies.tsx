@@ -71,7 +71,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const [menu, setMenu] = useState<null | { item: LibItem; log: LogRow | null }>(null);
   const [menuConfirm, setMenuConfirm] = useState<null | 'remove' | 'viewing'>(null);
   const currentSeq = () => {
-    const ids = q.trim().length >= 2 ? matchLibrary(items, q).map((i) => i.id) : tab === 'watched' ? watched.map((l) => l.library.id) : tab === 'playing' ? watchingRows.prog.concat(watchingRows.caught).map((r) => r.it.id) : splitBacklog(items).next.concat(splitBacklog(items).rest).map((i) => i.id);
+    const ids = q.trim().length >= 1 ? matchLibrary(items, q).map((i) => i.id) : tab === 'watched' ? watched.map((l) => l.library.id) : tab === 'playing' ? watchingRows.prog.concat(watchingRows.caught).map((r) => r.it.id) : splitBacklog(items).next.concat(splitBacklog(items).rest).map((i) => i.id);
     return ids.filter((id, i) => ids.indexOf(id) === i);
   };
   const setSheet = (it: LibItem) => { setCardSeq(currentSeq()); setCardEnter(null); setCardPast(false); setCardId(it.id); };
@@ -126,7 +126,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const seq = useRef(0);
   useEffect(() => {
     const s = q.trim();
-    if (s.length < 2) { setHits([]); setSearching(false); return; }
+    if (s.length < 1) { setHits([]); setSearching(false); return; }
     const my = ++seq.current; setSearching(true);
     const t = setTimeout(async () => {
       try { const r = await searchTitles(s, kind); if (my === seq.current) setHits(r); }
@@ -298,7 +298,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     </div>
   ); };
 
-  const searchingMode = q.trim().length >= 2;
+  const searchingMode = q.trim().length >= 1;
   const TABS: Tab[] = isTv ? ['watched', 'playing', 'backlog'] : ['watched', 'backlog'];
   const tabIndex = TABS.indexOf(tab);
   // Swipe between tabs. While the finger moves we write transforms straight to the DOM (no React re-render) so it stays smooth.

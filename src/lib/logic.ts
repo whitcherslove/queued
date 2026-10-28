@@ -59,7 +59,7 @@ export function sortLogs(logs: LogRow[]): LogRow[] {
 
 export function matchLibrary(items: LibItem[], q: string): LibItem[] {
   const s = q.trim().toLowerCase();
-  if (s.length < 2) return [];
+  if (s.length < 1) return [];
   return items.filter((i) => i.title.title.toLowerCase().includes(s) || i.title.directors.some((d) => d.toLowerCase().includes(s)));
 }
 

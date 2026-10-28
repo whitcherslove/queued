@@ -43,7 +43,8 @@ describe('search', () => {
   it('matches your lists and hides owned TMDB hits', () => {
     const items = [lib('1', 'Frozen', 1), lib('2', 'Frozen II', 2)];
     expect(matchLibrary(items, 'froz').length).toBe(2);
-    expect(matchLibrary(items, 'f').length).toBe(0);
+    expect(matchLibrary(items, 'v').length).toBe(0);
+    expect(matchLibrary(items, '').length).toBe(0);
     const hits = [{ sourceId: 's1', title: 'Frozen', year: 2013, releaseDate: null, posterUrl: null }, { sourceId: 's9', title: 'Frozen Fever', year: 2015, releaseDate: null, posterUrl: null }];
     expect(newHits(hits, items).map((h) => h.sourceId)).toEqual(['s9']);
   });

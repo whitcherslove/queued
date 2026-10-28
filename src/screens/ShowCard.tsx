@@ -342,7 +342,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                       {rating?.score != null && <button className="link" onClick={() => { setRatings((r) => r.map((x) => (x.season === s.n ? { ...x, score: null } : x))); saveSeasonRating(item.id, s.n, { score: null }).then(onChanged).catch(() => setError('Couldn’t save. Try again.')); }}>Clear</button>}
                       <ScoreSlider compact id={'ss-' + s.n} label={'Season ' + s.n + ' score'} value={rating?.score ?? null} scale={scale} onCommit={(sc) => { setRatings((r) => { const o = r.filter((x) => x.season !== s.n); return o.concat([{ library_id: item.id, season: s.n, tier: rating?.tier ?? null, score: sc, rated_at: today }]); }); saveSeasonRating(item.id, s.n, { score: sc }); }} /></div>
                     <div className="ep-list">
-                      {list.length === 0 && <span className="muted small">Loading episodes…</span>}
+                      {list.length === 0 && <span className="muted small">{ready ? 'No episodes announced yet.' : 'Loading episodes…'}</span>}
                       {list.map((e) => {
                         const future = !e.air_date || e.air_date > today, on = runSeen(s.n, e.n), before = !on && seenBefore(s.n, e.n);
                         return (
@@ -470,8 +470,13 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
 function PastSheet({ t, seasons, eps, scale, onCancel, onSave }: { t: ReturnType<typeof merged>; seasons: number[] | null; eps: SeasonEps[]; scale: 5 | 10; onCancel: () => void; onSave: (at: string, tier: string | null, score: number | null) => void }) {
   const list = seasons ?? seasonsOf(t).map((x) => x.n);
   const lastSeason = list[list.length - 1];
-  const finale = (eps.find((e) => e.season === lastSeason)?.episodes ?? []).map((e) => e.air_date).filter(Boolean).sort().pop() as string | undefined;
-  const [day, setDay] = useState<string>(finale ?? todayIso());
+  // Default: the day the last chosen season finished airing. If its episodes aren't loaded yet, use the season's premiere,
+  // then the show's first air date — never "today" unless we know nothing at all.
+  const finale = (eps.find((e) => e.season === lastSeason)?.episodes ?? []).map((e) => e.air_date).filter((d): d is string => !!d && d <= todayIso()).sort().pop();
+  const fallback = finale ?? seasonsOf(t).find((x) => x.n === lastSeason)?.air_date ?? t.release_date ?? null;
+  const [day, setDay] = useState<string>(fallback ?? todayIso());
+  const touched = useRef(false);
+  useEffect(() => { if (!touched.current && fallback) setDay(fallback); }, [fallback]);
   const [tier, setTier] = useState<string | null>(null);
   const [score, setScore] = useState<number | null>(null);
   return (
@@ -479,7 +484,7 @@ function PastSheet({ t, seasons, eps, scale, onCancel, onSave }: { t: ReturnType
       <button className="sheet-scrim" aria-label="Close" onClick={onCancel} />
       <div className="sheet" role="dialog" aria-label="Past viewing">
         <div className="stack-sm"><strong className="sheet-title">{scopeLabel(seasons, t).split(' · ')[0]}</strong><span className="muted small">{t.title} · watched before you started tracking</span></div>
-        <div className="score-row"><label htmlFor="past-day" className="strong">Finished on</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} /></div>
+        <div className="score-row"><label htmlFor="past-day" className="strong">Finished on</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => { if (e.target.value) { touched.current = true; setDay(e.target.value); } }} /></div>
         <span className="muted small">Don’t remember? Keep the date the season finished airing — it sorts the entry into the right place in Watched.</span>
         <div className="chips">{TIERS.map((x) => { const on = tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => setTier(on ? null : x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}</div>
         <div className="score-row"><span className="small strong">Score</span><ScoreSlider compact id="past-score" label="Score" value={score} scale={scale} onCommit={setScore} /></div>

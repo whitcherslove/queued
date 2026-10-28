@@ -515,7 +515,10 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
 
 /** "Add past": a viewing from before you started tracking. Default date = release date. */
 function PastMovieSheet({ t, scale, onCancel, onSave }: { t: Title; scale: 5 | 10; onCancel: () => void; onSave: (at: string, tier: string | null, score: number | null) => void }) {
-  const [day, setDay] = useState<string>(t.release_date ?? (t.year ? t.year + '-12-31' : localDay(new Date().toISOString())));
+  const def = t.release_date ?? (t.year ? t.year + '-12-31' : null);
+  const [day, setDay] = useState<string>(def ?? localDay(new Date().toISOString()));
+  const touched = useRef(false);
+  useEffect(() => { if (!touched.current && def) setDay(def); }, [def]);
   const [tier, setTier] = useState<string | null>(null);
   const [score, setScore] = useState<number | null>(null);
   return (
@@ -523,7 +526,7 @@ function PastMovieSheet({ t, scale, onCancel, onSave }: { t: Title; scale: 5 | 1
       <button className="sheet-scrim" aria-label="Close" onClick={onCancel} />
       <div className="sheet" role="dialog" aria-label="Past viewing">
         <div className="stack-sm"><strong className="sheet-title">{t.title}</strong><span className="muted small">A viewing from before you started tracking</span></div>
-        <div className="score-row"><label htmlFor="past-day" className="strong">Watched on</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} /></div>
+        <div className="score-row"><label htmlFor="past-day" className="strong">Watched on</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => { if (e.target.value) { touched.current = true; setDay(e.target.value); } }} /></div>
         <span className="muted small">Don’t remember? Keep the release date — the entry still lands in the right place in Watched.</span>
         <div className="chips">{TIERS.map((x) => { const on = tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => setTier(on ? null : x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}</div>
         <div className="score-row"><span className="small strong">Score</span><ScoreSlider compact id="past-score" label="Score" value={score} scale={scale} onCommit={setScore} /></div>

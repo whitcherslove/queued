@@ -1,25 +1,32 @@
 import { useState } from 'react';
 import type { Profile } from '../lib/profile';
 import type { Settings } from '../lib/theme';
-import { IconMenu, IconMovie, IconPad, IconPc, IconRetro, IconSearch, IconTv } from '../components/Icons';
+import { DuoMovie, DuoPad, DuoPc, DuoRetro, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
 import ProfileScreen from './ProfileScreen';
 import Avatar from '../components/Avatar';
 import Movies from './Movies';
 import { useBackLayer } from '../lib/back';
 
 type SectionId = 'movies' | 'tv' | 'console' | 'pc' | 'retro';
-const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element; tabs: string[]; noun: string }[] = [
-  { id: 'movies', label: 'Movies', title: 'Movies', icon: <IconMovie />, tabs: ['Watched', 'Backlog'], noun: 'a movie' },
-  { id: 'tv', label: 'TV Shows', title: 'TV Shows', icon: <IconTv />, tabs: ['Watched', 'Watching', 'Backlog'], noun: 'a show' },
-  { id: 'console', label: 'Console', title: 'Console games', icon: <IconPad />, tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
-  { id: 'pc', label: 'PC', title: 'PC games', icon: <IconPc />, tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
-  { id: 'retro', label: 'Retro', title: 'Retro games', icon: <IconRetro />, tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' }
+// Each section has its own color: it lights up the bottom-bar icon when the section is open
+const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element; color: string; tabs: string[]; noun: string }[] = [
+  { id: 'movies', label: 'Movies', title: 'Movies', icon: <DuoMovie />, color: '#E8714A', tabs: ['Watched', 'Backlog'], noun: 'a movie' },
+  { id: 'tv', label: 'TV Shows', title: 'TV Shows', icon: <DuoTv />, color: '#9A8CF0', tabs: ['Watched', 'Watching', 'Backlog'], noun: 'a show' },
+  { id: 'console', label: 'Console', title: 'Console games', icon: <DuoPad />, color: '#2FB98A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
+  { id: 'pc', label: 'PC', title: 'PC games', icon: <DuoPc />, color: '#4C9BEA', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
+  { id: 'retro', label: 'Retro', title: 'Retro games', icon: <DuoRetro />, color: '#E0A43A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' }
 ];
+const BAR: SectionId[] = ['movies', 'tv', 'console', 'pc'];
+const tick = () => { try { navigator.vibrate?.(10); } catch { /* not supported (iPhone) */ } };
 
 interface Props { profile: Profile; onProfile: (p: Profile) => void; onSettings: (s: Settings) => void }
 
 export default function Shell({ profile, onProfile, onSettings }: Props) {
   const [section, setSection] = useState<SectionId>('movies');
+  const [lastBar, setLastBar] = useState<SectionId>('movies');
+  const go = (id: SectionId) => { tick(); if (id !== 'retro') setLastBar(id); setSection(id); setTab(0); };
+  // Retro lives in the side menu: back (arrow, gesture) returns to the tab you came from
+  useBackLayer(section === 'retro', () => setSection(lastBar));
   const [tab, setTab] = useState(0);
   const [drawer, setDrawer] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -30,10 +37,10 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   if (profileOpen) return <ProfileScreen profile={profile} onBack={() => setProfileOpen(false)} onProfile={onProfile} onSettings={onSettings} />;
 
   const nav = (
-    <nav className="bottom" aria-label="Sections">
-      {SECTIONS.map((s) => (
-        <button key={s.id} aria-current={s.id === section ? 'page' : undefined} className={s.id === section ? 'on' : ''} onClick={() => { setSection(s.id); setTab(0); }}>
-          {s.icon}<span>{s.label}</span>
+    <nav className="bottom duo-bar" aria-label="Sections">
+      {SECTIONS.filter((s) => BAR.includes(s.id)).map((s) => (
+        <button key={s.id} aria-current={s.id === section ? 'page' : undefined} className={s.id === section ? 'on' : ''} style={{ ['--sec' as string]: s.color }} onClick={() => go(s.id)}>
+          <span className="duo-icon">{s.icon}</span><span>{s.label}</span>
         </button>
       ))}
     </nav>
@@ -46,7 +53,11 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
           <span className="drawer-who"><strong>Your profile</strong><span className="muted small">{profile.email}</span></span>
         </button>
         <button className="drawer-item" onClick={() => { setDrawer(false); setProfileOpen(true); }}>Profile and settings</button>
-        <span className="muted small drawer-foot">Queued · v0.4</span>
+        <span className="drawer-sec muted small">More</span>
+        <button className={'drawer-item with-icon' + (section === 'retro' ? ' on' : '')} style={{ ['--sec' as string]: '#E0A43A' }} onClick={() => { setDrawer(false); go('retro'); }}>
+          <span className="duo-icon drawer-duo"><DuoRetro /></span>Retro games
+        </button>
+        <span className="muted small drawer-foot">Queued · v0.5</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
@@ -63,7 +74,9 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
     <div className="screen"><div className="app">
       <header className="top">
         <div className="title-row">
-          <button className="icon-btn" aria-label="Open menu" onClick={() => setDrawer(true)}><IconMenu /></button>
+          {section === 'retro'
+            ? <button className="icon-btn" aria-label="Back" onClick={() => go(lastBar)}><IconBack /></button>
+            : <button className="icon-btn" aria-label="Open menu" onClick={() => setDrawer(true)}><IconMenu /></button>}
           <h1 className="section-title">{sec.title}</h1>
         </div>
         <div className="search">

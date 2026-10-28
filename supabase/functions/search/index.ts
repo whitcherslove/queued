@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
   try {
     const { q, kind } = await req.json();
     const query = String(q ?? '').trim();
-    if (query.length < 2) return Response.json({ results: [] }, { headers: CORS });
+    if (query.length < 1) return Response.json({ results: [] }, { headers: CORS });
     if (kind === 'tv') {
       const r = await tmdbFetch('/search/tv', { query, include_adult: 'false', language: 'en-US', page: '1' });
       if (!r.ok) return Response.json({ error: 'TMDB ' + r.status }, { status: 502, headers: CORS });

@@ -7,3 +7,12 @@ export const IconRetro = () => <svg {...p}><path d="M6 3h12v14l-3 4H6z" /><path 
 export const IconMenu = () => <svg {...p} strokeWidth={2.2}><path d="M4 7h16M4 12h16M4 17h10" /></svg>;
 export const IconBack = () => <svg {...p} strokeWidth={2}><path d="M15 6l-6 6 6 6" /></svg>;
 export const IconSearch = () => <svg {...p} width={18} height={18} strokeWidth={2}><circle cx="11" cy="11" r="7" /><path d="M20 20l-3.5-3.5" /></svg>;
+
+/* Bottom-bar icons: duotone — a translucent body under the outline gives a soft, slightly raised look */
+const d = { width: 26, height: 26, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const, 'aria-hidden': true };
+const body = { fill: 'currentColor', stroke: 'none', className: 'duo' };
+export const DuoMovie = () => <svg {...d}><rect {...body} x="3" y="4" width="18" height="16" rx="2.5" /><rect x="3" y="4" width="18" height="16" rx="2.5" /><path d="M7.5 4v16M16.5 4v16M3 9h4.5M3 15h4.5M16.5 9H21M16.5 15H21" /></svg>;
+export const DuoTv = () => <svg {...d}><rect {...body} x="3" y="7" width="18" height="12" rx="2.5" /><rect x="3" y="7" width="18" height="12" rx="2.5" /><path d="M8.5 3l3.5 4 3.5-4M9 22h6" /></svg>;
+export const DuoPad = () => <svg {...d}><path {...body} d="M6.5 8.5h11a4.2 4.2 0 0 1 4.1 5.1l-.7 3.2a2.3 2.3 0 0 1-4 1.1L15.2 16H8.8l-1.7 1.9a2.3 2.3 0 0 1-4-1.1l-.7-3.2a4.2 4.2 0 0 1 4.1-5.1z" /><path d="M6.5 8.5h11a4.2 4.2 0 0 1 4.1 5.1l-.7 3.2a2.3 2.3 0 0 1-4 1.1L15.2 16H8.8l-1.7 1.9a2.3 2.3 0 0 1-4-1.1l-.7-3.2a4.2 4.2 0 0 1 4.1-5.1z" /><path d="M8 11v3M6.5 12.5h3M15.5 12h.01M17.5 13.5h.01" /></svg>;
+export const DuoPc = () => <svg {...d}><rect {...body} x="3" y="4" width="18" height="12" rx="2.5" /><rect x="3" y="4" width="18" height="12" rx="2.5" /><path d="M9 20h6M12 16v4" /></svg>;
+export const DuoRetro = () => <svg {...d}><path {...body} d="M6 3h12v14l-3 4H6z" /><path d="M6 3h12v14l-3 4H6z" /><path d="M9 7h6M9 11h6M9 21v-3M12 21v-3" /></svg>;
