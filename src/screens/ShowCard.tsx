@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMsg, ItemLog, LibItem, Mark, SeasonEps, SeasonRating } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
-import { latestLog, localDay, longDate, merged, releaseText, withLocalDay } from '../lib/logic';
+import { latestLog, localDay, longDate, merged, metacriticSearch, releaseText, withLocalDay } from '../lib/logic';
 import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
   refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog, addMarksAt
@@ -195,7 +195,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
   // straight to the show's Metacritic page: /tv/<slug>/ (e.g. /tv/its-always-sunny-in-philadelphia/)
   const mcSlug = t.title.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  const mcUrl = 'https://www.metacritic.com/search/' + encodeURIComponent(t.title) + '/?page=1&category=1';  // 1 = TV shows, 2 = movies
+  const mcUrl = metacriticSearch(t.title, 'tv');
   void mcSlug;
   const tileMC = (kind: 'metascore' | 'imdb_rating') => {
     const v = t[kind]; const c = kind === 'metascore' ? metascoreColor(v) : imdbColor(v); const label = kind === 'metascore' ? 'Metascore' : 'IMDb';
@@ -460,7 +460,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           // a show you only had in Backlog and turned out to have seen: it's in Watched now
           if (item.status === 'backlog' && !item.rewatch && logs.length === 0) await updateItem(item.id, { status: 'done', up_next: false, plan_seasons: null, plan_from: null, plan_to: null });
         })(); }} />}
-      {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
+      {quick && <QuickNumber media="tv" kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails kind="tv" item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }} onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
     </div>
   );

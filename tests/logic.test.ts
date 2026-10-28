@@ -83,3 +83,13 @@ describe('local dates', () => {
     expect(ld('2026-10-05')).toBe('2026-10-05');
   });
 });
+
+import { metacriticSearch } from '../src/lib/logic';
+describe('metacritic', () => {
+  it('builds search links per category', () => {
+    expect(metacriticSearch('mario', 'movie')).toBe('https://www.metacritic.com/search/mario?category=2');
+    expect(metacriticSearch('mario', 'tv')).toBe('https://www.metacritic.com/search/mario?category=1');
+    expect(metacriticSearch('mario', 'game')).toBe('https://www.metacritic.com/search/mario?category=13');
+    expect(metacriticSearch('The Bear', 'tv')).toBe('https://www.metacritic.com/search/The%20Bear?category=1');
+  });
+});

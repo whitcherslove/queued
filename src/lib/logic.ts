@@ -91,6 +91,12 @@ export function latestLog(logs: ItemLog[]): ItemLog | null {
   return logs.reduce<ItemLog | null>((m, l) => (!m || l.watched_at > m.watched_at ? l : m), null);
 }
 
+/** Metacritic search, e.g. https://www.metacritic.com/search/mario?category=2 (2 movies, 1 TV shows, 13 games). */
+export function metacriticSearch(title: string, kind: 'movie' | 'tv' | 'game'): string {
+  const category = kind === 'tv' ? 1 : kind === 'game' ? 13 : 2;
+  return 'https://www.metacritic.com/search/' + encodeURIComponent(title) + '?category=' + category;
+}
+
 export function money(v: unknown): string {
   const n = Number(v);
   if (!n) return '';

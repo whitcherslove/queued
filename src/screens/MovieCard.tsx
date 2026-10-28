@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMsg, CollectionPart, ItemLog, LibItem, Overrides, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
-import { diffOverrides, latestLog, localDay, withLocalDay, longDate, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
+import { diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import {
   type Owned, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
@@ -158,7 +158,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
     ['Country', (data.countries ?? []).join(', ')], ['Language', (data.language ?? '').toUpperCase()],
     ['Budget', money(data.budget)], ['Box office', money(data.revenue)]
   ] as [string, string][]).filter(([, v]) => v);
-  const mcUrl = 'https://www.metacritic.com/search/' + encodeURIComponent(t.title) + '/?page=1&category=2';
+  const mcUrl = metacriticSearch(t.title, 'movie');
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
   const tr = planned ? null : tierOf(last?.tier ?? null);
   const origTr = tierOf(last?.tier ?? null);
@@ -405,12 +405,12 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   );
 }
 
-export function QuickNumber({ kind, title, item, onClose, onSaved }: { kind: 'metascore' | 'imdb_rating'; title: string; titleRow: Title; item: LibItem; onClose: () => void; onSaved: () => void }) {
+export function QuickNumber({ media = 'movie', kind, title, item, onClose, onSaved }: { media?: 'movie' | 'tv'; kind: 'metascore' | 'imdb_rating'; title: string; titleRow: Title; item: LibItem; onClose: () => void; onSaved: () => void }) {
   const [v, setV] = useState('');
   const max = kind === 'metascore' ? 100 : 10, step = kind === 'metascore' ? 1 : 0.1;
   const p = parseNum(v, max, step);
   const c = p.ok && p.n !== null ? (kind === 'metascore' ? metascoreColor(p.n) : imdbColor(+p.n.toFixed(1))) : null;
-  const look = kind === 'metascore' ? 'https://www.metacritic.com/search/' + encodeURIComponent(title) + '/?category=2' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(title);
+  const look = kind === 'metascore' ? metacriticSearch(title, media) : 'https://www.imdb.com/find/?q=' + encodeURIComponent(title);
   const save = async () => { if (!p.ok) return; await updateItem(item.id, { overrides: { ...item.overrides, [kind]: p.n === null ? null : kind === 'imdb_rating' ? +p.n.toFixed(1) : p.n } }); onSaved(); };
   return (
     <div className="modal-wrap">
