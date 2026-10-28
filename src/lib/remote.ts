@@ -183,3 +183,11 @@ export async function saveSeasonRating(libraryId: string, season: number, patch:
   const { error } = await supabase.from('season_ratings').upsert({ library_id: libraryId, season, ...patch, rated_at: (() => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); })() }, { onConflict: 'library_id,season' });
   if (error) throw error;
 }
+
+/** Mark episodes with a given date, keeping any marks that already exist (and their dates). */
+export async function addMarksAt(libraryId: string, eps: { season: number; episode: number }[], at: string): Promise<void> {
+  for (let i = 0; i < eps.length; i += 500) {
+    const { error } = await supabase.from('episode_marks').upsert(eps.slice(i, i + 500).map((e) => ({ library_id: libraryId, season: e.season, episode: e.episode, watched_at: at })), { onConflict: 'library_id,season,episode', ignoreDuplicates: true });
+    if (error) throw error;
+  }
+}

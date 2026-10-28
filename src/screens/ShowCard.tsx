@@ -5,7 +5,7 @@ import { TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '..
 import { latestLog, localDay, longDate, merged, releaseText, withLocalDay } from '../lib/logic';
 import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
-  refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog
+  refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog, addMarksAt
 } from '../lib/remote';
 import { epLabel, isEnded, logScope, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showYears, todayIso } from '../lib/tv';
 import { applyEpisodeMarks } from '../lib/tvActions';
@@ -56,6 +56,8 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
   const [scopeLog, setScopeLog] = useState<ItemLog | null>(null);
+  const [pastStep, setPastStep] = useState<'' | 'seasons' | 'details'>('');
+  const [pastSeasons, setPastSeasons] = useState<number[] | null>(null);
   const [preview, setPreview] = useState<number | null | undefined>(undefined);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
@@ -64,6 +66,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   useBackLayer(!!quick, () => setQuick(null));
   useBackLayer(!!scopeFor, () => setScopeFor(''));
   useBackLayer(!!scopeLog, () => setScopeLog(null));
+  useBackLayer(!!pastStep, () => setPastStep(''));
 
   // swipe to the previous / next show (DOM transforms while dragging, like the movie card)
   const swipeEl = useRef<HTMLDivElement>(null);
@@ -358,6 +361,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
 
         <section className="card stack-sm">
           <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length}</span></span>
+            <button className="link" onClick={() => setPastStep('seasons')}>+ Add past</button>
             {isDone && <span className="row nowrap">{moreSeasons && <button className="btn sm" onClick={() => setScopeFor('more')}>Watch more</button>}<button className="btn primary sm" onClick={() => setScopeFor('rewatch')}>Log a rewatch</button></span>}
           </div>
           {logs.length === 0 && !planned && <span className="muted small">Finish the planned seasons and the entry appears here.</span>}
@@ -439,8 +443,40 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
         onCancel={() => setScopeFor('')} onDone={doneScope} />}
       {scopeLog && <ScopeSheet t={t} title="What does this entry cover?" confirm="Save" initial={logSeasons(scopeLog)}
         onCancel={() => setScopeLog(null)} onDone={(list) => { const l = scopeLog; setScopeLog(null); guard(async () => { await updateLog(l.id, logScope(list) as Partial<ItemLog>); })(); }} />}
+      {pastStep === 'seasons' && <ScopeSheet t={t} title="Which seasons did you watch?" confirm="Next" onCancel={() => setPastStep('')} onDone={(list) => { setPastSeasons(list); setPastStep('details'); }} />}
+      {pastStep === 'details' && <PastSheet t={t} seasons={pastSeasons} eps={eps} scale={scale} onCancel={() => setPastStep('')}
+        onSave={(at, tier, sc) => { setPastStep(''); guard(async () => {
+          const list = pastSeasons ?? seasons.map((x) => x.n);
+          await insertLog(item.id, { ...logScope(pastSeasons), watched_at: at, tier, score: sc, rewatch: false } as Partial<ItemLog>);
+          const toMark = eps.filter((e) => list.includes(e.season)).flatMap((e) => e.episodes.filter((x) => x.air_date && x.air_date <= today).map((x) => ({ season: e.season, episode: x.n })));
+          await addMarksAt(item.id, toMark, at);
+          for (const n of list) if (tier && !ratings.some((r) => r.season === n)) await saveSeasonRating(item.id, n, { tier, score: sc });
+        })(); }} />}
       {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails kind="tv" item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }} onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
+    </div>
+  );
+}
+
+/** Second step of "Add past": when (roughly) and how it was. Default date = when the last chosen season finished airing. */
+function PastSheet({ t, seasons, eps, scale, onCancel, onSave }: { t: ReturnType<typeof merged>; seasons: number[] | null; eps: SeasonEps[]; scale: 5 | 10; onCancel: () => void; onSave: (at: string, tier: string | null, score: number | null) => void }) {
+  const list = seasons ?? seasonsOf(t).map((x) => x.n);
+  const lastSeason = list[list.length - 1];
+  const finale = (eps.find((e) => e.season === lastSeason)?.episodes ?? []).map((e) => e.air_date).filter(Boolean).sort().pop() as string | undefined;
+  const [day, setDay] = useState<string>(finale ?? todayIso());
+  const [tier, setTier] = useState<string | null>(null);
+  const [score, setScore] = useState<number | null>(null);
+  return (
+    <div className="sheet-wrap">
+      <button className="sheet-scrim" aria-label="Close" onClick={onCancel} />
+      <div className="sheet" role="dialog" aria-label="Past viewing">
+        <div className="stack-sm"><strong className="sheet-title">{scopeLabel(seasons, t).split(' · ')[0]}</strong><span className="muted small">{t.title} · watched before you started tracking</span></div>
+        <div className="score-row"><label htmlFor="past-day" className="strong">Finished on</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => e.target.value && setDay(e.target.value)} /></div>
+        <span className="muted small">Don’t remember? Keep the date the season finished airing — it sorts the entry into the right place in Watched.</span>
+        <div className="chips">{TIERS.map((x) => { const on = tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => setTier(on ? null : x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}</div>
+        <div className="score-row"><span className="small strong">Score</span><ScoreSlider compact id="past-score" label="Score" value={score} scale={scale} onCommit={setScore} /></div>
+        <div className="row nowrap"><button className="btn grow" onClick={onCancel}>Cancel</button><button className="btn primary grow" onClick={() => onSave(new Date(day + 'T20:00:00').toISOString(), tier, score)}>Add to Watched</button></div>
+      </div>
     </div>
   );
 }
