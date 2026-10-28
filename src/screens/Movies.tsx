@@ -495,13 +495,14 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           <button className="sheet-scrim" aria-label="Close" onClick={() => setAddChoice(null)} />
           <div className="sheet action-sheet" role="dialog" aria-label={'Add ' + addChoice.title}>
             <div className="action-head"><Poster t={addChoice} w={40} h={60} /><span className="stack-sm"><strong>{addChoice.title}</strong><span className="muted small">{addChoice.year ?? ''}</span></span></div>
-            <div className="action-list">
-              <button onClick={async () => { const t = addChoice; setAddChoice(null); if (isTv) { setScopeAdd(t); return; } try { await addToBacklog(t.id, 'movies', topPosition(items)); await refresh(); } catch { setError('Couldn’t add “' + t.title + '”.'); } }}>
-                <span className="stack-sm"><strong>Add to Backlog</strong><span className="muted small">{isTv ? 'Pick the seasons you’ll watch' : 'It goes to the top of your Backlog'}</span></span></button>
-              <button onClick={async () => { const t = addChoice; setAddChoice(null);
+            <div className="choice-buttons">
+              <button className="choice primary" onClick={async () => { const t = addChoice; setAddChoice(null); if (isTv) { setScopeAdd(t); return; } try { await addToBacklog(t.id, 'movies', topPosition(items)); await refresh(); } catch { setError('Couldn’t add “' + t.title + '”.'); } }}>
+                <strong>Add to Backlog</strong><span>{isTv ? 'Then pick the seasons you’ll watch' : 'Goes to the top of your Backlog'}</span></button>
+              <button className="choice" onClick={async () => { const t = addChoice; setAddChoice(null);
                 try { const id = await addToBacklog(t.id, section, topPosition(items), isTv ? { run_started_at: new Date().toISOString() } : {}); await refresh(); setQ(''); setCardSeq([id]); setCardTake(false); setCardEnter(null); setCardPast(true); setCardId(id); }
                 catch { setError('Couldn’t add “' + t.title + '”.'); } }}>
-                <span className="stack-sm"><strong>I’ve seen it — add a past viewing</strong><span className="muted small">{isTv ? 'Choose the seasons, when and how it was' : 'When you watched it and how it was'}</span></span></button>
+                <strong>I’ve seen it</strong><span>{isTv ? 'Add a past viewing: seasons, date, rating' : 'Add a past viewing: date and rating'}</span></button>
+              <button className="choice ghost" onClick={() => setAddChoice(null)}>Cancel</button>
             </div>
           </div>
         </div>

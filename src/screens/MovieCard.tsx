@@ -382,12 +382,13 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           <button className="sheet-scrim" aria-label="Close" onClick={() => setAddPart(null)} />
           <div className="sheet action-sheet" role="dialog" aria-label={'Add ' + addPart.title}>
             <div className="action-head"><span className="poster" style={{ width: 40, height: 60 }}>{addPart.posterUrl && <img src={addPart.posterUrl} alt="" />}</span><span className="stack-sm"><strong>{addPart.title}</strong><span className="muted small">{addPart.year}</span></span></div>
-            <div className="action-list">
-              <button onClick={() => { const pp = addPart; setAddPart(null); guard(async () => { const tt = await ensureTitle('movie', pp.sourceId); await addToBacklog(tt.id, 'movies', backlogCount); })(); }}>
-                <span className="stack-sm"><strong>Add to Backlog</strong><span className="muted small">It goes to the top of your Backlog</span></span></button>
-              <button onClick={async () => { const pp = addPart; setAddPart(null);
+            <div className="choice-buttons">
+              <button className="choice primary" onClick={() => { const pp = addPart; setAddPart(null); guard(async () => { const tt = await ensureTitle('movie', pp.sourceId); await addToBacklog(tt.id, 'movies', backlogCount); })(); }}>
+                <strong>Add to Backlog</strong><span>Goes to the top of your Backlog</span></button>
+              <button className="choice" onClick={async () => { const pp = addPart; setAddPart(null);
                 try { const tt = await ensureTitle('movie', pp.sourceId); const id = await addToBacklog(tt.id, 'movies', backlogCount); onChanged(); onOpenOther(id, true); } catch { setError('Couldn’t add “' + pp.title + '”.'); } }}>
-                <span className="stack-sm"><strong>I’ve seen it — add a past viewing</strong><span className="muted small">When you watched it and how it was</span></span></button>
+                <strong>I’ve seen it</strong><span>Add a past viewing: date and rating</span></button>
+              <button className="choice ghost" onClick={() => setAddPart(null)}>Cancel</button>
             </div>
           </div>
         </div>
@@ -416,11 +417,11 @@ export function QuickNumber({ media = 'movie', kind, title, item, onClose, onSav
     <div className="modal-wrap">
       <div className="modal" role="dialog" aria-label={kind === 'metascore' ? 'Metascore' : 'IMDb rating'}>
         <span className="h2">{kind === 'metascore' ? 'Metascore' : 'IMDb rating'}</span>
+        <a className="btn primary wide" href={look} target="_blank" rel="noopener">Look it up on {kind === 'metascore' ? 'Metacritic' : 'IMDb'} ↗</a>
         <span className="sq big" style={{ background: c ?? 'var(--surface2)', color: c ? '#17161A' : 'var(--muted)' }}>{p.ok && p.n !== null ? (kind === 'imdb_rating' ? p.n.toFixed(1) : p.n) : '—'}</span>
         <label htmlFor="qn" className="sr">Value</label>
-        <input id="qn" className={'num-input' + (p.ok ? '' : ' bad')} inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onClose(); }} placeholder={kind === 'metascore' ? '0–100' : '0.0–10'} autoFocus />
+        <input id="qn" className={'num-input' + (p.ok ? '' : ' bad')} inputMode="decimal" value={v} onChange={(e) => setV(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') save(); if (e.key === 'Escape') onClose(); }} placeholder={kind === 'metascore' ? '0–100' : '0.0–10'} />
         <span className={'small' + (p.ok ? ' muted' : ' error')}>{p.ok ? 'From 0 to ' + max : 'Enter a number from 0 to ' + max}</span>
-        <a className="btn outline-accent wide" href={look} target="_blank" rel="noopener">Look it up on {kind === 'metascore' ? 'Metacritic' : 'IMDb'} ↗</a>
         <div className="row nowrap wide"><button className="btn grow" onClick={onClose}>Cancel</button><button className="btn primary grow" onClick={save} disabled={!p.ok}>Save</button></div>
       </div>
     </div>
