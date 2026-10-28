@@ -32,6 +32,9 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
     const apply = () => { if (id !== 'retro') setLastBar(id); setSection(id); setTab(0); };
     const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    // direction follows the bar: a tab to the right slides in from the right, to the left — from the left
+    const from = BAR.indexOf(section === 'retro' ? lastBar : section), to = BAR.indexOf(id === 'retro' ? lastBar : id);
+    document.documentElement.dataset.nav = id === 'retro' ? 'up' : section === 'retro' ? 'down' : to > from ? 'forward' : 'back';
     if (doc.startViewTransition && !calm && id !== section) doc.startViewTransition(() => flushSync(apply));
     else apply();
   };

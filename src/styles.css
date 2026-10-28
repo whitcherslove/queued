@@ -495,7 +495,22 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 @media (prefers-reduced-motion: reduce) { .section-in { animation: none; } }
 
 /* section switch like BarTab: a short cross-fade of the screen; the bottom bar doesn't fade */
-::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; animation-timing-function: cubic-bezier(.3, 0, .2, 1); }
+/* old screen drifts a little and fades, new one glides in from the side of the tab you tapped */
+html[data-nav="forward"]::view-transition-old(root) { animation: vt-out-left .24s cubic-bezier(.3, 0, .2, 1) both; }
+html[data-nav="forward"]::view-transition-new(root) { animation: vt-in-right .26s cubic-bezier(.2, .8, .2, 1) both; }
+html[data-nav="back"]::view-transition-old(root) { animation: vt-out-right .24s cubic-bezier(.3, 0, .2, 1) both; }
+html[data-nav="back"]::view-transition-new(root) { animation: vt-in-left .26s cubic-bezier(.2, .8, .2, 1) both; }
+html[data-nav="up"]::view-transition-old(root) { animation: vt-fade-out .2s ease both; }
+html[data-nav="up"]::view-transition-new(root) { animation: vt-in-up .26s cubic-bezier(.2, .8, .2, 1) both; }
+html[data-nav="down"]::view-transition-old(root) { animation: vt-fade-out .2s ease both; }
+html[data-nav="down"]::view-transition-new(root) { animation: vt-in-down .26s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes vt-in-right { from { transform: translateX(18%); opacity: 0; } }
+@keyframes vt-out-left { to { transform: translateX(-8%); opacity: 0; } }
+@keyframes vt-in-left { from { transform: translateX(-18%); opacity: 0; } }
+@keyframes vt-out-right { to { transform: translateX(8%); opacity: 0; } }
+@keyframes vt-in-up { from { transform: translateY(24px); opacity: 0; } }
+@keyframes vt-in-down { from { transform: translateY(-16px); opacity: 0; } }
+@keyframes vt-fade-out { to { opacity: 0; } }
 .bottom { view-transition-name: tabbar; }
 ::view-transition-group(tabbar), ::view-transition-old(tabbar), ::view-transition-new(tabbar) { animation: none; }
 ::view-transition-old(tabbar) { display: none; }
