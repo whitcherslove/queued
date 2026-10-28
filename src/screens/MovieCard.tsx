@@ -11,7 +11,7 @@ import ScoreSlider from '../components/ScoreSlider';
 import { IconBack } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 
-interface Props { openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, { id: string; status: string; up_next: boolean }>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string) => void; backlogCount: number }
+interface Props { openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, { id: string; status: string; up_next: boolean }>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string, past?: boolean) => void; backlogCount: number }
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const EXT = <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /></svg>;
@@ -37,6 +37,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
   const [pastOpen, setPastOpen] = useState(!!openPast);
+  const [addPart, setAddPart] = useState<CollectionPart | null>(null);
   const [preview, setPreview] = useState<number | null | undefined>(undefined);
   const swipeEl = useRef<HTMLDivElement>(null);
   const raf = useRef(0);
@@ -82,6 +83,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   useBackLayer(editOpen, () => setEditOpen(false));
   useBackLayer(!!quick, () => setQuick(null));
   useBackLayer(pastOpen, () => setPastOpen(false));
+  useBackLayer(!!addPart, () => setAddPart(null));
   const firstFor = useRef<string | null>(null);
 
   const reload = useCallback(async () => {
@@ -156,7 +158,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
     ['Country', (data.countries ?? []).join(', ')], ['Language', (data.language ?? '').toUpperCase()],
     ['Budget', money(data.budget)], ['Box office', money(data.revenue)]
   ] as [string, string][]).filter(([, v]) => v);
-  const mcUrl = 'https://www.metacritic.com/search/' + encodeURIComponent(t.title) + '/?category=2';
+  const mcUrl = 'https://www.metacritic.com/search/' + encodeURIComponent(t.title) + '/?page=1&category=2';
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
   const tr = planned ? null : tierOf(last?.tier ?? null);
   const origTr = tierOf(last?.tier ?? null);
@@ -273,7 +275,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                 <div key={p.sourceId} className={'coll-row' + (isCur ? ' cur' : '')}>
                   <span className="coll-n">{i + 1}</span>
                   <button className="coll-title" disabled={!o || isCur} onClick={() => o && onOpenOther(o.id)}>{p.title} <span className="muted">{p.year}</span></button>
-                  {!o && <button className="add-btn sm" aria-label={'Add ' + p.title + ' to backlog'} onClick={guard(async () => { const tt = await ensureTitle('movie', p.sourceId); await addToBacklog(tt.id, 'movies', backlogCount); })}>+</button>}
+                  {!o && <button className="add-btn sm" aria-label={'Add ' + p.title} onClick={() => setAddPart(p)}>+</button>}
                   {st && <span className={'pill status' + (st === 'Watched' ? ' accent' : isCur ? ' outline' : '')}>{st}</span>}
                 </div>
               );
@@ -364,6 +366,21 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
       </div>
 
       </div>
+      {addPart && (
+        <div className="sheet-wrap">
+          <button className="sheet-scrim" aria-label="Close" onClick={() => setAddPart(null)} />
+          <div className="sheet action-sheet" role="dialog" aria-label={'Add ' + addPart.title}>
+            <div className="action-head"><span className="poster" style={{ width: 40, height: 60 }}>{addPart.posterUrl && <img src={addPart.posterUrl} alt="" />}</span><span className="stack-sm"><strong>{addPart.title}</strong><span className="muted small">{addPart.year}</span></span></div>
+            <div className="action-list">
+              <button onClick={() => { const pp = addPart; setAddPart(null); guard(async () => { const tt = await ensureTitle('movie', pp.sourceId); await addToBacklog(tt.id, 'movies', backlogCount); })(); }}>
+                <span className="stack-sm"><strong>Add to Backlog</strong><span className="muted small">It goes to the top of your Backlog</span></span></button>
+              <button onClick={async () => { const pp = addPart; setAddPart(null);
+                try { const tt = await ensureTitle('movie', pp.sourceId); const id = await addToBacklog(tt.id, 'movies', backlogCount); onChanged(); onOpenOther(id, true); } catch { setError('Couldn’t add “' + pp.title + '”.'); } }}>
+                <span className="stack-sm"><strong>I’ve seen it — add a past viewing</strong><span className="muted small">When you watched it and how it was</span></span></button>
+            </div>
+          </div>
+        </div>
+      )}
       {pastOpen && <PastMovieSheet t={t} scale={scale} onCancel={() => setPastOpen(false)}
         onSave={(at, tier, sc) => { setPastOpen(false); guard(async () => {
           await insertLog(item.id, { watched_at: at, tier, score: sc, rewatch: false });

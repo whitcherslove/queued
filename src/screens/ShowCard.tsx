@@ -195,7 +195,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
   // straight to the show's Metacritic page: /tv/<slug>/ (e.g. /tv/its-always-sunny-in-philadelphia/)
   const mcSlug = t.title.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  const mcUrl = 'https://www.metacritic.com/search/' + encodeURIComponent(t.title) + '/';
+  const mcUrl = 'https://www.metacritic.com/search/' + encodeURIComponent(t.title) + '/?page=1&category=1';  // 1 = TV shows, 2 = movies
   void mcSlug;
   const tileMC = (kind: 'metascore' | 'imdb_rating') => {
     const v = t[kind]; const c = kind === 'metascore' ? metascoreColor(v) : imdbColor(v); const label = kind === 'metascore' ? 'Metascore' : 'IMDb';
@@ -366,8 +366,9 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
 
         <section className="card stack-sm">
           <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length}</span></span>
-            <button className="link" onClick={() => setPastStep('seasons')}>+ Add past</button>
-            {isDone && <span className="row nowrap">{moreSeasons && <button className="btn sm" onClick={() => setScopeFor('more')}>Watch more</button>}<button className="btn primary sm" onClick={() => setScopeFor('rewatch')}>Log a rewatch</button></span>}
+            <span className="row nowrap"><button className="link" onClick={() => setPastStep('seasons')}>+ Add past</button>
+              {isDone && moreSeasons && <button className="btn sm" onClick={() => setScopeFor('more')}>Watch more</button>}
+              {isDone && <button className="btn primary sm" onClick={() => setScopeFor('rewatch')}>Log a rewatch</button>}</span>
           </div>
           {logs.length === 0 && !planned && <span className="muted small">Finish the planned seasons and the entry appears here.</span>}
           {planned && (
