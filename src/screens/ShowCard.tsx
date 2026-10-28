@@ -306,7 +306,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
               <div key={s.n} className={'season-card' + (inPlan ? '' : ' out')}>
                 <button className="season-head" aria-expanded={open} onClick={() => setOpenS({ ...openS, [s.n]: !open })}>
                   <span className="stack-sm grow">
-                    <span className="row nowrap"><strong>Season {s.n}</strong>{rt && <span className="pill" style={{ background: rt.color, color: '#17161A' }}>{rt.label}</span>}{!inPlan && <span className="muted tiny">not in plan</span>}</span>
+                    <span className="row nowrap"><strong>Season {s.n}</strong>{rt && <span className="pill" style={{ background: rt.color, color: '#17161A' }}>{rt.label}</span>}</span>
                     <span className="muted small">{seen}/{aired}{upcoming ? ' · ' + upcoming + ' upcoming' : ''}{s.air_date ? ' · ' + s.air_date.slice(0, 4) : ''}</span>
                     {lastAt && <span className={'small ' + (allSeen ? 'accent-text' : 'muted')}>{(allSeen ? 'Finished ' : 'Last watched ') + longDate(lastAt)}</span>}
                     <span className="mini-bar"><span style={{ width: (aired ? (seen / aired) * 100 : 0) + '%' }} /></span>

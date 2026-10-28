@@ -16,18 +16,25 @@ export async function ensureTitle(kind: 'movie' | 'tv', sourceId: string, force 
 
 const LIB_FIELDS = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, title:titles(*)';
 
+/** The server returns at most 1000 rows per request, so long lists are read page by page. */
+async function allPages<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await page(from, from + 999);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < 1000) return out;
+  }
+}
+
 export async function loadLibrary(section: Section): Promise<LibItem[]> {
-  const { data, error } = await supabase.from('library').select(LIB_FIELDS).eq('section', section).order('position');
-  if (error) throw error;
-  return (data ?? []) as unknown as LibItem[];
+  return allPages<LibItem>((a, b) => supabase.from('library').select(LIB_FIELDS).eq('section', section).order('position').order('id').range(a, b) as never);
 }
 
 export async function loadLogs(section: Section): Promise<LogRow[]> {
-  const { data, error } = await supabase.from('logs')
+  return allPages<LogRow>((a, b) => supabase.from('logs')
     .select('id, library_id, scope, season_from, season_to, seasons, watched_at, tier, score, rewatch, position, library:library!inner(' + LIB_FIELDS + ')')
-    .eq('library.section', section).eq('folded', false).order('watched_at', { ascending: false });
-  if (error) throw error;
-  return (data ?? []) as unknown as LogRow[];
+    .eq('library.section', section).eq('folded', false).order('watched_at', { ascending: false }).order('id').range(a, b) as never);
 }
 
 export async function addToBacklog(titleId: string, section: Section, position: number, extra: Record<string, unknown> = {}): Promise<void> {
@@ -144,16 +151,12 @@ export async function refreshEpisodes(sourceIds: string[]): Promise<void> {
 
 export async function loadEpisodes(titleIds: string[]): Promise<SeasonEps[]> {
   if (!titleIds.length) return [];
-  const { data, error } = await supabase.from('title_seasons').select('title_id, season, name, air_date, episodes').in('title_id', titleIds).order('season');
-  if (error) throw error;
-  return (data ?? []) as SeasonEps[];
+  return allPages<SeasonEps>((a, b) => supabase.from('title_seasons').select('title_id, season, name, air_date, episodes').in('title_id', titleIds).order('title_id').order('season').range(a, b));
 }
 
 export async function loadMarks(libraryIds: string[]): Promise<Mark[]> {
   if (!libraryIds.length) return [];
-  const { data, error } = await supabase.from('episode_marks').select('library_id, season, episode, watched_at').in('library_id', libraryIds);
-  if (error) throw error;
-  return (data ?? []) as Mark[];
+  return allPages<Mark>((a, b) => supabase.from('episode_marks').select('library_id, season, episode, watched_at').in('library_id', libraryIds).order('library_id').order('season').order('episode').range(a, b));
 }
 
 export async function setMarks(libraryId: string, eps: { season: number; episode: number }[], on: boolean): Promise<void> {

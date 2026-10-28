@@ -79,8 +79,8 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     try { const [a, b] = await Promise.all([loadLibrary(section), loadLogs(section)]);
       setItems(a.map((i) => ({ ...i, title: merged(i.title, i.overrides) })));
       if (isTv) {
-        const followed = a.filter((i) => isFollowing(i, b));
-        const playing = a.filter((i) => i.status === 'playing').concat(followed);
+        // episodes and marks are only needed for shows you're actually watching
+        const playing = a.filter((i) => i.status === 'playing');
         const [e, m] = await Promise.all([loadEpisodes(playing.map((i) => i.title_id)), loadMarks(playing.map((i) => i.id))]);
         setTvEps(e); setTvMarks(m);
         if (!warmed.current) {

@@ -432,3 +432,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .score-slider.compact { flex: 1; }
 .score-slider .range { touch-action: pan-y; }
 .score-slider.compact .ticks { margin-top: -4px; }
+
+.season-card.out { opacity: 1; }
