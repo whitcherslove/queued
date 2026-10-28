@@ -55,6 +55,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   const [scopeFor, setScopeFor] = useState<'' | 'plan' | 'rewatch' | 'more'>('');
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
+  const [scopeLog, setScopeLog] = useState<ItemLog | null>(null);
   const [preview, setPreview] = useState<number | null | undefined>(undefined);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
@@ -62,6 +63,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   useBackLayer(editOpen, () => setEditOpen(false));
   useBackLayer(!!quick, () => setQuick(null));
   useBackLayer(!!scopeFor, () => setScopeFor(''));
+  useBackLayer(!!scopeLog, () => setScopeLog(null));
 
   // swipe to the previous / next show (DOM transforms while dragging, like the movie card)
   const swipeEl = useRef<HTMLDivElement>(null);
@@ -373,6 +375,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
                 </div>
                 {editLog === l.id && (
                   <div className="view-edit">
+                    <div className="score-row"><span className="small strong">Covers</span><span className="grow small">{scopeShort(l)}</span><button className="btn sm" onClick={() => setScopeLog(l)}>Change</button></div>
                     <div className="chips">{TIERS.map((tt) => { const on = l.tier === tt.id; return <button key={tt.id} aria-pressed={on} className="chip sm" style={on ? { background: tt.color, borderColor: tt.color, color: '#17161A' } : undefined} onClick={guard(async () => { await updateLog(l.id, { tier: on ? null : tt.id }); })}><span className="dot" style={{ background: on ? '#17161A' : tt.color }} />{tt.label}</button>; })}</div>
                     <div className="score-row"><label htmlFor={'vs-' + l.id} className="small strong">Score</label>
                       <ScoreSlider compact id={'vs-' + l.id} label="Score" value={l.score} scale={scale} onCommit={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); updateLog(l.id, { score: st }).then(onChanged); }} /></div>
@@ -420,6 +423,8 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
         confirm={scopeFor === 'plan' ? 'Save' : 'Add to Backlog'}
         initial={scopeFor === 'plan' ? plan : scopeFor === 'more' ? seasons.filter((x) => x.n > maxLogged).map((x) => x.n) : null}
         onCancel={() => setScopeFor('')} onDone={doneScope} />}
+      {scopeLog && <ScopeSheet t={t} title="What does this entry cover?" confirm="Save" initial={logSeasons(scopeLog)}
+        onCancel={() => setScopeLog(null)} onDone={(list) => { const l = scopeLog; setScopeLog(null); guard(async () => { await updateLog(l.id, logScope(list) as Partial<ItemLog>); })(); }} />}
       {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails kind="tv" item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }} onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
     </div>
