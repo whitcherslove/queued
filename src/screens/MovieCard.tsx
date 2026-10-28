@@ -11,7 +11,7 @@ import ScoreSlider from '../components/ScoreSlider';
 import { IconBack } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 
-interface Props { itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, { id: string; status: string; up_next: boolean }>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string) => void; backlogCount: number }
+interface Props { openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, { id: string; status: string; up_next: boolean }>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string) => void; backlogCount: number }
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const EXT = <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /></svg>;
@@ -22,7 +22,7 @@ export const tierOfId = (id: string | null) => TIERS.find((t) => t.id === id) ??
 export const EYE_PLUS_ICON = EYE_PLUS;
 export const EXT_ICON = EXT;
 
-export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
+export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
   const [logs, setLogs] = useState<ItemLog[]>(initialLogs ?? []);
@@ -36,7 +36,7 @@ export default function MovieCard({ itemId, onPrev, onNext, enterFrom, openTake,
   const [draft, setDraft] = useState('');
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
-  const [pastOpen, setPastOpen] = useState(false);
+  const [pastOpen, setPastOpen] = useState(!!openPast);
   const [preview, setPreview] = useState<number | null | undefined>(undefined);
   const swipeEl = useRef<HTMLDivElement>(null);
   const raf = useRef(0);

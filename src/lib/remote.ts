@@ -37,9 +37,10 @@ export async function loadLogs(section: Section): Promise<LogRow[]> {
     .eq('library.section', section).eq('folded', false).order('watched_at', { ascending: false }).order('id').range(a, b) as never);
 }
 
-export async function addToBacklog(titleId: string, section: Section, position: number, extra: Record<string, unknown> = {}): Promise<void> {
-  const { error } = await supabase.from('library').insert({ title_id: titleId, section, position, ...extra });
+export async function addToBacklog(titleId: string, section: Section, position: number, extra: Record<string, unknown> = {}): Promise<string> {
+  const { data, error } = await supabase.from('library').insert({ title_id: titleId, section, position, ...extra }).select('id').single();
   if (error) throw error;
+  return (data as { id: string }).id;
 }
 
 export async function setUpNext(id: string, upNext: boolean, position: number): Promise<void> {

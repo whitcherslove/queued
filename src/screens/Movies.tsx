@@ -52,6 +52,8 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const [tvEps, setTvEps] = useState<SeasonEps[]>([]);
   const [tvMarks, setTvMarks] = useState<Mark[]>([]);
   const [scopeAdd, setScopeAdd] = useState<Title | null>(null);
+  const [addChoice, setAddChoice] = useState<Title | null>(null);
+  const [cardPast, setCardPast] = useState(false);
   const warmed = useRef(false);
   const [items, setItems] = useState<LibItem[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
@@ -72,7 +74,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     const ids = q.trim().length >= 2 ? matchLibrary(items, q).map((i) => i.id) : tab === 'watched' ? watched.map((l) => l.library.id) : tab === 'playing' ? watchingRows.prog.concat(watchingRows.caught).map((r) => r.it.id) : splitBacklog(items).next.concat(splitBacklog(items).rest).map((i) => i.id);
     return ids.filter((id, i) => ids.indexOf(id) === i);
   };
-  const setSheet = (it: LibItem) => { setCardSeq(currentSeq()); setCardEnter(null); setCardId(it.id); };
+  const setSheet = (it: LibItem) => { setCardSeq(currentSeq()); setCardEnter(null); setCardPast(false); setCardId(it.id); };
   const view = settings.view;
 
   const refresh = useCallback(async () => {
@@ -143,13 +145,13 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const addByImdb = async () => {
     if (!imdbInQuery) return;
     setAdding(imdbInQuery);
-    try { const t = await ensureTitleByImdb(imdbInQuery, false, kind); if (items.some((i) => i.title_id === t.id)) { setQ(''); } else if (isTv) setScopeAdd(t); else { await addToBacklog(t.id, 'movies', topPosition(items)); setQ(''); await refresh(); } }
+    try { const t = await ensureTitleByImdb(imdbInQuery, false, kind); if (items.some((i) => i.title_id === t.id)) { setQ(''); } else setAddChoice(t); }
     catch { setError('Nothing found for ' + imdbInQuery + '.'); }
     setAdding(null);
   };
   const add = async (h: SearchHit) => {
     setAdding(h.sourceId);
-    try { const t = await ensureTitle(kind, h.sourceId); if (isTv) setScopeAdd(t); else { await addToBacklog(t.id, 'movies', topPosition(items)); await refresh(); } }
+    try { const t = await ensureTitle(kind, h.sourceId); setAddChoice(t); }
     catch { setError('Couldn’t add “' + h.title + '”. Try again in a moment.'); }
     setAdding(null);
   };
@@ -346,6 +348,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     if (it) { setMenuConfirm(null); setMenu({ item: it, log: lg ?? null }); }
   });
   useBackLayer(!!menu, () => setMenu(null));
+  useBackLayer(!!addChoice, () => setAddChoice(null));
   useBackLayer(!!cardId, () => { setCardId(null); setCardTake(false); });
   useBackLayer(q.length > 0, () => setQ(''));
   useBackLayer(edit, () => setEdit(false));
@@ -471,14 +474,14 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
                 </div>
               ) : (
                 <div className="action-list">
-                  <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Open</button>
+                  <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Open</button>
                   {isTv && item.status !== 'playing' && (isBack || (followSeasons(item, logs)?.length ?? 0) > 0) && <button role="menuitem" onClick={run(async () => { const ss = followSeasons(item, logs) ?? planOf(item); await updateItem(item.id, { status: 'playing', plan_seasons: ss, plan_from: ss ? ss[0] : null, plan_to: ss ? ss[ss.length - 1] : null, run_started_at: new Date().toISOString(), started_on: today, up_next: false }); })}>Start watching</button>}
-                  {isBack && !isTv && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Mark as watched…</button>}
+                  {isBack && !isTv && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Mark as watched…</button>}
                   {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, topPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
-                  {!isBack && item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Change rating…</button>}
+                  {!isBack && item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Change rating…</button>}
                   {!isBack && !isTv && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>Log a rewatch → Backlog</button>}
                   {item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>}
-                  {isTv && followIds.has(item.id) && item.status !== 'backlog' && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'dropped' }); })}>Stop following</button>}
+                  {isTv && (followIds.has(item.id) || item.status === 'playing') && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'dropped' }); })}>Stop following</button>}
                   {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>Delete this viewing</button>}
                   <button role="menuitem" className="danger" onClick={() => setMenuConfirm('remove')}>Remove from my lists</button>
                 </div>
@@ -487,19 +490,35 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           </div>
         );
       })()}
+      {addChoice && (
+        <div className="sheet-wrap">
+          <button className="sheet-scrim" aria-label="Close" onClick={() => setAddChoice(null)} />
+          <div className="sheet action-sheet" role="dialog" aria-label={'Add ' + addChoice.title}>
+            <div className="action-head"><Poster t={addChoice} w={40} h={60} /><span className="stack-sm"><strong>{addChoice.title}</strong><span className="muted small">{addChoice.year ?? ''}</span></span></div>
+            <div className="action-list">
+              <button onClick={async () => { const t = addChoice; setAddChoice(null); if (isTv) { setScopeAdd(t); return; } try { await addToBacklog(t.id, 'movies', topPosition(items)); await refresh(); } catch { setError('Couldn’t add “' + t.title + '”.'); } }}>
+                <span className="stack-sm"><strong>Add to Backlog</strong><span className="muted small">{isTv ? 'Pick the seasons you’ll watch' : 'It goes to the top of your Backlog'}</span></span></button>
+              <button onClick={async () => { const t = addChoice; setAddChoice(null);
+                try { const id = await addToBacklog(t.id, section, topPosition(items), isTv ? { run_started_at: new Date().toISOString() } : {}); await refresh(); setQ(''); setCardSeq([id]); setCardTake(false); setCardEnter(null); setCardPast(true); setCardId(id); }
+                catch { setError('Couldn’t add “' + t.title + '”.'); } }}>
+                <span className="stack-sm"><strong>I’ve seen it — add a past viewing</strong><span className="muted small">{isTv ? 'Choose the seasons, when and how it was' : 'When you watched it and how it was'}</span></span></button>
+            </div>
+          </div>
+        </div>
+      )}
       {scopeAdd && <ScopeSheet t={scopeAdd} title="What will you watch?" confirm="Add to Backlog" onCancel={() => setScopeAdd(null)}
         onDone={async (list) => { const t = scopeAdd; setScopeAdd(null); try { await addToBacklog(t.id, 'tv', topPosition(items), { plan_seasons: list, plan_from: list ? list[0] : null, plan_to: list ? list[list.length - 1] : null, run_started_at: new Date().toISOString() }); refreshEpisodes([t.source_id]); await refresh(); } catch { setError('Couldn’t add “' + t.title + '”.'); } }} />}
-      {cardId && isTv && <ShowCard key={cardId} itemId={cardId} openTake={cardTake} enterFrom={cardEnter} settings={settings} topPos={topPosition(items)}
+      {cardId && isTv && <ShowCard key={cardId} openPast={cardPast} itemId={cardId} openTake={cardTake} enterFrom={cardEnter} settings={settings} topPos={topPosition(items)}
         initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
         initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch, scope: l.scope, season_from: l.season_from, season_to: l.season_to })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}
-        onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
-        onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null}
-        onClose={() => { setCardId(null); setCardTake(false); }} onChanged={refresh} />}
-      {cardId && !isTv && <MovieCard key={cardId} itemId={cardId} openTake={cardTake} enterFrom={cardEnter}
-        onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
-        onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
+        onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
+        onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null}
+        onClose={() => { setCardId(null); setCardTake(false); setCardPast(false); }} onChanged={refresh} />}
+      {cardId && !isTv && <MovieCard key={cardId} openPast={cardPast} itemId={cardId} openTake={cardTake} enterFrom={cardEnter}
+        onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
+        onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
         initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}
-        initialOwned={Object.fromEntries(items.map((i) => [i.title.source_id, { id: i.id, status: i.status, up_next: i.up_next }]))} settings={settings} backlogCount={topPosition(items)} onClose={() => { setCardId(null); setCardTake(false); }} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
+        initialOwned={Object.fromEntries(items.map((i) => [i.title.source_id, { id: i.id, status: i.status, up_next: i.up_next }]))} settings={settings} backlogCount={topPosition(items)} onClose={() => { setCardId(null); setCardTake(false); setCardPast(false); }} onChanged={refresh} onOpenOther={(id) => setCardId(id)} />}
     </div>
   );
 }

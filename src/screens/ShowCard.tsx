@@ -18,6 +18,7 @@ import { useLongPress } from '../lib/longpress';
 import { EditDetails, QuickNumber, EYE_PLUS_ICON as EYE_PLUS, EXT_ICON as EXT, tierOfId as tierOf } from './MovieCard';
 
 interface Props {
+  openPast?: boolean;
   itemId: string; initial?: LibItem | null; initialLogs?: ItemLog[] | null; settings: Settings; openTake?: boolean;
   onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null;
   onClose: () => void; onChanged: () => void; topPos: number;
@@ -38,7 +39,7 @@ function ProgressRing({ pct, text, size = 48 }: { pct: number; text: string; siz
   );
 }
 
-export default function ShowCard({ itemId, initial, initialLogs, settings, openTake, onPrev, onNext, enterFrom, onClose, onChanged, topPos }: Props) {
+export default function ShowCard({ openPast, itemId, initial, initialLogs, settings, openTake, onPrev, onNext, enterFrom, onClose, onChanged, topPos }: Props) {
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logs, setLogs] = useState<ItemLog[]>(initialLogs ?? []);
   const [eps, setEps] = useState<SeasonEps[]>([]);
@@ -56,7 +57,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   const [delView, setDelView] = useState<string | null>(null);
   const [editLog, setEditLog] = useState<string | null>(null);
   const [scopeLog, setScopeLog] = useState<ItemLog | null>(null);
-  const [pastStep, setPastStep] = useState<'' | 'seasons' | 'details'>('');
+  const [pastStep, setPastStep] = useState<'' | 'seasons' | 'details'>(openPast ? 'seasons' : '');
   const [pastSeasons, setPastSeasons] = useState<number[] | null>(null);
   const [preview, setPreview] = useState<number | null | undefined>(undefined);
   const [draft, setDraft] = useState('');
@@ -194,7 +195,8 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
   // straight to the show's Metacritic page: /tv/<slug>/ (e.g. /tv/its-always-sunny-in-philadelphia/)
   const mcSlug = t.title.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  const mcUrl = 'https://www.metacritic.com/tv/' + mcSlug + '/';
+  const mcUrl = 'https://www.metacritic.com/search/' + encodeURIComponent(t.title) + '/';
+  void mcSlug;
   const tileMC = (kind: 'metascore' | 'imdb_rating') => {
     const v = t[kind]; const c = kind === 'metascore' ? metascoreColor(v) : imdbColor(v); const label = kind === 'metascore' ? 'Metascore' : 'IMDb';
     const sq = <span className="sq" style={{ background: c ?? 'var(--surface2)', color: c ? '#17161A' : 'var(--muted)' }}>{v ?? '—'}</span>;
@@ -323,7 +325,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
                   <span className="stack-sm grow">
                     <span className="row nowrap"><strong>Season {s.n}</strong>{rt && <span className="pill" style={{ background: rt.color, color: '#17161A' }}>{rt.label}</span>}</span>
                     <span className="muted small">{seen}/{aired}{upcoming ? ' · ' + upcoming + ' upcoming' : ''}{s.air_date ? ' · ' + s.air_date.slice(0, 4) : ''}</span>
-                    {lastAt && <span className={'small ' + (allSeen ? 'accent-text' : 'muted')}>{(allSeen ? 'Finished ' : 'Last watched ') + longDate(lastAt)}</span>}
+                    {lastAt && (allSeen ? <span className="finished-pill"><svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>Finished {longDate(lastAt)}</span> : <span className="small muted">Last watched {longDate(lastAt)}</span>)}
                     {!allSeen && <span className="mini-bar season"><span style={{ width: (aired ? (seen / aired) * 100 : 0) + '%' }} /></span>}
                   </span>
                   <ScoreRing value={rating?.score ?? null} scale={scale} size={32} fontSize={12} label={'Season ' + s.n + ' score'} />
@@ -454,6 +456,8 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
           const toMark = eps.filter((e) => list.includes(e.season)).flatMap((e) => e.episodes.filter((x) => x.air_date && x.air_date <= today).map((x) => ({ season: e.season, episode: x.n })));
           await addMarksAt(item.id, toMark, at);
           for (const n of list) if (tier && !ratings.some((r) => r.season === n)) await saveSeasonRating(item.id, n, { tier, score: sc });
+          // a show you only had in Backlog and turned out to have seen: it's in Watched now
+          if (item.status === 'backlog' && !item.rewatch && logs.length === 0) await updateItem(item.id, { status: 'done', up_next: false, plan_seasons: null, plan_from: null, plan_to: null });
         })(); }} />}
       {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails kind="tv" item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }} onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
