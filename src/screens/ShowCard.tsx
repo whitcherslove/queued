@@ -185,7 +185,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
       : <a className="tile3" href={kind === 'metascore' ? mcUrl : imdbUrl} target="_blank" rel="noopener">{sq}<span className="muted small">{label} {EXT}</span></a>;
   };
   const maxLogged = Math.max(0, ...logs.map((l) => { const ls = logSeasons(l); return ls ? Math.max(...ls) : seasons.length; }));
-  const fresh = isDone && status !== 'dropped' && last?.tier !== 'dropped' && !isEnded(t) ? newSeasons(t, logs) : [];
+  const fresh = isDone && status !== 'dropped' && last?.tier !== 'dropped' ? newSeasons(t, logs).filter((n) => !isEnded(t) || ((seasonAir(t, n) ?? '') > (last?.watched_at.slice(0, 10) ?? ''))) : [];
   const freshAir = fresh.length ? seasonAir(t, fresh[0]) : null;
   const start = (list: number[] | null) => guard(async () => {
     await updateItem(item.id, { status: 'playing', plan_seasons: list, plan_from: list ? list[0] : null, plan_to: list ? list[list.length - 1] : null, run_started_at: new Date().toISOString(), started_on: today, up_next: false, score: null });

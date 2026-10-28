@@ -21,14 +21,15 @@ import { TIERS } from '../lib/scores';
  * or new seasons appeared after the ones you've logged (announced or already out). It waits in Caught up.
  */
 const followSeasons = (i: LibItem, logs: LogRow[]): number[] | null => {
-  if (i.section !== 'tv' || i.status === 'playing' || i.status === 'dropped' || i.rewatch || isEnded(i.title)) return null;
+  if (i.section !== 'tv' || i.status === 'playing' || i.status === 'dropped' || i.rewatch) return null;
   const mine = logs.filter((l) => l.library.id === i.id);
   if (!mine.length) return null;
   const latest = mine.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
   if (latest.tier === 'dropped') return null;
-  if (i.status === 'backlog') return planOf(i);
-  const fresh = newSeasons(i.title, mine);
-  return fresh.length ? fresh : null;
+  let list = i.status === 'backlog' ? planOf(i) ?? [] : newSeasons(i.title, mine);
+  // An ended show only waits here for a season that premiered after your last entry (e.g. a final season you haven't started)
+  if (isEnded(i.title)) { const since = latest.watched_at.slice(0, 10); list = list.filter((n) => { const d = seasonAir(i.title, n); return !!d && d > since; }); }
+  return list.length ? list : null;
 };
 const isFollowing = (i: LibItem, logs: LogRow[]) => followSeasons(i, logs) !== null;
 
