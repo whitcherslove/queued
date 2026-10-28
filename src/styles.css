@@ -437,3 +437,12 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 
 .switch { transition: background-color .18s ease; }
 .switch span { transition: left .18s cubic-bezier(.2,.8,.2,1); }
+
+/* show card: the body appears in one piece once everything is loaded */
+.card-body.hidden-until-ready { visibility: hidden; opacity: 0; height: 0; overflow: hidden; padding-top: 0; padding-bottom: 0; }
+.card-body.shown { animation: body-in .22s ease-out; }
+@keyframes body-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.card-wait { display: flex; justify-content: center; padding: 40px 0; }
+.spinner { width: 26px; height: 26px; border-radius: 999px; border: 3px solid var(--line); border-top-color: var(--accent); animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .card-body.shown { animation: none; } .spinner { animation-duration: 2s; } }

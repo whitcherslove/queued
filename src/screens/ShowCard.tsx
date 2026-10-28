@@ -91,8 +91,10 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
   };
 
   const reload = useCallback(async () => {
-    const it = await loadItem(itemId);
-    const [lg, ch, ep, mk, rt] = await Promise.all([loadItemLogs(itemId), loadChat(itemId), loadEpisodes([it.title_id]), loadMarks([itemId]), loadSeasonRatings(itemId)]);
+    // everything in parallel (we already know the show from the list), so the card appears in one go
+    const tid = initial?.title_id;
+    const [it, lg, ch, ep0, mk, rt] = await Promise.all([loadItem(itemId), loadItemLogs(itemId), loadChat(itemId), tid ? loadEpisodes([tid]) : Promise.resolve(null), loadMarks([itemId]), loadSeasonRatings(itemId)]);
+    const ep = ep0 ?? await loadEpisodes([it.title_id]);
     setItem(it); setLogs(lg); setChat(ch); setEps(ep); setMarksState(mk); setRatings(rt); setReady(true);
     return { it, ep };
   }, [itemId]);
@@ -221,7 +223,8 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
         </div>
       </div>
 
-      <div className="card-body">
+      {!ready && <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div>}
+      <div className={'card-body' + (ready ? ' shown' : ' hidden-until-ready')} aria-busy={!ready}>
         {error && <p className="error" role="alert">{error}</p>}
         {t.overview && <div className="stack-sm"><p className={'overview' + (ovOpen ? ' open' : '')}>{t.overview}</p>{t.overview.length > 150 && <button className="link left" onClick={() => setOvOpen(!ovOpen)}>{ovOpen ? 'Less' : 'More'}</button>}</div>}
 
