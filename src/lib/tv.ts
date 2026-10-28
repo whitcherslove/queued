@@ -104,3 +104,28 @@ export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_sea
 export function epLabel(e: { season: number; episode: number }): string {
   return 'S' + e.season + ' · E' + e.episode;
 }
+
+type LogLike = { scope?: string; season_from?: number | null; season_to?: number | null; seasons?: number[] | null; watched_at: string; tier?: string | null };
+
+/** Highest season covered by your journal. A "Full series" entry covers every season that had aired by then. */
+export function maxLoggedSeason(t: Title, logs: LogLike[]): number {
+  const ss = seasonsOf(t);
+  let max = 0;
+  logs.forEach((l) => {
+    const list = logSeasons(l);
+    if (list) max = Math.max(max, ...list);
+    else ss.forEach((s) => { if (s.air_date && s.air_date <= l.watched_at.slice(0, 10)) max = Math.max(max, s.n); });
+  });
+  return max;
+}
+
+/** Seasons that appeared after the ones you've logged (announced or already out). */
+export function newSeasons(t: Title, logs: LogLike[]): number[] {
+  if (!logs.length) return [];
+  const max = maxLoggedSeason(t, logs);
+  return seasonsOf(t).filter((s) => s.n > max).map((s) => s.n);
+}
+
+export function seasonAir(t: Title, n: number): string | null {
+  return seasonsOf(t).find((s) => s.n === n)?.air_date ?? null;
+}

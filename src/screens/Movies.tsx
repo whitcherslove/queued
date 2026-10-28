@@ -5,7 +5,7 @@ import { topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, 
 import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
-import { epLabel, isEnded, logSeasons, planOf, progress, scopeLabel, todayIso } from '../lib/tv';
+import { epLabel, isEnded, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, todayIso } from '../lib/tv';
 import { applyEpisodeMarks } from '../lib/tvActions';
 import MovieCard from './MovieCard';
 import ScoreRing from '../components/ScoreRing';
@@ -16,8 +16,21 @@ import { GripIcon, Metascore, Poster } from '../components/Rows';
 import { IconMenu, IconSearch } from '../components/Icons';
 import { TIERS } from '../lib/scores';
 
-/** A running show you've already logged, with its next seasons planned in Backlog: it lives in Watching (Caught up → In progress when they air). */
-const isFollowing = (i: LibItem, logs: LogRow[]) => i.section === 'tv' && i.status === 'backlog' && !isEnded(i.title) && planOf(i) !== null && logs.some((l) => l.library.id === i.id);
+/**
+ * A show you follow but haven't started the next part of: its next seasons are planned in Backlog,
+ * or new seasons appeared after the ones you've logged (announced or already out). It waits in Caught up.
+ */
+const followSeasons = (i: LibItem, logs: LogRow[]): number[] | null => {
+  if (i.section !== 'tv' || i.status === 'playing' || i.status === 'dropped' || i.rewatch) return null;
+  const mine = logs.filter((l) => l.library.id === i.id);
+  if (!mine.length) return null;
+  const latest = mine.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
+  if (latest.tier === 'dropped') return null;
+  if (i.status === 'backlog') return planOf(i);
+  const fresh = newSeasons(i.title, mine);
+  return fresh.length ? fresh : null;
+};
+const isFollowing = (i: LibItem, logs: LogRow[]) => followSeasons(i, logs) !== null;
 
 interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void; kind?: 'movie' | 'tv' }
 type Tab = 'watched' | 'playing' | 'backlog';
@@ -69,8 +82,9 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
         setTvEps(e); setTvMarks(m);
         if (!warmed.current) {
           warmed.current = true;
-          const running = playing.filter((i) => !isEnded(i.title)).map((i) => i.title.source_id);
-          if (running.length) refreshEpisodes(running).then(async () => { setTvEps(await loadEpisodes(playing.map((i) => i.title_id))); });
+          const watchedIds = new Set(b.map((l) => l.library.id));
+          const running = a.filter((i) => !isEnded(i.title) && (i.status === 'playing' || watchedIds.has(i.id))).map((i) => i.title.source_id).filter((x) => !x.startsWith('tt'));
+          (async () => { for (let k = 0; k < running.length; k += 10) await refreshEpisodes(running.slice(k, k + 10)); if (running.length) refresh(); })();
         }
       }
       setLogs(b.map((l) => ({ ...l, library: { ...l.library, title: merged(l.library.title, l.library.overrides) } }))); setError(''); }
@@ -101,10 +115,10 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const customOrder = logs.some((l) => l.position !== null);
   const today = todayIso();
   const watchingRows = useMemo(() => {
-    const rows = items.filter((i) => i.status === 'playing' || followIds.has(i.id)).map((it) => ({ it, p: progress(it, it.title, tvEps.filter((e) => e.title_id === it.title_id), tvMarks.filter((m) => m.library_id === it.id), today) }));
-    const waiting = (r: (typeof rows)[number]) => followIds.has(r.it.id) ? !r.p.nextEp : (!r.p.nextEp && r.p.caughtUp);
-    return { prog: rows.filter((r) => !waiting(r)), caught: rows.filter(waiting) };
-  }, [items, tvEps, tvMarks, today, followIds]);
+    const rows = items.filter((i) => i.status === 'playing').map((it) => ({ it, p: progress(it, it.title, tvEps.filter((e) => e.title_id === it.title_id), tvMarks.filter((m) => m.library_id === it.id), today) }));
+    const followed = items.filter((i) => followIds.has(i.id)).map((it) => ({ it, p: progress(it, it.title, [], [], today), seasons: followSeasons(it, logs) ?? [] }));
+    return { prog: rows.filter((r) => r.p.nextEp || !r.p.caughtUp), caught: rows.filter((r) => !r.p.nextEp && r.p.caughtUp).map((r) => ({ ...r, seasons: [] as number[] })).concat(followed) };
+  }, [items, tvEps, tvMarks, today, followIds, logs]);
   const playingCount = items.filter((i) => i.status === 'playing').length + followIds.size;
 
   const imdbInQuery = (q.match(/tt\d{6,10}/) ?? [null])[0];
@@ -167,31 +181,31 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     </div>
   );
 
-  const watchRow = (it: LibItem, p: ReturnType<typeof progress>, caught: boolean) => {
-    const isNew = !!(p.nextEp && p.nextEp.air_date && (p.seen > 0 || followIds.has(it.id)) && (Date.now() - new Date(p.nextEp.air_date).getTime()) < 21 * 864e5);
-    const firstPlanned = (planOf(it) ?? [])[0];
-    const seasonAir = ((it.title.data as { seasons?: { n: number; air_date: string | null }[] })?.seasons ?? []).find((x) => x.n === firstPlanned)?.air_date ?? null;
-    const nextDate = p.nextFuture?.air_date ?? (seasonAir && seasonAir > today ? seasonAir : null);
-    const d = caught ? (nextDate ? dateParts(nextDate) : null) : followIds.has(it.id) ? (p.nextEp?.air_date ? dateParts(p.nextEp.air_date) : null) : (it.started_on ? dateParts(it.started_on) : null);
+  const watchRow = (it: LibItem, p: ReturnType<typeof progress>, caught: boolean, follow: number[] = []) => {
+    const fAir = follow.length ? seasonAir(it.title, follow[0]) : null;
+    const fOut = !!fAir && fAir <= today;
+    const isNew = follow.length ? fOut && (Date.now() - new Date(fAir!).getTime()) < 30 * 864e5 : !!(p.nextEp && p.nextEp.air_date && p.seen > 0 && (Date.now() - new Date(p.nextEp.air_date).getTime()) < 21 * 864e5);
+    const nextDate = follow.length ? fAir : p.nextFuture?.air_date ?? null;
+    const d = caught ? (nextDate ? dateParts(nextDate) : null) : (it.started_on ? dateParts(it.started_on) : null);
     return (
       <div key={it.id} className="row-card" data-rowid={it.id} data-list="p">
         <button className="row-main" {...longPress(it.id)} onClick={() => setSheet(it)}>
           <Poster t={it.title} w={56} h={84} />
           <span className="row-text">
             <span className="row-title">{it.title.title}{isNew && <> <span className="new-pill">NEW</span></>}</span>
-            <span className="row-meta">{p.nextEp ? 'Next: ' + epLabel(p.nextEp) : followIds.has(it.id) ? 'Waiting for ' + scopeLabel(planOf(it), it.title).split(' · ')[0] : 'Caught up'}{it.rewatch && <EyePlus />}</span>
-            <span className="row-meta"><span className="mini-bar w72"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>
+            <span className="row-meta">{follow.length ? seasonsName(follow) + (fOut ? ' · out now' : fAir ? ' · coming' : ' · announced') : p.nextEp ? 'Next: ' + epLabel(p.nextEp) : 'Caught up' + (p.nextFuture ? ' · next ' + epLabel(p.nextFuture) : '')}{it.rewatch && <EyePlus />}</span>
+            {!follow.length && <span className="row-meta"><span className="mini-bar w72"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>}
           </span>
         </button>
-        <span className="date-col"><span className="date-cap">{caught ? 'Next episode' : followIds.has(it.id) ? 'Aired on' : 'Started on'}</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">TBA</span>}</span>
+        <span className="date-col"><span className="date-cap">{follow.length ? (fOut ? 'Premiered' : 'Premieres') : caught ? 'Next episode' : 'Started on'}</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">TBA</span>}</span>
       </div>
     );
   };
-  const watchTile = (it: LibItem, p: ReturnType<typeof progress>) => (
+  const watchTile = (it: LibItem, p: ReturnType<typeof progress>, follow: number[] = []) => (
     <div key={it.id} className="row-card tile" data-rowid={it.id} data-list="p">
       <button className="tile-main" {...longPress(it.id)} onClick={() => setSheet(it)} aria-label={it.title.title}>
-        <Poster t={it.title}>{p.nextEp && <span className="tile-next">{epLabel(p.nextEp).replace(' · ', '')}</span>}</Poster>
-        <span className="tile-prog"><span className="mini-bar"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>
+        <Poster t={it.title}>{follow.length ? <span className="tile-next">{'S' + follow[0]}{seasonAir(it.title, follow[0]) && seasonAir(it.title, follow[0])! <= today ? ' · new' : ''}</span> : p.nextEp && <span className="tile-next">{epLabel(p.nextEp).replace(' · ', '')}</span>}</Poster>
+        {follow.length ? <span className="tiny muted">{seasonAir(it.title, follow[0]) ? releaseText(seasonAir(it.title, follow[0]), null) : 'Announced'}</span> : <span className="tile-prog"><span className="mini-bar"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>}
       </button>
     </div>
   );
@@ -392,9 +406,9 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
             {watchingRows.prog.length === 0 && <div className="empty small-pad">Mark an episode in a show from your Backlog — it moves here.</div>}
             {view === 'list' ? watchingRows.prog.map(({ it, p }) => watchRow(it, p, false)) : <div className="grid">{watchingRows.prog.map(({ it, p }) => watchTile(it, p))}</div>}
             <span className="h2 mt-block">Caught up</span>
-            <span className="muted small">Still airing — they jump back to In progress when a new episode is out.</span>
+            <span className="muted small">Up to date or a new season you haven’t started. Press Start watching in the card when you begin.</span>
             {watchingRows.caught.length === 0 && <div className="empty small-pad">Nothing here yet.</div>}
-            {view === 'list' ? watchingRows.caught.map(({ it, p }) => watchRow(it, p, true)) : <div className="grid">{watchingRows.caught.map(({ it, p }) => watchTile(it, p))}</div>}
+            {view === 'list' ? watchingRows.caught.map(({ it, p, seasons }) => watchRow(it, p, true, seasons)) : <div className="grid">{watchingRows.caught.map(({ it, p, seasons }) => watchTile(it, p, seasons))}</div>}
           </div>
         ) : tab === 'watched' ? (
           <div className="stack">
@@ -439,6 +453,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
               ) : (
                 <div className="action-list">
                   <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Open</button>
+                  {isTv && item.status !== 'playing' && (isBack || followIds.has(item.id)) && <button role="menuitem" onClick={run(async () => { const ss = followSeasons(item, logs) ?? planOf(item); await updateItem(item.id, { status: 'playing', plan_seasons: ss, plan_from: ss ? ss[0] : null, plan_to: ss ? ss[ss.length - 1] : null, run_started_at: new Date().toISOString(), started_on: today, up_next: false }); })}>Start watching</button>}
                   {isBack && !isTv && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Mark as watched…</button>}
                   {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, topPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
                   {!isBack && item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Change rating…</button>}

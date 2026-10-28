@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { logScope, planOf, progress, scopeLabel, scopeSeasons, seasonsName, showYears } from '../src/lib/tv';
+import { logScope, maxLoggedSeason, newSeasons, planOf, progress, scopeLabel, scopeSeasons, seasonsName, showYears } from '../src/lib/tv';
 import type { Mark, SeasonEps, Title } from '../src/lib/types';
 
 const show = (status: string, seasons: [number, string, number][], extra: Record<string, unknown> = {}): Title => ({
@@ -53,5 +53,14 @@ describe('tv progress', () => {
     expect(progress({ plan_from: null, plan_to: null, run_started_at: null }, show('Ended', [[1, '2019-05-06', 2]]), e, all, '2026-10-28').complete).toBe(true);
     const running = progress({ plan_from: null, plan_to: null, run_started_at: null }, show('Returning Series', [[1, '2019-05-06', 2]]), e, all, '2026-10-28');
     expect(running.complete).toBe(false); expect(running.caughtUp).toBe(true);
+  });
+});
+
+describe('new seasons', () => {
+  it('finds seasons after the logged ones', () => {
+    const t = show('Returning Series', [[1, '2022-02-04', 8], [2, '2023-12-15', 8], [3, '2025-02-20', 8], [4, '2027-01-01', 8]]);
+    expect(newSeasons(t, [{ scope: 'seasons', seasons: [1, 2, 3], watched_at: '2025-04-03T20:00:00Z' }])).toEqual([4]);
+    expect(maxLoggedSeason(t, [{ scope: 'show', watched_at: '2024-01-30T20:00:00Z' }])).toBe(2);
+    expect(newSeasons(t, [])).toEqual([]);
   });
 });

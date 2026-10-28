@@ -112,9 +112,11 @@ async function ensureEpisodes(db: any, sourceId: string) {
   if (!t || (!ended(t) && stale(t.fetched_at, 12))) t = await fetchTv(db, sourceId);
   const { data: have } = await db.from('title_seasons').select('season, fetched_at').eq('title_id', t.id);
   const got = new Map((have ?? []).map((h: any) => [h.season, h.fetched_at]));
+  const lastN = Math.max(0, ...(t.data?.seasons ?? []).map((x: any) => x.n));
   for (const s of t.data?.seasons ?? []) {
     const f = got.get(s.n);
-    if (f && (ended(t) || !stale(f as string, 12))) continue;
+    // finished seasons never change; only the newest ones of a running show are re-checked
+    if (f && (ended(t) || s.n < lastN - 1 || !stale(f as string, 12))) continue;
     const r = await tmdbFetch('/tv/' + sourceId + '/season/' + s.n, { language: 'en-US' });
     if (!r.ok) continue;
     const j = await r.json();

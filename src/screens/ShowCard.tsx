@@ -7,7 +7,7 @@ import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
   refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog
 } from '../lib/remote';
-import { epLabel, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonsName, seasonsOf, showYears, todayIso } from '../lib/tv';
+import { epLabel, isEnded, logScope, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showYears, todayIso } from '../lib/tv';
 import { applyEpisodeMarks } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
 import ScoreSlider from '../components/ScoreSlider';
@@ -183,6 +183,11 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
       : <a className="tile3" href={kind === 'metascore' ? mcUrl : imdbUrl} target="_blank" rel="noopener">{sq}<span className="muted small">{label} {EXT}</span></a>;
   };
   const maxLogged = Math.max(0, ...logs.map((l) => { const ls = logSeasons(l); return ls ? Math.max(...ls) : seasons.length; }));
+  const fresh = isDone && status !== 'dropped' && last?.tier !== 'dropped' ? newSeasons(t, logs) : [];
+  const freshAir = fresh.length ? seasonAir(t, fresh[0]) : null;
+  const start = (list: number[] | null) => guard(async () => {
+    await updateItem(item.id, { status: 'playing', plan_seasons: list, plan_from: list ? list[0] : null, plan_to: list ? list[list.length - 1] : null, run_started_at: new Date().toISOString(), started_on: today, up_next: false, score: null });
+  })();
   const moreSeasons = seasons.filter((s) => s.n > maxLogged).length > 0;
 
   return (
@@ -226,6 +231,14 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
           <div className="plan-row card">
             <span className="stack-sm grow"><span className="muted small">{item.rewatch ? 'Rewatching' : 'Watching'}</span><strong>{planLabel}</strong></span>
             <button className="btn sm" onClick={() => setScopeFor('plan')}>Change</button>
+            {isBack && <button className="btn primary sm" onClick={() => start(plan)}>Start watching</button>}
+          </div>
+        )}
+
+        {fresh.length > 0 && (
+          <div className="plan-row card">
+            <span className="stack-sm grow"><span className="muted small upper">{freshAir && freshAir <= today ? 'New season out' : freshAir ? 'Premieres ' + longDate(freshAir) : 'Announced'}</span><strong>{seasonsName(fresh)}</strong></span>
+            <button className="btn primary sm" onClick={() => start(fresh)}>Start watching</button>
           </div>
         )}
 
