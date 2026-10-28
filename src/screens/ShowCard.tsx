@@ -335,6 +335,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
                       {TIERS.filter((x) => x.id !== 'dropped').map((x) => { const on = rating?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={guard(async () => { await saveSeasonRating(item.id, s.n, { tier: on ? null : x.id }); })}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
                     </div>
                     <div className="score-row"><label htmlFor={'ss-' + s.n} className="small strong">Score</label>
+                      {rating?.score != null && <button className="link" onClick={() => { setRatings((r) => r.map((x) => (x.season === s.n ? { ...x, score: null } : x))); saveSeasonRating(item.id, s.n, { score: null }).then(onChanged).catch(() => setError('Couldn’t save. Try again.')); }}>Clear</button>}
                       <ScoreSlider compact id={'ss-' + s.n} label={'Season ' + s.n + ' score'} value={rating?.score ?? null} scale={scale} onCommit={(sc) => { setRatings((r) => { const o = r.filter((x) => x.season !== s.n); return o.concat([{ library_id: item.id, season: s.n, tier: rating?.tier ?? null, score: sc, rated_at: today }]); }); saveSeasonRating(item.id, s.n, { score: sc }); }} /></div>
                     <div className="ep-list">
                       {list.length === 0 && <span className="muted small">Loading episodes…</span>}
