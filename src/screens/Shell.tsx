@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
+import { flushSync } from 'react-dom';
 import type { Profile } from '../lib/profile';
 import type { Settings } from '../lib/theme';
 import { DuoMovie, DuoPad, DuoPc, DuoRetro, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
@@ -24,7 +25,16 @@ interface Props { profile: Profile; onProfile: (p: Profile) => void; onSettings:
 export default function Shell({ profile, onProfile, onSettings }: Props) {
   const [section, setSection] = useState<SectionId>('movies');
   const [lastBar, setLastBar] = useState<SectionId>('movies');
-  const go = (id: SectionId) => { tick(); if (id !== 'retro') setLastBar(id); setSection(id); setTab(0); };
+  // Same soft transition as BarTab: the browser cross-fades the old and new screen (View Transitions);
+  // the bottom bar stays put and its highlight glides to the new tab.
+  const go = (id: SectionId) => {
+    tick();
+    const apply = () => { if (id !== 'retro') setLastBar(id); setSection(id); setTab(0); };
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+    const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (doc.startViewTransition && !calm && id !== section) doc.startViewTransition(() => flushSync(apply));
+    else apply();
+  };
   // Retro lives in the side menu: back (arrow, gesture) returns to the tab you came from
   useBackLayer(section === 'retro', () => setSection(lastBar));
   const [tab, setTab] = useState(0);
@@ -37,7 +47,8 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   if (profileOpen) return <ProfileScreen profile={profile} onBack={() => setProfileOpen(false)} onProfile={onProfile} onSettings={onSettings} />;
 
   const nav = (
-    <nav className="bottom duo-bar" aria-label="Sections">
+    <nav className="bottom duo-bar" aria-label="Sections" style={{ '--n': BAR.length, '--i': Math.max(0, BAR.indexOf(section)), '--glide': SECTIONS.find((x) => x.id === section)?.color } as CSSProperties}>
+      {BAR.includes(section) && <span className="tab-glider" aria-hidden="true" />}
       {SECTIONS.filter((s) => BAR.includes(s.id)).map((s) => (
         <button key={s.id} aria-current={s.id === section ? 'page' : undefined} className={s.id === section ? 'on' : ''} style={{ ['--sec' as string]: s.color }} onClick={() => go(s.id)}>
           <span className="duo-icon">{s.icon}</span><span>{s.label}</span>

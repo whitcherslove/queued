@@ -490,6 +490,17 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .card-lower.shown { animation: body-in .22s ease-out; }
 
 /* switching sections: a quick, soft appearance */
-.section-in { animation: section-in .18s ease-out; }
+.section-in { }
 @keyframes section-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .section-in { animation: none; } }
+
+/* section switch like BarTab: a short cross-fade of the screen; the bottom bar doesn't fade */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .2s; animation-timing-function: cubic-bezier(.3, 0, .2, 1); }
+.bottom { view-transition-name: tabbar; }
+::view-transition-group(tabbar), ::view-transition-old(tabbar), ::view-transition-new(tabbar) { animation: none; }
+::view-transition-old(tabbar) { display: none; }
+/* soft pill under the active tab that glides to the next one */
+.duo-bar { position: relative; }
+.duo-bar button { position: relative; z-index: 1; }
+.tab-glider { position: absolute; top: 6px; height: 56px; left: calc(6px + var(--i) * (100% - 12px) / var(--n)); width: calc((100% - 12px) / var(--n)); border-radius: 16px; background: color-mix(in srgb, var(--glide) 13%, transparent); transition: left .34s cubic-bezier(.3, 1.25, .5, 1), background-color .3s ease; pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root), ::view-transition-new(root) { animation: none !important; } .tab-glider { transition: none; } }
