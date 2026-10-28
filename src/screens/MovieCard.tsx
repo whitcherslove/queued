@@ -259,14 +259,17 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           )}
         </section>
 
-        {full && <section className="card stack fade-in">
+        {/* Lower part (details, collection, viewings, AI) appears in one piece once the full card is loaded */}
+        {!full ? <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div> : (
+        <div className="card-lower shown">
+        <section className="card stack">
           <span className="h2">Details</span>
           {t.genres.length > 0 && <div className="stack-sm"><span className="muted small">Genres</span><div className="row">{t.genres.map((g) => <span key={g} className="pill" style={{ background: 'var(--surface2)' }}>{g}</span>)}</div></div>}
           <div className="facts">{facts.map(([k, v]) => <div key={k}><span className="muted small">{k}</span><strong>{v}</strong></div>)}</div>
           {cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
-        </section>}
+        </section>
 
-        {full && coll && coll.parts?.length > 1 && (
+        {coll && coll.parts?.length > 1 && (
           <section className="card stack-sm">
             <div className="sec-head"><span className="h2">{coll.name}</span><span className="muted small">{coll.parts.findIndex((p) => p.sourceId === item.title.source_id) + 1} of {coll.parts.length}</span></div>
             {coll.parts.map((p, i) => {
@@ -375,6 +378,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
             </div>
           )}
         </section>
+        </div>)}
       </div>
 
       </div>

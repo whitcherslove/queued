@@ -485,3 +485,6 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .content .row-card:not(.tile) { content-visibility: auto; contain-intrinsic-size: auto 100px; }
 .content .row-card.tile { content-visibility: auto; contain-intrinsic-size: auto 230px; }
 .row-card.dragging, .row-card.sorting { content-visibility: visible; }
+
+.card-lower { display: flex; flex-direction: column; gap: 16px; }
+.card-lower.shown { animation: body-in .22s ease-out; }
