@@ -192,7 +192,9 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
     ['Episode runtime', t.runtime ? t.runtime + ' min' : ''], ['Created by', t.directors.join(', ')], ['Country', (data.countries ?? []).join(', ')], ['Language', (data.language ?? '').toUpperCase()]] as [string, string][]).filter(([, v]) => v);
   const cast = ((data.cast ?? []) as { name: string }[]).slice(0, 4).map((c) => c.name);
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
-  const mcUrl = 'https://www.metacritic.com/search/' + encodeURIComponent(t.title) + '/?category=1';
+  // straight to the show's Metacritic page: /tv/<slug>/ (e.g. /tv/its-always-sunny-in-philadelphia/)
+  const mcSlug = t.title.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  const mcUrl = 'https://www.metacritic.com/tv/' + mcSlug + '/';
   const tileMC = (kind: 'metascore' | 'imdb_rating') => {
     const v = t[kind]; const c = kind === 'metascore' ? metascoreColor(v) : imdbColor(v); const label = kind === 'metascore' ? 'Metascore' : 'IMDb';
     const sq = <span className="sq" style={{ background: c ?? 'var(--surface2)', color: c ? '#17161A' : 'var(--muted)' }}>{v ?? '—'}</span>;
@@ -322,7 +324,7 @@ export default function ShowCard({ itemId, initial, initialLogs, settings, openT
                     <span className="row nowrap"><strong>Season {s.n}</strong>{rt && <span className="pill" style={{ background: rt.color, color: '#17161A' }}>{rt.label}</span>}</span>
                     <span className="muted small">{seen}/{aired}{upcoming ? ' · ' + upcoming + ' upcoming' : ''}{s.air_date ? ' · ' + s.air_date.slice(0, 4) : ''}</span>
                     {lastAt && <span className={'small ' + (allSeen ? 'accent-text' : 'muted')}>{(allSeen ? 'Finished ' : 'Last watched ') + longDate(lastAt)}</span>}
-                    <span className="mini-bar"><span style={{ width: (aired ? (seen / aired) * 100 : 0) + '%' }} /></span>
+                    {!allSeen && <span className="mini-bar season"><span style={{ width: (aired ? (seen / aired) * 100 : 0) + '%' }} /></span>}
                   </span>
                   <ScoreRing value={rating?.score ?? null} scale={scale} size={32} fontSize={12} label={'Season ' + s.n + ' score'} />
                   <span className="muted" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : undefined }}>▾</span>
