@@ -7,7 +7,7 @@ import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
   refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog, addMarksAt
 } from '../lib/remote';
-import { epLabel, isEnded, logScope, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showYears, todayIso } from '../lib/tv';
+import { canFollow, epLabel, followSeasons, isEnded, logScope, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showYears, todayIso } from '../lib/tv';
 import { applyEpisodeMarks } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
 import ScoreSlider from '../components/ScoreSlider';
@@ -173,6 +173,16 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
     if (currentLog) { const l = currentLog, v = !l.rewatch; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: !v } : x))), () => updateLog(l.id, { rewatch: v })); }
     else { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }
   };
+  // Following: in Caught up or not. Off = "stopped following" (status dropped); on = back to where it was.
+  const followable = canFollow(t, logs);
+  const followingNow = status !== 'dropped' && (followSeasons(item, logs) !== null || (isPlaying && !p.nextEp));
+  const showFollow = followable && (followingNow || status === 'dropped');
+  const toggleFollow = () => {
+    const prev = item.status;
+    const back = p.anySeen && !p.complete && plan ? 'playing' : plan && !item.rewatch ? 'backlog' : 'done';
+    const next = status === 'dropped' ? back : 'dropped';
+    optimistic(() => setItem({ ...item, status: next }), () => setItem({ ...item, status: prev }), () => updateItem(item.id, { status: next }));
+  };
   const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: topPos })); };
   const cancelPlan = guard(async () => { await updateItem(item.id, { status: last?.tier === 'dropped' ? 'dropped' : 'done', rewatch: false, up_next: false, score: null }); });
   const doneScope = (list: number[] | null) => guard(async () => {
@@ -257,6 +267,13 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             {isBack && <button className="btn primary sm" onClick={() => start(plan)}>Start watching</button>}
           </div>
         )}
+
+        {/* Following: whether the show waits in Caught up. Turn it off to keep it only in Watched; turn it back on anytime. */}
+        {showFollow && <button className="switch-row card" role="switch" aria-checked={status !== 'dropped'} onClick={toggleFollow}>
+                  <span className="follow-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg></span>
+                  <span className="stack-sm grow"><strong>Following</strong><span className="muted small">{status === 'dropped' ? 'Off — only in Watched' : 'In Caught up, waiting for new episodes and seasons'}</span></span>
+                  <span className={'switch' + (status !== 'dropped' ? ' on' : '')}><span /></span>
+                </button>}
 
         {fresh.length > 0 && (
           <div className="plan-row card">
@@ -365,10 +382,11 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         </section>
 
         <section className="card stack-sm">
-          <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length}</span></span>
-            <span className="row nowrap"><button className="link" onClick={() => setPastStep('seasons')}>+ Add past</button>
-              {isDone && moreSeasons && <button className="btn sm" onClick={() => setScopeFor('more')}>Watch more</button>}
-              {isDone && <button className="btn primary sm" onClick={() => setScopeFor('rewatch')}>Log a rewatch</button>}</span>
+          <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length}</span></span></div>
+          <div className="act-chips">
+            <button className="act-chip" onClick={() => setPastStep('seasons')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>Watched before</button>
+            {isDone && <button className="act-chip" onClick={() => setScopeFor('rewatch')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12V9a3 3 0 0 1 3-3h13l-3-3M20 12v3a3 3 0 0 1-3 3H4l3 3" /></svg>Rewatch</button>}
+            {isDone && moreSeasons && !followingNow && <button className="act-chip" onClick={() => setScopeFor('more')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>Plan next</button>}
           </div>
           {logs.length === 0 && !planned && <span className="muted small">Finish the planned seasons and the entry appears here.</span>}
           {planned && (

@@ -300,10 +300,12 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
 
         {(logs.length > 0 || item.status === 'backlog') && (
           <section className="card stack-sm">
-            <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length} {logs.length === 1 ? 'viewing' : 'viewings'}</span></span>
-              <span className="row nowrap"><button className="link" onClick={() => setPastOpen(true)}>+ Add past</button>
-              {logs.length > 0 && <button className={'btn sm' + (planned ? ' planned' : ' primary')} aria-pressed={planned} onClick={logRewatch}>{planned ? '✓ Rewatch planned' : 'Log a rewatch'}</button>}</span></div>
-            {logs.length === 0 && <span className="muted small">Seen it before you started tracking? Add that viewing here.</span>}
+            <div className="sec-head"><span className="h2">Viewings <span className="muted small normal">{logs.length} {logs.length === 1 ? 'viewing' : 'viewings'}</span></span></div>
+            <div className="act-chips">
+              <button className="act-chip" onClick={() => setPastOpen(true)}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>Watched before</button>
+              {logs.length > 0 && <button className={'act-chip' + (planned ? ' on' : '')} aria-pressed={planned} onClick={logRewatch}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12V9a3 3 0 0 1 3-3h13l-3-3M20 12v3a3 3 0 0 1-3 3H4l3 3" /></svg>{planned ? 'Rewatch planned' : 'Rewatch'}</button>}
+            </div>
+            {logs.length === 0 && <span className="muted small">Seen it before you started tracking? Tap “Watched before”.</span>}
             {planned && logs.length > 0 && (
               <div className="view-row">
                 <span className="grow small strong">Planned rewatch <span className="accent-text normal">Next</span></span>

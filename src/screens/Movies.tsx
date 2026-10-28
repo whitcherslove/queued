@@ -5,7 +5,7 @@ import { localDay, topPosition, merged, dateParts, matchLibrary, moveBy, moveId,
 import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
-import { coveredSeasons, epLabel, isEnded, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, todayIso } from '../lib/tv';
+import { canFollow, coveredSeasons, epLabel, followSeasons as followSeasonsOf, isEnded, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, todayIso } from '../lib/tv';
 import { applyEpisodeMarks } from '../lib/tvActions';
 import MovieCard from './MovieCard';
 import ScoreRing from '../components/ScoreRing';
@@ -20,19 +20,7 @@ import { TIERS } from '../lib/scores';
  * A show you follow but haven't started the next part of: its next seasons are planned in Backlog,
  * or new seasons appeared after the ones you've logged (announced or already out). It waits in Caught up.
  */
-const followSeasons = (i: LibItem, logs: LogRow[]): number[] | null => {
-  if (i.section !== 'tv' || i.status === 'playing' || i.status === 'dropped' || i.rewatch) return null;
-  const mine = logs.filter((l) => l.library.id === i.id);
-  if (!mine.length) return null;
-  const latest = mine.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
-  if (latest.tier === 'dropped') return null;
-  const covered = coveredSeasons(i.title, mine);
-  let list = (i.status === 'backlog' ? planOf(i) ?? [] : newSeasons(i.title, mine)).filter((n) => !covered.has(n));
-  // An ended show only waits here for a season that premiered after your last entry (e.g. a final season you haven't started)
-  if (isEnded(i.title)) { const since = localDay(latest.watched_at); list = list.filter((n) => { const d = seasonAir(i.title, n); return !!d && d > since; }); return list.length ? list : null; }
-  // A running show you're up to date with waits here too (an empty list = "waiting for a new season"), until it ends or is canceled
-  return list;
-};
+const followSeasons = (i: LibItem, logs: LogRow[]) => followSeasonsOf(i, logs.filter((l) => l.library.id === i.id));
 const isFollowing = (i: LibItem, logs: LogRow[]) => followSeasons(i, logs) !== null;
 
 /**
@@ -517,6 +505,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
                   {!isBack && !isTv && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>Log a rewatch → Backlog</button>}
                   {item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>}
                   {isTv && (followIds.has(item.id) || item.status === 'playing') && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'dropped' }); })}>Stop following</button>}
+                  {isTv && item.status === 'dropped' && canFollow(item.title, logs.filter((l) => l.library.id === item.id)) && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: planOf(item) && !isEnded(item.title) ? 'backlog' : 'done' }); })}>Follow again</button>}
                   {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>Delete this viewing</button>}
                   <button role="menuitem" className="danger" onClick={() => setMenuConfirm('remove')}>Remove from my lists</button>
                 </div>

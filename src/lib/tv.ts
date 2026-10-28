@@ -138,3 +138,27 @@ export function newSeasons(t: Title, logs: LogLike[]): number[] {
 export function seasonAir(t: Title, n: number): string | null {
   return seasonsOf(t).find((s) => s.n === n)?.air_date ?? null;
 }
+
+type FollowLog = LogLike & { tier?: string | null };
+const localDayOfIso = (iso: string) => { if (iso.length <= 10) return iso; const d = new Date(iso); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+
+/**
+ * Seasons a followed show waits for in Caught up (empty list = "up to date, no new season yet"), or null if it isn't followed.
+ * Followed = has journal entries, not stopped/dropped/being rewatched; ended shows only for a season that premiered after your last entry.
+ */
+export function followSeasons(i: Pick<LibItem, 'section' | 'status' | 'rewatch' | 'plan_from' | 'plan_to' | 'plan_seasons' | 'title'>, mine: FollowLog[]): number[] | null {
+  if (i.section !== 'tv' || i.status === 'playing' || i.status === 'dropped' || i.rewatch || !mine.length) return null;
+  const latest = mine.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
+  if (latest.tier === 'dropped') return null;
+  const covered = coveredSeasons(i.title, mine);
+  let list = (i.status === 'backlog' ? planOf(i) ?? [] : newSeasons(i.title, mine)).filter((n) => !covered.has(n));
+  if (isEnded(i.title)) { const since = localDayOfIso(latest.watched_at); list = list.filter((n) => { const d = seasonAir(i.title, n); return !!d && d > since; }); return list.length ? list : null; }
+  return list;
+}
+
+/** Could this show sit in Caught up if you followed it? (running, logged, not rated Dropped) */
+export function canFollow(t: Title, mine: FollowLog[]): boolean {
+  if (!mine.length) return false;
+  const latest = mine.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
+  return latest.tier !== 'dropped' && !isEnded(t);
+}
