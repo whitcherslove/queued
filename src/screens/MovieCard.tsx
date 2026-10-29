@@ -455,6 +455,9 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
   const [pics, setPics] = useState<null | { backdrops: { thumb: string; full: string }[]; posters: { thumb: string; full: string }[] }>(null);
   const [picker, setPicker] = useState<'' | 'poster' | 'backdrop'>('');
   const [uploading, setUploading] = useState<'' | 'poster' | 'backdrop'>('');
+  const tmdbStatus = String((item.title.data as { status?: string } | null)?.status ?? '');
+  const [showStatus, setShowStatus] = useState<string>((item.overrides as { status?: string })?.status ?? '');
+  const endedNow = ['Ended', 'Canceled'].includes(showStatus || tmdbStatus);
   const isTmdb = item.title.source === 'tmdb';
   const openPicker = async (k: 'poster' | 'backdrop') => { setPicker(picker === k ? '' : k); if (!pics) setPics(await loadImages(item.title.source_id, kind)); };
   const upload = (k: 'poster' | 'backdrop') => async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -494,8 +497,8 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
   const save = async () => {
     const ms = numOrNull(f.metascore, 100), im = numOrNull(f.imdb_rating, 10), rt = f.runtime.trim() ? parseInt(f.runtime, 10) : null;
     if (ms === undefined || im === undefined || (f.release_date && !/^\d{4}-\d{2}-\d{2}$/.test(f.release_date))) { setNote('Check the highlighted values: dates as YYYY-MM-DD, Metascore 0–100, IMDb 0–10.'); return; }
-    const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im, backdrop_url: backdrop, poster_url: poster };
-    setBusy(true); await updateItem(item.id, { overrides: diffOverrides(item.title, edited) }); setBusy(false); onSaved();
+    const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im, backdrop_url: backdrop, poster_url: poster, ...(kind === 'tv' && showStatus ? { status: showStatus } : {}) };
+    setBusy(true); await updateItem(item.id, { overrides: { ...diffOverrides(item.title, edited), ...(kind === 'tv' && showStatus && showStatus !== tmdbStatus ? { status: showStatus } : {}) } }); setBusy(false); onSaved();
   };
   const refresh = async () => { setBusy(true); try { if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle(kind, item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
   const clearEdits = async () => { await updateItem(item.id, { overrides: {} }); onSaved(); };
@@ -512,6 +515,12 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
         {note && <p className="muted small">{note}</p>}
         {imageBlock('poster')}
         {imageBlock('backdrop')}
+        {kind === 'tv' && (
+          <button className="switch-row flat" role="switch" aria-checked={endedNow} onClick={() => setShowStatus(endedNow ? 'Returning Series' : 'Ended')}>
+            <span className="stack-sm grow"><strong>The show has ended</strong><span className="muted small">{'TMDB says: ' + (tmdbStatus || 'unknown') + '. Turn on if it’s actually over — it then leaves Caught up / Up to date.'}</span></span>
+            <span className={'switch' + (endedNow ? ' on' : '')}><span /></span>
+          </button>
+        )}
         {field('title', 'Title', 'text', 'Title')}
         {field('release_date', kind === 'tv' ? 'First aired (YYYY-MM-DD)' : 'Release date (YYYY-MM-DD)', 'numeric', '2019-11-22')}
         {field('runtime', kind === 'tv' ? 'Episode runtime, minutes' : 'Runtime, minutes', 'numeric', '103')}

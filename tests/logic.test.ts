@@ -104,3 +104,11 @@ describe('countries', () => {
     expect(shortCountries(null)).toBe('');
   });
 });
+
+describe('status override', () => {
+  it('your "ended" wins over TMDB', () => {
+    const base = title('9', 'Wellington Paranormal', { data: { status: 'Returning Series', seasons: [] } });
+    expect((merged(base, { status: 'Ended' }).data as { status: string }).status).toBe('Ended');
+    expect((merged(base, {}).data as { status: string }).status).toBe('Returning Series');
+  });
+});

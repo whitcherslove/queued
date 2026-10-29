@@ -74,7 +74,11 @@ export function nextPosition(items: LibItem[]): number {
 
 /** Title with the user's own edits applied on top of the cached data. */
 export function merged(t: Title, o: Overrides | null | undefined): Title {
-  return { ...t, ...(o ?? {}) } as Title;
+  const { status, ...rest } = (o ?? {}) as Overrides;
+  const out = { ...t, ...rest } as Title;
+  // your own "has ended / still running" wins over TMDB (some shows are never updated there)
+  if (status) out.data = { ...(t.data ?? {}), status };
+  return out;
 }
 
 /** Only keep fields that differ from the source data. */

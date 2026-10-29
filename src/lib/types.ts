@@ -9,7 +9,7 @@ export interface Title {
   data: Record<string, unknown>;
 }
 
-export type Overrides = Partial<Pick<Title, 'title' | 'release_date' | 'runtime' | 'directors' | 'genres' | 'metascore' | 'imdb_rating' | 'backdrop_url' | 'poster_url'>>;
+export type Overrides = Partial<Pick<Title, 'title' | 'release_date' | 'runtime' | 'directors' | 'genres' | 'metascore' | 'imdb_rating' | 'backdrop_url' | 'poster_url'>> & { status?: string };
 
 export interface LibItem {
   id: string; title_id: string; section: Section; status: Status; up_next: boolean; position: number;
