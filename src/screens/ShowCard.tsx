@@ -311,7 +311,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             </button>
           ) : (
             <div className="stack">
-              <div className="sec-head"><span className="h2">My take</span><button className="chev-plain" aria-label="Collapse My take" onClick={() => setTakeOpen(false)}><ChevBtn open /></button></div>
+              <button className="take-head" aria-expanded="true" onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
               <span className="muted small">{currentLog ? 'Your rating for ' + scopeShort(currentLog) : 'Rating for ' + planLabel.split(' · ')[0] + (isDone ? '' : ' — picking one finishes it now')}</span>
               <div className="chips">
                 {TIERS.map((x) => { const on = currentLog?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}

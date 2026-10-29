@@ -555,3 +555,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .status-main { flex: 1; min-width: 0; display: flex; align-items: center; border: 0; background: transparent; padding: 0; text-align: left; color: var(--ink); }
 .status-row .act-chip { flex: none; }
 .view-row .state-pill { align-self: center; flex: none; }
+
+/* My take / Ask AI / Seasons behave the same: tap anywhere on the header, the whole card gives a little */
+.take-head { display: flex; align-items: center; gap: 10px; min-height: 40px; width: 100%; padding: 0; border: 0; background: transparent; text-align: left; color: var(--ink); }
+.card { transition: transform .12s ease; }
+.card:has(> .take-summary:active), .card:has(> .stack > .take-head:active), .card:has(> .ai-head:active) { transform: scale(.985); }
+.take-summary:active, .take-head:active, .ai-head:active { transform: none; }
+.seasons-summary:active { transform: scale(.985); }

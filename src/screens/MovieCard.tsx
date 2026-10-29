@@ -230,7 +230,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
             </button>
           ) : (
             <div className="stack">
-              <div className="sec-head"><span className="h2">My take</span><button className="chev-plain" aria-label="Collapse My take" onClick={() => setTakeOpen(false)}><ChevBtn open /></button></div>
+              <button className="take-head" aria-expanded="true" onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
               <div className="chips">
                 {PICK_TIERS.map((x) => {
                   const on = last?.tier === x.id;
