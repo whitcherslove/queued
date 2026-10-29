@@ -1,6 +1,6 @@
 import type { ItemLog, LibItem, Mark, SeasonEps, Title } from './types';
 import { deleteLog, insertLog, setMarks, updateItem } from './remote';
-import { logScope, planOf, progress, todayIso } from './tv';
+import { coveredSeasons, logScope, planOf, progress, seasonsOf, todayIso } from './tv';
 
 /**
  * Mark or unmark episodes, then move the show between Backlog / Watching / Watched
@@ -12,6 +12,16 @@ export async function applyEpisodeMarks(item: LibItem, t: Title, eps: SeasonEps[
   const next = on ? keep.concat(list.map((x) => ({ library_id: item.id, season: x.season, episode: x.episode, watched_at: now }))) : keep;
   await setMarks(item.id, list, on);
 
+  // Ticking an episode of a season you haven't logged yet (a new season, the rest of an ended show) starts watching it
+  if (on && item.status === 'done') {
+    const covered = coveredSeasons(t, logs);
+    const fresh = [...new Set(list.map((x) => x.season))].filter((n) => !covered.has(n));
+    if (fresh.length) {
+      const rest = seasonsOf(t).map((x) => x.n).filter((n) => !covered.has(n) && n >= Math.min(...fresh));
+      await updateItem(item.id, { status: 'playing', plan_seasons: rest, plan_from: rest[0], plan_to: rest[rest.length - 1], run_started_at: new Date(Date.now() - 1000).toISOString(), started_on: todayIso(), up_next: false });
+      return { marks: next, finished: false };
+    }
+  }
   const mine = next.filter((m) => m.library_id === item.id);
   const p = progress(item, t, eps, mine);
   const isDone = item.status === 'done' || item.status === 'dropped';

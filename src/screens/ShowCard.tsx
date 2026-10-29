@@ -323,9 +323,13 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         </section>
 
         <section className="stack-sm">
-          <button className="w-head" aria-expanded={seasonsOpen} onClick={() => setSeasonsOpen(!seasonsOpen)}>
-            <span className="h2">Seasons</span><span className="w-count">{seasons.filter((x) => coveredOrSeen(x.n)).length} of {seasons.length} watched</span><span className="grow" />
-            <span className="muted" aria-hidden="true" style={{ transform: seasonsOpen ? undefined : 'rotate(-90deg)', transition: 'transform .18s' }}>▾</span>
+          {/* Looks like the other tappable cards (My take): a card with a summary and a round chevron */}
+          <button className="card seasons-summary" aria-expanded={seasonsOpen} onClick={() => setSeasonsOpen(!seasonsOpen)}>
+            <span className="stack-sm grow">
+              <span className="row nowrap"><span className="h2">Seasons</span><span className="muted small">{seasons.filter((x) => coveredOrSeen(x.n)).length} of {seasons.length} watched</span></span>
+              <span className="season-segs" aria-hidden="true">{seasons.map((x) => <span key={x.n} className={coveredOrSeen(x.n) ? 'on' : (x.air_date && x.air_date <= today ? '' : 'future')} />)}</span>
+            </span>
+            <span className={'chev-btn' + (seasonsOpen ? ' open' : '')} aria-hidden="true"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg></span>
           </button>
           {seasonsOpen && <>
           {seasons.length === 0 && <p className="muted small">Loading seasons…</p>}
