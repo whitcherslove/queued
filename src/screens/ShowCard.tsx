@@ -3,6 +3,7 @@ import type { ChatMsg, ItemLog, LibItem, Mark, SeasonEps, SeasonRating } from '.
 import type { Settings } from '../lib/theme';
 import { DROPPED_COLOR, PICK_TIERS as TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
 import { latestLog, localDay, longDate, merged, metacriticSearch, releaseText, withLocalDay } from '../lib/logic';
+import { shortCountries } from '../lib/logic';
 import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
   refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog, addMarksAt
@@ -202,7 +203,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
 
   const data = (item.title.data ?? {}) as any;
   const facts = ([['Network', data.network ?? ''], ['Status', data.status ?? ''], ['Seasons', String(seasons.length)], ['Episodes', data.number_of_episodes ? String(data.number_of_episodes) : ''],
-    ['Episode runtime', t.runtime ? t.runtime + ' min' : ''], ['Created by', t.directors.join(', ')], ['Country', (data.countries ?? []).join(', ')], ['Language', (data.language ?? '').toUpperCase()]] as [string, string][]).filter(([, v]) => v);
+    ['Episode runtime', t.runtime ? t.runtime + ' min' : ''], ['Created by', t.directors.join(', ')], ['Country', shortCountries(data.countries)], ['Language', (data.language ?? '').toUpperCase()]] as [string, string][]).filter(([, v]) => v);
   const cast = ((data.cast ?? []) as { name: string }[]).slice(0, 4).map((c) => c.name);
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
   // straight to the show's Metacritic page: /tv/<slug>/ (e.g. /tv/its-always-sunny-in-philadelphia/)

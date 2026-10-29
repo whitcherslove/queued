@@ -3,6 +3,7 @@ import type { ChatMsg, CollectionPart, ItemLog, LibItem, Overrides, Title } from
 import type { Settings } from '../lib/theme';
 import { DROPPED_COLOR, PICK_TIERS, TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
 import { diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
+import { shortCountries } from '../lib/logic';
 import {
   type Owned, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
@@ -156,7 +157,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const coll = data.collection as { name: string; parts: CollectionPart[] } | null;
   const cast = ((data.cast ?? []) as { name: string }[]).slice(0, 4).map((c) => c.name);
   const facts = ([
-    ['Country', (data.countries ?? []).join(', ')], ['Language', (data.language ?? '').toUpperCase()],
+    ['Country', shortCountries(data.countries)], ['Language', (data.language ?? '').toUpperCase()],
     ['Budget', money(data.budget)], ['Box office', money(data.revenue)]
   ] as [string, string][]).filter(([, v]) => v);
   const mcUrl = metacriticSearch(t.title, 'movie');

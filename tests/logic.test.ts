@@ -94,3 +94,13 @@ describe('metacritic', () => {
     expect(metacriticSearch('The Bear', 'tv')).toBe('https://www.metacritic.com/search/The%20Bear?category=1');
   });
 });
+
+import { shortCountries } from '../src/lib/logic';
+describe('countries', () => {
+  it('shortens long names and codes', () => {
+    expect(shortCountries(['United States of America', 'United Kingdom'])).toBe('USA, UK');
+    expect(shortCountries(['US', 'GB'])).toBe('USA, UK');
+    expect(shortCountries(['France'])).toBe('France');
+    expect(shortCountries(null)).toBe('');
+  });
+});

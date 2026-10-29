@@ -124,3 +124,15 @@ export function parseNum(v: string, max: number, step: number): { ok: boolean; n
 export function topPosition(items: LibItem[]): number {
   return items.length ? Math.min(...items.map((i) => i.position)) - 1 : 0;
 }
+
+/** Short country names: "United States of America" / "US" → "USA", "United Kingdom" / "GB" → "UK" (movies come as names, shows as codes). */
+const COUNTRY: Record<string, string> = {
+  'united states of america': 'USA', 'united states': 'USA', us: 'USA', usa: 'USA',
+  'united kingdom': 'UK', 'great britain': 'UK', gb: 'UK', uk: 'UK',
+  'russian federation': 'Russia', ru: 'Russia', 'korea, republic of': 'South Korea', 'south korea': 'South Korea', kr: 'South Korea',
+  'united arab emirates': 'UAE', ae: 'UAE', 'czech republic': 'Czechia', cz: 'Czechia', 'new zealand': 'New Zealand', nz: 'New Zealand',
+  ca: 'Canada', au: 'Australia', fr: 'France', de: 'Germany', jp: 'Japan', es: 'Spain', it: 'Italy', ie: 'Ireland', dk: 'Denmark', se: 'Sweden', no: 'Norway', mx: 'Mexico', br: 'Brazil', in: 'India', cn: 'China', be: 'Belgium', nl: 'Netherlands', pl: 'Poland', ua: 'Ukraine', il: 'Israel', tr: 'Turkey', za: 'South Africa', ar: 'Argentina', fi: 'Finland', at: 'Austria', ch: 'Switzerland', hu: 'Hungary', is: 'Iceland', tw: 'Taiwan', hk: 'Hong Kong'
+};
+export function shortCountries(list: string[] | null | undefined): string {
+  return (list ?? []).map((c) => COUNTRY[String(c).trim().toLowerCase()] ?? c).join(', ');
+}

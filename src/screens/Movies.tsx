@@ -233,7 +233,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     const { it, p, state, seasons, when } = r;
     const fresh = !!when && when <= today && Date.now() - new Date(when).getTime() < 30 * 864e5;
     switch (state) {
-      case 'progress': return { line: 'Next: ' + epLabel(p.nextEp!), cap: 'Started on', date: it.started_on ?? null, isNew: !!(p.nextEp?.air_date && p.seen > 0 && Date.now() - new Date(p.nextEp.air_date).getTime() < 21 * 864e5), bar: true };
+      case 'progress': return { line: 'Next: ' + epLabel(p.nextEp!) + (p.nextEp!.name ? ' — ' + p.nextEp!.name : ''), cap: 'Started on', date: it.started_on ?? null, isNew: !!(p.nextEp?.air_date && p.seen > 0 && Date.now() - new Date(p.nextEp.air_date).getTime() < 21 * 864e5), bar: true };
       case 'newSeason': return { line: seasonsName(seasons) + (fresh ? ' · out now' : ' · available'), cap: 'Premiered', date: when, isNew: fresh, bar: false };
       case 'lastChance': return { line: seasonsName(seasons) + ' · not watched yet', cap: 'Last watched', date: r.last, isNew: false, bar: false };
       case 'caughtUp': return it.status === 'playing'
