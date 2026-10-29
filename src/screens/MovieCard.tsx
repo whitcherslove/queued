@@ -11,6 +11,7 @@ import ScoreRing from '../components/ScoreRing';
 import ScoreSlider from '../components/ScoreSlider';
 import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
+import { usePress } from '../lib/press';
 
 interface Props { openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, Owned>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string, past?: boolean) => void; backlogCount: number }
 
@@ -31,6 +32,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [owned, setOwned] = useState<Record<string, Owned>>(initialOwned ?? {});
   const [takeOpen, setTakeOpen] = useState(!!openTake || initial?.status === 'backlog');
+  const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress();
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
   const [quick, setQuick] = useState<null | 'metascore' | 'imdb_rating'>(null);
@@ -219,9 +221,9 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           </button>
         )}
 
-        <section className="card take">
+        <section className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (
-            <button className="take-summary" onClick={() => setTakeOpen(true)} aria-expanded="false">
+            <button className="take-summary" {...takePress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
               <span className="h2">My take</span>
               {!logsReady ? null : planned && logs.length ? <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>Rewatch · Backlog</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not watched yet</span>}
               {rewOn && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
@@ -230,7 +232,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
             </button>
           ) : (
             <div className="stack">
-              <button className="take-head" aria-expanded="true" onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
+              <button className="take-head" aria-expanded="true" {...takePress.bind} onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
               <div className="chips">
                 {PICK_TIERS.map((x) => {
                   const on = last?.tier === x.id;
@@ -368,8 +370,8 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           </section>
         )}
 
-        <section className="card ai">
-          <button className="ai-head" onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>
+        <section className={'card ai' + (aiPress.pressed ? ' pressed' : '')}>
+          <button className="ai-head" {...aiPress.bind} onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>
             <span className="accent-text" aria-hidden="true">✦</span><span className="h2">Ask AI</span>
             <span className="muted small ellipsis grow">{chat.length ? `${chat.filter((m) => m.role === 'user').length} questions · ${chat[chat.length - 1].content}` : 'Trivia, endings, what to watch next'}</span>
             <ChevBtn open={aiOpen} />

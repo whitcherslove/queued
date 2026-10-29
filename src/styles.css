@@ -562,3 +562,6 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .card:has(> .take-summary:active), .card:has(> .stack > .take-head:active), .card:has(> .ai-head:active) { transform: scale(.985); }
 .take-summary:active, .take-head:active, .ai-head:active { transform: none; }
 .seasons-summary:active { transform: scale(.985); }
+
+.card.pressed { transform: scale(.985); }
+.seasons-summary.pressed { transform: scale(.985); }

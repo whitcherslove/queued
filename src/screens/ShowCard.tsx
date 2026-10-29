@@ -15,6 +15,7 @@ import ScoreSlider from '../components/ScoreSlider';
 import ScopeSheet from '../components/ScopeSheet';
 import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
+import { usePress } from '../lib/press';
 import { useLongPress } from '../lib/longpress';
 import { EditDetails, QuickNumber, EYE_PLUS_ICON as EYE_PLUS, EXT_ICON as EXT, tierOfId as tierOf } from './MovieCard';
 
@@ -49,6 +50,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [ready, setReady] = useState(false);
   const [takeOpen, setTakeOpen] = useState(!!openTake);
+  const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress();
   const [openS, setOpenS] = useState<Record<number, boolean>>({});
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
@@ -299,9 +301,9 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           <div className="next-ep card"><span className="stack-sm grow"><span className="muted small upper">Caught up</span><strong>{p.nextFuture ? 'Next: ' + epLabel(p.nextFuture) + (p.nextFuture.air_date ? ' on ' + longDate(p.nextFuture.air_date) : '') : 'No new episodes announced yet'}</strong></span></div>
         )}
 
-        <section className="card take">
+        <section className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (
-            <button className="take-summary" onClick={() => setTakeOpen(true)} aria-expanded="false">
+            <button className="take-summary" {...takePress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
               <span className="h2">My take</span>
               {!ready ? null : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span>
                 : isDone ? <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>Not rated</span>
@@ -311,7 +313,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             </button>
           ) : (
             <div className="stack">
-              <button className="take-head" aria-expanded="true" onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
+              <button className="take-head" aria-expanded="true" {...takePress.bind} onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
               <span className="muted small">{currentLog ? 'Your rating for ' + scopeShort(currentLog) : 'Rating for ' + planLabel.split(' · ')[0] + (isDone ? '' : ' — picking one finishes it now')}</span>
               <div className="chips">
                 {TIERS.map((x) => { const on = currentLog?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
@@ -333,7 +335,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
 
         <section className="stack-sm">
           {/* Looks like the other tappable cards (My take): a card with a summary and a round chevron */}
-          <button className="card seasons-summary" aria-expanded={seasonsOpen} onClick={() => setSeasonsOpen(!seasonsOpen)}>
+          <button className={'card seasons-summary' + (seasonsPress.pressed ? ' pressed' : '')} aria-expanded={seasonsOpen} {...seasonsPress.bind} onClick={() => setSeasonsOpen(!seasonsOpen)}>
             <span className="stack-sm grow">
               <span className="row nowrap"><span className="h2">Seasons</span><span className="muted small">{seasons.filter((x) => coveredOrSeen(x.n)).length} of {seasons.length} watched</span></span>
               <span className="season-segs" aria-hidden="true">{seasons.map((x) => <span key={x.n} className={coveredOrSeen(x.n) ? 'on' : (x.air_date && x.air_date <= today ? '' : 'future')} />)}</span>
@@ -465,8 +467,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           {cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
         </section>
 
-        <section className="card ai">
-          <button className="ai-head" onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>
+        <section className={'card ai' + (aiPress.pressed ? ' pressed' : '')}>
+          <button className="ai-head" {...aiPress.bind} onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>
             <span className="accent-text" aria-hidden="true">✦</span><span className="h2">Ask AI</span>
             <span className="muted small ellipsis grow">{chat.length ? `${chat.filter((m) => m.role === 'user').length} questions · ${chat[chat.length - 1].content}` : 'Recaps, trivia, what to watch next'}</span>
             <ChevBtn open={aiOpen} />
