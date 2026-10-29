@@ -13,7 +13,7 @@ import { useBackLayer } from '../lib/back';
 import { useLongPress } from '../lib/longpress';
 import { useDragReorder } from '../lib/drag';
 import { GripIcon, Metascore, Poster } from '../components/Rows';
-import { IconMenu, IconSearch } from '../components/Icons';
+import { ChevBtn, IconMenu, IconSearch } from '../components/Icons';
 import { DROPPED_COLOR, TIERS } from '../lib/scores';
 
 type Row = { it: LibItem; p: ReturnType<typeof progress>; state: ShowState; seasons: number[]; when: string | null; last: string | null };
@@ -276,7 +276,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
       <section key={key} className="w-section">
         <button className="w-head" aria-expanded={!shut} onClick={() => toggleSection(key)}>
           <span className="h2">{title}</span><span className="w-count">{rows.length}</span><span className="grow" />
-          <span className="muted" aria-hidden="true" style={{ transform: shut ? 'rotate(-90deg)' : undefined, transition: 'transform .18s' }}>▾</span>
+          <ChevBtn open={!shut} size={30} />
         </button>
         {!shut && <>
           <span className="muted small">{hint}</span>
