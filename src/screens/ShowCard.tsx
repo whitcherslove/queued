@@ -13,7 +13,7 @@ import { applyEpisodeMarks, bringBack, dropShow, moveToBacklog, startWatching } 
 import ScoreRing from '../components/ScoreRing';
 import ScoreSlider from '../components/ScoreSlider';
 import ScopeSheet from '../components/ScopeSheet';
-import { IconBack } from '../components/Icons';
+import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 import { useLongPress } from '../lib/longpress';
 import { EditDetails, QuickNumber, EYE_PLUS_ICON as EYE_PLUS, EXT_ICON as EXT, tierOfId as tierOf } from './MovieCard';
@@ -278,7 +278,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         {/* Where the show lives right now + what you can do with it (the same words as the tabs) */}
         <button className="status-row card" aria-expanded={statusOpen} onClick={() => setStatusOpen(true)}>
           <span className="stack-sm grow"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
-          <span className="muted" aria-hidden="true">▾</span>
+          <MoreBtn />
         </button>
 
         {isPlaying && p.nextEp && (
@@ -299,11 +299,11 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                 : isDone ? <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>Not rated</span>
                 : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>{isPlaying ? 'Watching' : planned ? (item.rewatch ? 'Rewatch · Backlog' : 'Next seasons · Backlog') : 'Not watched yet'}</span>}
               {rewOn && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
-              <span className="spacer" /><span className="muted" aria-hidden="true">▾</span>
+              <span className="spacer" /><ChevBtn open={false} />
             </button>
           ) : (
             <div className="stack">
-              <div className="sec-head"><span className="h2">My take</span><button className="link" onClick={() => setTakeOpen(false)}>Done</button></div>
+              <div className="sec-head"><span className="h2">My take</span><button className="chev-plain" aria-label="Collapse My take" onClick={() => setTakeOpen(false)}><ChevBtn open /></button></div>
               <span className="muted small">{currentLog ? 'Your rating for ' + scopeShort(currentLog) : 'Rating for ' + planLabel.split(' · ')[0] + (isDone ? '' : ' — picking one finishes it now')}</span>
               <div className="chips">
                 {TIERS.map((x) => { const on = currentLog?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
@@ -355,7 +355,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                     {!allSeen && <span className="mini-bar season"><span style={{ width: (aired ? (seen / aired) * 100 : 0) + '%' }} /></span>}
                   </span>
                   <ScoreRing value={rating?.score ?? null} scale={scale} size={32} fontSize={12} label={'Season ' + s.n + ' score'} />
-                  <span className="muted" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : undefined }}>▾</span>
+                  <ChevBtn open={open} size={30} />
                 </button>
                 {open && (
                   <div className="season-body">
@@ -450,7 +450,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           <button className="ai-head" onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>
             <span className="accent-text" aria-hidden="true">✦</span><span className="h2">Ask AI</span>
             <span className="muted small ellipsis grow">{chat.length ? `${chat.filter((m) => m.role === 'user').length} questions · ${chat[chat.length - 1].content}` : 'Recaps, trivia, what to watch next'}</span>
-            <span className="muted" aria-hidden="true">{aiOpen ? '▴' : '▾'}</span>
+            <ChevBtn open={aiOpen} />
           </button>
           {aiOpen && (
             <div className="stack">

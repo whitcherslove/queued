@@ -16,3 +16,16 @@ export const DuoTv = () => <svg {...d}><rect {...body} x="3" y="7" width="18" he
 export const DuoPad = () => <svg {...d}><path {...body} d="M6.5 8.5h11a4.2 4.2 0 0 1 4.1 5.1l-.7 3.2a2.3 2.3 0 0 1-4 1.1L15.2 16H8.8l-1.7 1.9a2.3 2.3 0 0 1-4-1.1l-.7-3.2a4.2 4.2 0 0 1 4.1-5.1z" /><path d="M6.5 8.5h11a4.2 4.2 0 0 1 4.1 5.1l-.7 3.2a2.3 2.3 0 0 1-4 1.1L15.2 16H8.8l-1.7 1.9a2.3 2.3 0 0 1-4-1.1l-.7-3.2a4.2 4.2 0 0 1 4.1-5.1z" /><path d="M8 11v3M6.5 12.5h3M15.5 12h.01M17.5 13.5h.01" /></svg>;
 export const DuoPc = () => <svg {...d}><rect {...body} x="3" y="4" width="18" height="12" rx="2.5" /><rect x="3" y="4" width="18" height="12" rx="2.5" /><path d="M9 20h6M12 16v4" /></svg>;
 export const DuoRetro = () => <svg {...d}><path {...body} d="M6 3h12v14l-3 4H6z" /><path d="M6 3h12v14l-3 4H6z" /><path d="M9 7h6M9 11h6M9 21v-3M12 21v-3" /></svg>;
+
+/** Round chevron used on everything that expands/collapses in place. */
+export const ChevBtn = ({ open, size = 34 }: { open: boolean; size?: number }) => (
+  <span className={'chev-btn' + (open ? ' open' : '')} style={{ width: size, height: size }} aria-hidden="true">
+    <svg width={size * 0.47} height={size * 0.47} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+  </span>
+);
+/** Round "more" button: opens a sheet with actions (not an in-place expand). */
+export const MoreBtn = ({ size = 34 }: { size?: number }) => (
+  <span className="chev-btn" style={{ width: size, height: size }} aria-hidden="true">
+    <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="18.5" cy="12" r="1.9" /></svg>
+  </span>
+);

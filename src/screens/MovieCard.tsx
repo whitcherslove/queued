@@ -9,7 +9,7 @@ import {
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import ScoreSlider from '../components/ScoreSlider';
-import { IconBack } from '../components/Icons';
+import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 
 interface Props { openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, Owned>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string, past?: boolean) => void; backlogCount: number }
@@ -226,11 +226,11 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
               {!logsReady ? null : planned && logs.length ? <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>Rewatch · Backlog</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not watched yet</span>}
               {rewOn && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
               <span className="spacer" />
-              <span className="muted" aria-hidden="true">▾</span>
+              <ChevBtn open={false} />
             </button>
           ) : (
             <div className="stack">
-              <div className="sec-head"><span className="h2">My take</span><button className="link" onClick={() => setTakeOpen(false)}>Done</button></div>
+              <div className="sec-head"><span className="h2">My take</span><button className="chev-plain" aria-label="Collapse My take" onClick={() => setTakeOpen(false)}><ChevBtn open /></button></div>
               <div className="chips">
                 {PICK_TIERS.map((x) => {
                   const on = last?.tier === x.id;
@@ -372,7 +372,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           <button className="ai-head" onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>
             <span className="accent-text" aria-hidden="true">✦</span><span className="h2">Ask AI</span>
             <span className="muted small ellipsis grow">{chat.length ? `${chat.filter((m) => m.role === 'user').length} questions · ${chat[chat.length - 1].content}` : 'Trivia, endings, what to watch next'}</span>
-            <span className="muted" aria-hidden="true">{aiOpen ? '▴' : '▾'}</span>
+            <ChevBtn open={aiOpen} />
           </button>
           {aiOpen && (
             <div className="stack">

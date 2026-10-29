@@ -548,3 +548,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .season-segs span.future { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
 .chev-btn { width: 34px; height: 34px; flex: none; border-radius: 999px; background: var(--surface2); color: var(--ink); display: flex; align-items: center; justify-content: center; transition: transform .2s cubic-bezier(.2,.8,.2,1); }
 .chev-btn.open { transform: rotate(180deg); }
+
+.chev-plain { border: 0; background: transparent; padding: 0; display: inline-flex; }
