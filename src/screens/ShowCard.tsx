@@ -276,10 +276,18 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         )}
 
         {/* Where the show lives right now + what you can do with it (the same words as the tabs) */}
-        <button className="status-row card" aria-expanded={statusOpen} onClick={() => setStatusOpen(true)}>
-          <span className="stack-sm grow"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
-          <MoreBtn />
-        </button>
+        <div className="status-row card">
+          <button className="status-main" aria-haspopup="menu" aria-expanded={statusOpen} onClick={() => setStatusOpen(true)}>
+            <span className="stack-sm grow"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
+          </button>
+          {/* the one action you most likely want, one tap away; everything else is behind the dots */}
+          {(st.state === 'backlog' || st.state === 'newSeason' || st.state === 'lastChance') && (
+            <button className="act-chip" onClick={() => act(() => startWatching(item, stSeasons))}>
+              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" /></svg>Start
+            </button>
+          )}
+          <button className="chev-plain" aria-label="Status actions" aria-haspopup="menu" onClick={() => setStatusOpen(true)}><MoreBtn /></button>
+        </div>
 
         {isPlaying && p.nextEp && (
           <div className="next-ep card">
