@@ -405,15 +405,26 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             <button className="act-chip" onClick={() => { setPastMode('past'); setPastStep('seasons'); }}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>Watched before</button>
             {isDone && <button className="act-chip" onClick={() => setScopeFor('rewatch')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12V9a3 3 0 0 1 3-3h13l-3-3M20 12v3a3 3 0 0 1-3 3H4l3 3" /></svg>Rewatch</button>}
           </div></div>
-          {/* the current run is always shown on top — whether it started from Backlog or from Watching */}
-          {(isBack || isPlaying) && (
-            <div className="view-row">
-              <span className="grow small strong">{isPlaying ? 'Now: ' : 'Planned: '}{planLabel.split(' · ')[0]} <span className="accent-text normal">{isPlaying ? 'In progress' : 'Next'}</span></span>
-              {item.rewatch && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
-              <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>{isPlaying ? 'Watching' : 'Backlog'}</span>
-              {logs.length > 0 && <button className="del-x" aria-label="Cancel the plan" onClick={cancelPlan}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>}
-            </div>
-          )}
+          {/* Top row = where the show is right now (same words as the Watching sections). It's not a journal entry. */}
+          {st.state !== 'finished' && (() => {
+            const what: Record<string, string> = {
+              progress: 'Now: ' + planLabel.split(' · ')[0],
+              backlog: 'Planned: ' + planLabel.split(' · ')[0],
+              newSeason: 'Next: ' + seasonsName(st.seasons),
+              lastChance: 'Not watched: ' + seasonsName(st.seasons),
+              caughtUp: isPlaying ? 'Now: ' + planLabel.split(' · ')[0] : 'Coming: ' + seasonsName(st.seasons),
+              upToDate: 'All watched so far',
+              dropped: 'You dropped this show'
+            };
+            return (
+              <div className="view-row">
+                <span className="grow small strong">{what[st.state]}</span>
+                {item.rewatch && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
+                <span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span>
+                {(isBack || isPlaying) && logs.length > 0 && <button className="del-x" aria-label="Cancel the plan" onClick={cancelPlan}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>}
+              </div>
+            );
+          })()}
           {logs.map((l, i) => {
             const x = tierOf(l.tier);
             if (delView === l.id) return (
