@@ -97,7 +97,8 @@ async function finishGroup(admin: any, user: any, g: Group, t: any, basePos: num
   const src = rows.find((x) => x.metascore !== null) ; if (t.metascore === null && src) fallback.metascore = src.metascore;
   const srcI = rows.find((x) => x.imdb !== null); if (t.imdb_rating === null && srcI) fallback.imdb_rating = srcI.imdb;
   const lastTier = watched.length ? TIER[(watched[watched.length - 1].rating ?? '').toLowerCase()] ?? null : null;
-  const status = watched.length ? (lastTier === 'dropped' ? 'dropped' : 'done') : 'backlog';
+  void lastTier;
+  const status = watched.length ? 'done' : 'backlog';
   const upNext = watched.length > 0 && backlog.length > 0;
   const { data: existing } = await user.from('library').select('id, overrides').eq('title_id', t.id).maybeSingle();
   let libId: string;
@@ -114,7 +115,7 @@ async function finishGroup(admin: any, user: any, g: Group, t: any, basePos: num
     const seen = new Set((have ?? []).map((h: any) => new Date(h.watched_at).toISOString()));
     const logs = watched.map((x, i) => {
       let score = x.score; if (score !== null && score > 5) score = score <= 10 ? score / 2 : null;
-      return { library_id: libId, watched_at: new Date(x.watchedAt!).toISOString(), tier: TIER[(x.rating ?? '').toLowerCase()] ?? null, score: score === null ? null : Math.round(score * 4) / 4, rewatch: x.rewatch || i > 0 };
+      return { library_id: libId, watched_at: new Date(x.watchedAt!).toISOString(), tier: (x.rating ?? '').toLowerCase() === 'dropped' ? null : TIER[(x.rating ?? '').toLowerCase()] ?? null, dropped: (x.rating ?? '').toLowerCase() === 'dropped', score: score === null ? null : Math.round(score * 4) / 4, rewatch: x.rewatch || i > 0 };
     }).filter((l) => !seen.has(l.watched_at));
     if (logs.length) { const e = await user.from('logs').insert(logs); if (e.error) throw e.error; }
   }
@@ -251,7 +252,7 @@ async function importTvGroup(admin: any, user: any, g: TvGroup, basePos: number)
   const rows = g.rows.slice().sort((a, b) => String(a.finishAt ?? '9999').localeCompare(String(b.finishAt ?? '9999')));
 
   const logs: any[] = [], ratings = new Map<number, { tier: string; score: null; rated_at: string }>(), marks = new Map<string, string>();
-  let covered = 0, plan: number[] | null | undefined, status: 'done' | 'playing' | 'backlog' = 'done', runStart: string | null = null, startedOn: string | null = null, rewPlan = false;
+  let covered = 0, plan: number[] | null | undefined, status: 'done' | 'playing' | 'backlog' | 'dropped' = 'done', runStart: string | null = null, startedOn: string | null = null, rewPlan = false;
   const markSeason = (n: number, at: string) => (eps.get(n) ?? []).forEach((e) => marks.set(n + ':' + e, at));
 
   for (const row of rows) {
@@ -266,7 +267,7 @@ async function importTvGroup(admin: any, user: any, g: TvGroup, basePos: number)
       row.seasons.filter((c) => isTier(c.value)).forEach((c) => {
         const at = c.date ?? row.finishAt ?? new Date().toISOString();
         markSeason(c.n, at);
-        ratings.set(c.n, { tier: TIER[c.value.toLowerCase()], score: null, rated_at: at.slice(0, 10) });
+        ratings.set(c.n, { tier: c.value.toLowerCase() === 'dropped' ? null as unknown as string : TIER[c.value.toLowerCase()], score: null, rated_at: at.slice(0, 10) });
       });
       rewPlan = row.rewatch;
       continue;
@@ -288,12 +289,13 @@ async function importTvGroup(admin: any, user: any, g: TvGroup, basePos: number)
     const at = row.finishAt ?? cells.map((c) => c.date).filter(Boolean).sort().pop() ?? new Date().toISOString();
     const full = ended && allSeasons.length > 0 && allSeasons.every((n) => list.includes(n));
     logs.push({ scope: full ? 'show' : list.length === 1 ? 'season' : 'seasons', season_from: full ? null : list[0], season_to: full ? null : list[list.length - 1], seasons: full ? null : list,
-      watched_at: new Date(at).toISOString(), tier: TIER[row.rating!.toLowerCase()], score: row.score === null ? null : Math.min(5, Math.max(0, row.score)), rewatch: row.rewatch });
-    cells.forEach((c) => { const d = c.date ?? at; markSeason(c.n, d); ratings.set(c.n, { tier: TIER[c.value.toLowerCase()] ?? TIER[row.rating!.toLowerCase()], score: null, rated_at: d.slice(0, 10) }); });
+      watched_at: new Date(at).toISOString(), tier: row.rating!.toLowerCase() === 'dropped' ? null : TIER[row.rating!.toLowerCase()], dropped: row.rating!.toLowerCase() === 'dropped', score: row.score === null ? null : Math.min(5, Math.max(0, row.score)), rewatch: row.rewatch });
+    cells.forEach((c) => { const d = c.date ?? at; markSeason(c.n, d); { const tv = TIER[c.value.toLowerCase()] ?? TIER[row.rating!.toLowerCase()]; ratings.set(c.n, { tier: tv === 'dropped' ? null as unknown as string : tv, score: null, rated_at: d.slice(0, 10) }); } });
     covered = Math.max(covered, ...list);
     if (status === 'done') plan = undefined;
   }
   if (!logs.length && status === 'done') { status = 'backlog'; runStart = new Date().toISOString(); }
+  if (status === 'done' && logs.length && logs[logs.length - 1].dropped) status = 'dropped';
 
   const fallback: Record<string, unknown> = {};
   const ms = rows.find((x) => x.metascore !== null); if (t.metascore === null && ms) fallback.metascore = ms.metascore;

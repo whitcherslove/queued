@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMsg, ItemLog, LibItem, Mark, SeasonEps, SeasonRating } from '../lib/types';
 import type { Settings } from '../lib/theme';
-import { TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
+import { DROPPED_COLOR, PICK_TIERS as TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
 import { latestLog, localDay, longDate, merged, metacriticSearch, releaseText, withLocalDay } from '../lib/logic';
 import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
   refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog, addMarksAt
 } from '../lib/remote';
-import { canFollow, epLabel, followSeasons, isEnded, logScope, logSeasons, newSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showYears, todayIso } from '../lib/tv';
-import { applyEpisodeMarks } from '../lib/tvActions';
+import { STATE_LABEL, coveredSeasons, epLabel, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showState, showYears, todayIso } from '../lib/tv';
+import { applyEpisodeMarks, bringBack, dropShow, moveToBacklog, startWatching } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
 import ScoreSlider from '../components/ScoreSlider';
 import ScopeSheet from '../components/ScopeSheet';
@@ -59,6 +59,10 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const [scopeLog, setScopeLog] = useState<ItemLog | null>(null);
   const [pastStep, setPastStep] = useState<'' | 'seasons' | 'details'>(openPast ? 'seasons' : '');
   const [pastSeasons, setPastSeasons] = useState<number[] | null>(null);
+  const [pastMode, setPastMode] = useState<'past' | 'now'>('past');
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [seasonsOpen, setSeasonsOpen] = useState(initial?.status === 'playing');
+  const [whatNow, setWhatNow] = useState(false);
   const [preview, setPreview] = useState<number | null | undefined>(undefined);
   const [draft, setDraft] = useState('');
   const [error, setError] = useState('');
@@ -68,6 +72,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   useBackLayer(!!scopeFor, () => setScopeFor(''));
   useBackLayer(!!scopeLog, () => setScopeLog(null));
   useBackLayer(!!pastStep, () => setPastStep(''));
+  useBackLayer(statusOpen, () => setStatusOpen(false));
+  useBackLayer(whatNow, () => setWhatNow(false));
 
   // swipe to the previous / next show (DOM transforms while dragging, like the movie card)
   const swipeEl = useRef<HTMLDivElement>(null);
@@ -173,18 +179,14 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
     if (currentLog) { const l = currentLog, v = !l.rewatch; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: !v } : x))), () => updateLog(l.id, { rewatch: v })); }
     else { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }
   };
-  // Following: in Caught up or not. Off = "stopped following" (status dropped); on = back to where it was.
-  const followable = canFollow(t, logs);
-  const followingNow = status !== 'dropped' && (followSeasons(item, logs) !== null || (isPlaying && !p.nextEp));
-  const showFollow = followingNow || (status === 'dropped' && followable);
-  const toggleFollow = () => {
-    const prev = item.status;
-    const back = p.anySeen && !p.complete && plan ? 'playing' : plan && !item.rewatch ? 'backlog' : 'done';
-    const next = status === 'dropped' ? back : 'dropped';
-    optimistic(() => setItem({ ...item, status: next }), () => setItem({ ...item, status: prev }), () => updateItem(item.id, { status: next }));
-  };
   const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: topPos })); };
-  const cancelPlan = guard(async () => { await updateItem(item.id, { status: last?.tier === 'dropped' ? 'dropped' : 'done', rewatch: false, up_next: false, score: null }); });
+  const coveredSet = coveredSeasons(t, logs);
+  const coveredOrSeen = (n: number) => {
+    if (coveredSet.has(n)) return true;
+    const aired = (eps.find((e) => e.season === n)?.episodes ?? []).filter((e) => e.air_date && e.air_date <= today);
+    return aired.length > 0 && aired.every((e) => marks.some((m) => m.season === n && m.episode === e.n));
+  };
+  const cancelPlan = guard(async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false, score: null }); });
   const doneScope = (list: number[] | null) => guard(async () => {
     const kind = scopeFor; setScopeFor('');
     const planPatch = { plan_seasons: list, plan_from: list ? list[0] : null, plan_to: list ? list[list.length - 1] : null };
@@ -215,10 +217,22 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
       : <a className="tile3" href={kind === 'metascore' ? mcUrl : imdbUrl} target="_blank" rel="noopener">{sq}<span className="muted small">{label} {EXT}</span></a>;
   };
   const maxLogged = Math.max(0, ...logs.map((l) => { const ls = logSeasons(l); return ls ? Math.max(...ls) : seasons.length; }));
-  const fresh = isDone && status !== 'dropped' && last?.tier !== 'dropped' ? newSeasons(t, logs).filter((n) => !isEnded(t) || ((seasonAir(t, n) ?? '') > (last ? localDay(last.watched_at) : ''))) : [];
-  const freshAir = fresh.length ? seasonAir(t, fresh[0]) : null;
-  const start = (list: number[] | null) => guard(async () => {
-    await updateItem(item.id, { status: 'playing', plan_seasons: list, plan_from: list ? list[0] : null, plan_to: list ? list[list.length - 1] : null, run_started_at: new Date().toISOString(), started_on: today, up_next: false, score: null });
+  // One state per show (same as the lists): it decides the status line and its actions
+  const st = showState(item, t, logs, isPlaying ? p : null, today);
+  const stSeasons = st.seasons.length ? st.seasons : plan;
+  const stAir = st.seasons.length ? seasonAir(t, st.seasons[0]) : null;
+  const act = (fn: () => Promise<unknown>) => { setStatusOpen(false); guard(async () => { await fn(); })(); };
+  const statusSub = (() => {
+    switch (st.state) {
+      case 'progress': return (item.rewatch ? 'Rewatching ' : 'Watching ') + planLabel;
+      case 'newSeason': return seasonsName(st.seasons) + ' is out' + (stAir ? ' · ' + longDate(stAir) : '');
+      case 'lastChance': return seasonsName(st.seasons) + ' not watched yet · show has ended';
+      case 'caughtUp': return isPlaying ? (p.nextFuture ? 'Next: ' + epLabel(p.nextFuture) + (p.nextFuture.air_date ? ' on ' + longDate(p.nextFuture.air_date) : '') : 'Waiting for new episodes') : seasonsName(st.seasons) + (stAir ? ' premieres ' + longDate(stAir) : ' announced');
+      case 'upToDate': return 'All watched · no new season announced yet';
+      case 'backlog': return (item.rewatch ? 'Rewatch · ' : '') + planLabel;
+      case 'dropped': return 'Hidden from your lists · search still finds it';
+      default: return 'Ended · everything watched';
+    }
   })();
   const moreSeasons = seasons.filter((s) => s.n > maxLogged).length > 0;
 
@@ -260,20 +274,11 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           </button>
         )}
 
-        {(isBack || isPlaying) && (
-          <div className="plan-row card">
-            <span className="stack-sm grow"><span className="muted small">{item.rewatch ? 'Rewatching' : 'Watching'}</span><strong>{planLabel}</strong></span>
-            <button className="btn sm" onClick={() => setScopeFor('plan')}>Change</button>
-            {isBack && <button className="btn primary sm" onClick={() => start(plan)}>Start watching</button>}
-          </div>
-        )}
-
-        {fresh.length > 0 && (
-          <div className="plan-row card">
-            <span className="stack-sm grow"><span className="muted small upper">{freshAir && freshAir <= today ? 'New season out' : freshAir ? 'Premieres ' + longDate(freshAir) : 'Announced'}</span><strong>{seasonsName(fresh)}</strong></span>
-            <button className="btn primary sm" onClick={() => start(fresh)}>Start watching</button>
-          </div>
-        )}
+        {/* Where the show lives right now + what you can do with it (the same words as the tabs) */}
+        <button className="status-row card" aria-expanded={statusOpen} onClick={() => setStatusOpen(true)}>
+          <span className="stack-sm grow"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
+          <span className="muted" aria-hidden="true">▾</span>
+        </button>
 
         {isPlaying && p.nextEp && (
           <div className="next-ep card">
@@ -311,18 +316,18 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               </>}
               <div className="divider" />
               <button className="switch-row flat" role="switch" aria-checked={rewOn} onClick={toggleRew}><span className="rew-icon">{EYE_PLUS}</span><strong className="grow">Rewatch</strong><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></button>
-              {showFollow && <><div className="divider" />
-              <button className="switch-row flat" role="switch" aria-checked={status !== 'dropped'} onClick={toggleFollow}>
-                  <span className="follow-icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9" /><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0" /></svg></span>
-                  <span className="stack-sm grow"><strong>Following</strong><span className="muted small">{status === 'dropped' ? 'Off — only in Watched' : 'In Caught up, waiting for new episodes and seasons'}</span></span>
-                  <span className={'switch' + (status !== 'dropped' ? ' on' : '')}><span /></span>
-                </button></>}
+              <div className="divider" />
+              <button className="btn wide" onClick={() => { setPastMode('now'); setPastStep('seasons'); }}>Mark seasons as watched…</button>
             </div>
           )}
         </section>
 
         <section className="stack-sm">
-          <span className="h2">Seasons</span>
+          <button className="w-head" aria-expanded={seasonsOpen} onClick={() => setSeasonsOpen(!seasonsOpen)}>
+            <span className="h2">Seasons</span><span className="w-count">{seasons.filter((x) => coveredOrSeen(x.n)).length} of {seasons.length} watched</span><span className="grow" />
+            <span className="muted" aria-hidden="true" style={{ transform: seasonsOpen ? undefined : 'rotate(-90deg)', transition: 'transform .18s' }}>▾</span>
+          </button>
+          {seasonsOpen && <>
           {seasons.length === 0 && <p className="muted small">Loading seasons…</p>}
           {seasons.map((s) => {
             const list = eps.find((x) => x.season === s.n)?.episodes ?? [];
@@ -352,7 +357,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                     <div className="row between"><span className="muted small">{rating ? 'Rated ' + longDate(rating.rated_at) : 'Not rated yet'}</span>
                       {aired > 0 && <button className="btn sm" onClick={() => applyMarks(list.filter((e) => e.air_date && e.air_date <= today && (allSeen || !runSeen(s.n, e.n))).map((e) => ({ season: s.n, episode: e.n })), !allSeen)}>{allSeen ? 'Unmark all' : 'Mark season watched'}</button>}</div>
                     <div className="chips">
-                      {TIERS.filter((x) => x.id !== 'dropped').map((x) => { const on = rating?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={guard(async () => { await saveSeasonRating(item.id, s.n, { tier: on ? null : x.id }); })}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
+                      {TIERS.map((x) => { const on = rating?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={guard(async () => { await saveSeasonRating(item.id, s.n, { tier: on ? null : x.id }); })}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
                     </div>
                     <div className="score-row"><label htmlFor={'ss-' + s.n} className="small strong">Score</label>
                       {rating?.score != null && <button className="link" onClick={() => { setRatings((r) => r.map((x) => (x.season === s.n ? { ...x, score: null } : x))); saveSeasonRating(item.id, s.n, { score: null }).then(onChanged).catch(() => setError('Couldn’t save. Try again.')); }}>Clear</button>}
@@ -378,14 +383,14 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               </div>
             );
           })}
+          </>}
         </section>
 
         <section className="card stack-sm">
           <div className="sec-head wrap"><span className="h2">Viewings <span className="muted small normal">{logs.length}</span></span>
           <div className="act-chips">
-            <button className="act-chip" onClick={() => setPastStep('seasons')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>Watched before</button>
+            <button className="act-chip" onClick={() => { setPastMode('past'); setPastStep('seasons'); }}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>Watched before</button>
             {isDone && <button className="act-chip" onClick={() => setScopeFor('rewatch')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12V9a3 3 0 0 1 3-3h13l-3-3M20 12v3a3 3 0 0 1-3 3H4l3 3" /></svg>Rewatch</button>}
-            {isDone && moreSeasons && !followingNow && <button className="act-chip" onClick={() => setScopeFor('more')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 5v14M5 12h14" /></svg>Plan next</button>}
           </div></div>
           {logs.length === 0 && !planned && <span className="muted small">Finish the planned seasons and the entry appears here.</span>}
           {planned && (
@@ -410,7 +415,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                     <span className="muted tiny">{editLog === l.id ? 'Done' : 'Edit'}</span>
                   </button>
                   <button className={'rew-toggle' + (l.rewatch ? ' on' : '')} aria-pressed={l.rewatch} aria-label="Rewatch" onClick={guard(async () => { await updateLog(l.id, { rewatch: !l.rewatch }); })}>{EYE_PLUS}</button>
-                  {x ? <span className="pill" style={{ background: x.color, color: '#17161A' }}>{x.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
+                  {l.dropped ? <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span> : x ? <span className="pill" style={{ background: x.color, color: '#17161A' }}>{x.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
                   <ScoreRing value={l.score} scale={scale} size={32} fontSize={12} />
                   <button className="del-x" aria-label="Delete this entry" onClick={() => setDelView(l.id)}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
                 </div>
@@ -466,17 +471,53 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         onCancel={() => setScopeFor('')} onDone={doneScope} />}
       {scopeLog && <ScopeSheet t={t} title="What does this entry cover?" confirm="Save" initial={logSeasons(scopeLog)}
         onCancel={() => setScopeLog(null)} onDone={(list) => { const l = scopeLog; setScopeLog(null); guard(async () => { await updateLog(l.id, logScope(list) as Partial<ItemLog>); })(); }} />}
-      {pastStep === 'seasons' && <ScopeSheet t={t} title="Which seasons did you watch?" confirm="Next" onCancel={() => setPastStep('')} onDone={(list) => { setPastSeasons(list); setPastStep('details'); }} />}
-      {pastStep === 'details' && <PastSheet t={t} seasons={pastSeasons} eps={eps} scale={scale} onCancel={() => setPastStep('')}
+      {pastStep === 'seasons' && <ScopeSheet t={t} title={pastMode === 'now' ? 'Which seasons did you finish?' : 'Which seasons did you watch?'} confirm="Next"
+        initial={pastMode === 'now' ? (plan ?? seasons.filter((x) => !coveredOrSeen(x.n) && !!x.air_date && x.air_date <= today).map((x) => x.n)) : null}
+        onCancel={() => setPastStep('')} onDone={(list) => { setPastSeasons(list); setPastStep('details'); }} />}
+      {pastStep === 'details' && <PastSheet t={t} seasons={pastSeasons} eps={eps} scale={scale} now={pastMode === 'now'} onCancel={() => setPastStep('')}
         onSave={(at, tier, sc) => { setPastStep(''); guard(async () => {
           const list = pastSeasons ?? seasons.map((x) => x.n);
           await insertLog(item.id, { ...logScope(pastSeasons), watched_at: at, tier, score: sc, rewatch: false } as Partial<ItemLog>);
           const toMark = eps.filter((e) => list.includes(e.season)).flatMap((e) => e.episodes.filter((x) => x.air_date && x.air_date <= today).map((x) => ({ season: e.season, episode: x.n })));
           await addMarksAt(item.id, toMark, at);
           for (const n of list) if (tier && !ratings.some((r) => r.season === n)) await saveSeasonRating(item.id, n, { tier, score: sc });
-          // a show you only had in Backlog and turned out to have seen: it's in Watched now
-          if (item.status === 'backlog' && !item.rewatch && logs.length === 0) await updateItem(item.id, { status: 'done', up_next: false, plan_seasons: null, plan_from: null, plan_to: null });
+          // it's in Watched now; then ask what's next unless the show is simply done
+          if (item.status !== 'dropped') await updateItem(item.id, { status: 'done', up_next: false, rewatch: false, plan_seasons: null, plan_from: null, plan_to: null });
+          const nowCovered = new Set([...coveredSet, ...list]);
+          if (seasons.some((x) => !nowCovered.has(x.n))) setWhatNow(true);
         })(); }} />}
+
+      {statusOpen && (
+        <div className="sheet-wrap">
+          <button className="sheet-scrim" aria-label="Close" onClick={() => setStatusOpen(false)} />
+          <div className="sheet action-sheet" role="menu" aria-label="Status">
+            <div className="stack-sm"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></div>
+            <div className="action-list">
+              {!isPlaying && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button role="menuitem" onClick={() => act(() => startWatching(item, stSeasons))}><span className="stack-sm"><strong>Start watching</strong><span className="muted small">Move to Watching › In progress</span></span></button>}
+              {(isBack || isPlaying) && <button role="menuitem" onClick={() => { setStatusOpen(false); setScopeFor('plan'); }}><span className="stack-sm"><strong>Change seasons…</strong><span className="muted small">What this run covers: {planLabel}</span></span></button>}
+              {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button role="menuitem" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}><span className="stack-sm"><strong>Move to Backlog</strong><span className="muted small">Watch it later — you can start it from Backlog anytime</span></span></button>}
+              {st.state !== 'dropped' && st.state !== 'finished' && <button role="menuitem" className="danger" onClick={() => act(() => dropShow(item))}><span className="stack-sm"><strong>Drop</strong><span className="muted small">Hide it from every list; your journal entries stay in Watched</span></span></button>}
+              {st.state === 'dropped' && <button role="menuitem" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}><span className="stack-sm"><strong>Bring back</strong><span className="muted small">{logs.length ? 'Back to Watching / Watched' : 'Back to Backlog'}</span></span></button>}
+              {st.state === 'finished' && <span className="muted small">Ended and fully watched. Use Rewatch in Viewings to watch it again.</span>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {whatNow && (
+        <div className="sheet-wrap">
+          <button className="sheet-scrim" aria-label="Close" onClick={() => setWhatNow(false)} />
+          <div className="sheet" role="dialog" aria-label="What now?">
+            <div className="stack-sm"><strong className="sheet-title">What now?</strong><span className="muted small">There are seasons you haven’t watched.</span></div>
+            <div className="choice-buttons">
+              <button className="choice primary" onClick={() => { setWhatNow(false); guard(async () => { await startWatching(item, seasons.filter((x) => !coveredOrSeen(x.n)).map((x) => x.n)); })(); }}><strong>Keep watching</strong><span>Watching › In progress</span></button>
+              <button className="choice" onClick={() => { setWhatNow(false); guard(async () => { await moveToBacklog(item, seasons.filter((x) => !coveredOrSeen(x.n)).map((x) => x.n), topPos); })(); }}><strong>Continue later</strong><span>Put the rest in Backlog</span></button>
+              <button className="choice" onClick={() => { setWhatNow(false); guard(async () => { await dropShow(item); })(); }}><strong>Drop it</strong><span>Hide it from every list</span></button>
+              <button className="choice ghost" onClick={() => setWhatNow(false)}>Decide later</button>
+            </div>
+          </div>
+        </div>
+      )}
       {quick && <QuickNumber media="tv" kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails kind="tv" item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }} onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
     </div>
@@ -484,16 +525,16 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
 }
 
 /** Second step of "Add past": when (roughly) and how it was. Default date = when the last chosen season finished airing. */
-function PastSheet({ t, seasons, eps, scale, onCancel, onSave }: { t: ReturnType<typeof merged>; seasons: number[] | null; eps: SeasonEps[]; scale: 5 | 10; onCancel: () => void; onSave: (at: string, tier: string | null, score: number | null) => void }) {
+function PastSheet({ t, seasons, eps, scale, now, onCancel, onSave }: { t: ReturnType<typeof merged>; seasons: number[] | null; eps: SeasonEps[]; scale: 5 | 10; now?: boolean; onCancel: () => void; onSave: (at: string, tier: string | null, score: number | null) => void }) {
   const list = seasons ?? seasonsOf(t).map((x) => x.n);
   const lastSeason = list[list.length - 1];
   // Default: the day the last chosen season finished airing. If its episodes aren't loaded yet, use the season's premiere,
   // then the show's first air date — never "today" unless we know nothing at all.
   const finale = (eps.find((e) => e.season === lastSeason)?.episodes ?? []).map((e) => e.air_date).filter((d): d is string => !!d && d <= todayIso()).sort().pop();
   const fallback = finale ?? seasonsOf(t).find((x) => x.n === lastSeason)?.air_date ?? t.release_date ?? null;
-  const [day, setDay] = useState<string>(fallback ?? todayIso());
+  const [day, setDay] = useState<string>(now ? todayIso() : fallback ?? todayIso());
   const touched = useRef(false);
-  useEffect(() => { if (!touched.current && fallback) setDay(fallback); }, [fallback]);
+  useEffect(() => { if (!now && !touched.current && fallback) setDay(fallback); }, [fallback, now]);
   const [tier, setTier] = useState<string | null>(null);
   const [score, setScore] = useState<number | null>(null);
   return (

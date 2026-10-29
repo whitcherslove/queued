@@ -146,23 +146,37 @@ const localDayOfIso = (iso: string) => { if (iso.length <= 10) return iso; const
  * Seasons a followed show waits for in Caught up (empty list = "up to date, no new season yet"), or null if it isn't followed.
  * Followed = has journal entries, not stopped/dropped/being rewatched; ended shows only for a season that premiered after your last entry.
  */
-export function followSeasons(i: Pick<LibItem, 'section' | 'status' | 'rewatch' | 'plan_from' | 'plan_to' | 'plan_seasons' | 'title'>, mine: FollowLog[]): number[] | null {
-  if (i.section !== 'tv' || i.status === 'playing' || i.status === 'dropped' || i.rewatch || !mine.length) return null;
-  const latest = mine.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
-  if (latest.tier === 'dropped') return null;
-  const covered = coveredSeasons(i.title, mine);
-  let list = (i.status === 'backlog' ? planOf(i) ?? [] : newSeasons(i.title, mine)).filter((n) => !covered.has(n));
-  if (isEnded(i.title)) { const since = localDayOfIso(latest.watched_at); list = list.filter((n) => { const d = seasonAir(i.title, n); return !!d && d > since; }); return list.length ? list : null; }
-  return list;
+export type ShowState = 'progress' | 'newSeason' | 'lastChance' | 'caughtUp' | 'upToDate' | 'backlog' | 'dropped' | 'finished';
+
+/**
+ * Where a show lives — one state per show:
+ *  progress   — you're watching and there's an aired episode to watch (Watching › In progress)
+ *  caughtUp   — waiting: the next episode/season is coming or announced (Watching › Caught up)
+ *  upToDate   — running, everything seen, nothing announced yet (Watching › Caught up › Up to date)
+ *  newSeason  — running show, a season you haven't started is out (Watching › New season out)
+ *  lastChance — ended/canceled, there are seasons you haven't watched (Watching › Last chance)
+ *  backlog    — you plan to watch it later (Backlog)
+ *  dropped    — you dropped it; only search finds it
+ *  finished   — ended and fully watched (only in Watched)
+ */
+export function showState(item: Pick<LibItem, 'status' | 'plan_from' | 'plan_to' | 'plan_seasons' | 'run_started_at'> & { rewatch?: boolean }, t: Title, logs: FollowLog[], p?: Progress | null, today = todayIso()): { state: ShowState; seasons: number[] } {
+  if (item.status === 'dropped') return { state: 'dropped', seasons: [] };
+  if (item.status === 'backlog') return { state: 'backlog', seasons: planOf(item) ?? [] };
+  if (item.status === 'playing') {
+    if (p?.nextEp) return { state: 'progress', seasons: planOf(item) ?? [] };
+    return { state: 'caughtUp', seasons: planOf(item) ?? [] };
+  }
+  const covered = coveredSeasons(t, logs);
+  const unseen = seasonsOf(t).filter((s) => !covered.has(s.n));
+  const out = unseen.filter((s) => !!s.air_date && s.air_date <= today).map((s) => s.n);
+  if (isEnded(t)) return out.length ? { state: 'lastChance', seasons: out } : { state: 'finished', seasons: [] };
+  if (!logs.length) return { state: 'finished', seasons: [] };
+  if (out.length) return { state: 'newSeason', seasons: out };
+  const coming = unseen.map((s) => s.n);
+  return coming.length ? { state: 'caughtUp', seasons: coming } : { state: 'upToDate', seasons: [] };
 }
 
-/** Could this show sit in Caught up if you followed it? (running, logged, not rated Dropped) */
-export function canFollow(t: Title, mine: FollowLog[]): boolean {
-  if (!mine.length) return false;
-  const latest = mine.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
-  if (latest.tier === 'dropped') return false;
-  if (!isEnded(t)) return true;
-  // an ended show is still worth following if a season came out after your last entry (e.g. its final season)
-  const covered = coveredSeasons(t, mine), since = latest.watched_at.slice(0, 10);
-  return seasonsOf(t).some((x) => !covered.has(x.n) && !!x.air_date && x.air_date > since);
-}
+export const STATE_LABEL: Record<ShowState, string> = {
+  progress: 'In progress', newSeason: 'New season out', lastChance: 'Last chance', caughtUp: 'Caught up',
+  upToDate: 'Up to date', backlog: 'Backlog', dropped: 'Dropped', finished: 'Finished'
+};

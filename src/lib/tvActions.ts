@@ -29,3 +29,23 @@ export async function applyEpisodeMarks(item: LibItem, t: Title, eps: SeasonEps[
   else if (item.status === 'playing' && !p.anySeen) await updateItem(item.id, { status: 'backlog' });
   return { marks: next, finished: false };
 }
+
+// ---------- state changes, named after where the show ends up ----------
+const planPatch = (seasons: number[] | null) => ({ plan_seasons: seasons && seasons.length ? seasons : null, plan_from: seasons && seasons.length ? seasons[0] : null, plan_to: seasons && seasons.length ? seasons[seasons.length - 1] : null });
+
+/** → Watching: start these seasons now. */
+export function startWatching(item: LibItem, seasons: number[] | null) {
+  return updateItem(item.id, { status: 'playing', ...planPatch(seasons), run_started_at: new Date().toISOString(), started_on: todayIso(), up_next: false });
+}
+/** → Backlog: watch these seasons later. */
+export function moveToBacklog(item: LibItem, seasons: number[] | null, position: number) {
+  return updateItem(item.id, { status: 'backlog', ...planPatch(seasons), run_started_at: new Date().toISOString(), position, up_next: false });
+}
+/** → Dropped: gone from every list (search still finds it); journal entries stay. */
+export function dropShow(item: LibItem) {
+  return updateItem(item.id, { status: 'dropped', up_next: false });
+}
+/** Dropped → back: to Watched-based states if you've logged it, otherwise to Backlog. */
+export function bringBack(item: LibItem, hasLogs: boolean, position: number) {
+  return hasLogs ? updateItem(item.id, { status: 'done', ...planPatch(null) }) : updateItem(item.id, { status: 'backlog', position });
+}

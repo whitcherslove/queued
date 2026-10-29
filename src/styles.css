@@ -525,3 +525,17 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .act-chip { height: 32px; padding: 0 10px; font-size: 12px; font-weight: 700; border: 0; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); }
 .act-chip svg { color: var(--accent); }
 .act-chip.on { background: color-mix(in srgb, #39C316 18%, transparent); color: #39C316; }
+
+/* Watching sections */
+.w-section { display: flex; flex-direction: column; gap: 10px; }
+.w-section + .w-section { margin-top: 10px; }
+.w-head { display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.w-count { font-size: 12px; font-weight: 800; padding: 1px 8px; border-radius: 999px; background: var(--surface2); color: var(--muted); }
+
+/* status line in the show card */
+.status-row { display: flex; flex-direction: row !important; align-items: center; gap: 10px; width: 100%; border: 0; text-align: left; color: var(--ink); }
+.state-pill { align-self: flex-start; font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 999px; background: var(--surface2); color: var(--ink); }
+.state-pill[data-state="progress"] { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+.state-pill[data-state="newSeason"] { background: color-mix(in srgb, #39C316 20%, transparent); color: #39C316; }
+.state-pill[data-state="lastChance"] { background: color-mix(in srgb, #F6B26B 22%, transparent); color: #F6B26B; }
+.state-pill[data-state="dropped"] { background: color-mix(in srgb, #A98BE0 24%, transparent); color: #A98BE0; }

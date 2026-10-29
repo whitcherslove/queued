@@ -17,12 +17,12 @@ export interface LibItem {
   plan_from?: number | null; plan_to?: number | null; plan_seasons?: number[] | null; run_started_at?: string | null; started_on?: string | null;
 }
 
-export interface ItemLog { id: string; watched_at: string; tier: string | null; score: number | null; rewatch: boolean; scope?: 'item' | 'season' | 'seasons' | 'show'; season_from?: number | null; season_to?: number | null; seasons?: number[] | null }
+export interface ItemLog { id: string; watched_at: string; tier: string | null; score: number | null; rewatch: boolean; scope?: 'item' | 'season' | 'seasons' | 'show'; season_from?: number | null; season_to?: number | null; seasons?: number[] | null; dropped?: boolean }
 export interface ChatMsg { id: string; role: 'user' | 'model'; content: string; created_at: string; pending?: boolean }
 export interface CollectionPart { sourceId: string; title: string; year: number; posterUrl: string | null }
 
 export interface LogRow {
-  id: string; library_id: string; scope: 'item' | 'season' | 'seasons' | 'show'; season_from: number | null; season_to: number | null; seasons?: number[] | null;
+  id: string; library_id: string; scope: 'item' | 'season' | 'seasons' | 'show'; season_from: number | null; season_to: number | null; seasons?: number[] | null; dropped?: boolean;
   watched_at: string; tier: string | null; score: number | null; rewatch: boolean; position: number | null;
   library: LibItem;
 }

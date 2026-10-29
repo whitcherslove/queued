@@ -71,7 +71,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         <button className={'drawer-item with-icon' + (section === 'retro' ? ' on' : '')} style={{ ['--sec' as string]: '#E0A43A' }} onClick={() => { setDrawer(false); go('retro'); }}>
           <span className="duo-icon drawer-duo"><DuoRetro /></span>Retro games
         </button>
-        <span className="muted small drawer-foot">Queued · v0.5</span>
+        <span className="muted small drawer-foot">Queued · v0.6</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>

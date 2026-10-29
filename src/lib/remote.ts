@@ -40,7 +40,7 @@ export async function loadLibrary(section: Section): Promise<LibItem[]> {
 export type LogLite = Omit<LogRow, 'library'>;
 export async function loadLogs(section: Section): Promise<LogLite[]> {
   return allPages<LogLite>((a, b) => supabase.from('logs')
-    .select('id, library_id, scope, season_from, season_to, seasons, watched_at, tier, score, rewatch, position, library:library!inner(section)')
+    .select('id, library_id, scope, season_from, season_to, seasons, watched_at, tier, score, rewatch, dropped, position, library:library!inner(section)')
     .eq('library.section', section).eq('folded', false).order('watched_at', { ascending: false }).order('id').range(a, b) as never);
 }
 
@@ -94,7 +94,7 @@ export async function loadItem(id: string): Promise<LibItem> {
 }
 
 export async function loadItemLogs(libraryId: string): Promise<ItemLog[]> {
-  const { data, error } = await supabase.from('logs').select('id, watched_at, tier, score, rewatch, scope, season_from, season_to, seasons').eq('library_id', libraryId).order('watched_at', { ascending: false });
+  const { data, error } = await supabase.from('logs').select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons').eq('library_id', libraryId).order('watched_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as ItemLog[];
 }
@@ -105,7 +105,7 @@ export async function updateItem(id: string, patch: Partial<{ status: Status; up
 }
 
 export async function insertLog(libraryId: string, log: Partial<ItemLog>): Promise<ItemLog> {
-  const { data, error } = await supabase.from('logs').insert({ library_id: libraryId, ...log }).select('id, watched_at, tier, score, rewatch, scope, season_from, season_to, seasons').single();
+  const { data, error } = await supabase.from('logs').insert({ library_id: libraryId, ...log }).select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons').single();
   if (error) throw error;
   return data as ItemLog;
 }
@@ -133,16 +133,16 @@ export async function askAi(libraryId: string, question: string): Promise<string
   return data.answer as string;
 }
 
-export interface Owned { id: string; status: Status | string; up_next: boolean; tier?: string | null; score?: number | null }
+export interface Owned { id: string; status: Status | string; up_next: boolean; tier?: string | null; score?: number | null; dropped?: boolean }
 
 /** Your copies of these titles, with the rating of the latest viewing. */
 export async function findOwnedBySource(sourceIds: string[], section: Section): Promise<Record<string, Owned>> {
   if (!sourceIds.length) return {};
-  const { data } = await supabase.from('library').select('id, status, up_next, title:titles!inner(source_id), logs(watched_at, tier, score)').eq('section', section).in('titles.source_id', sourceIds);
+  const { data } = await supabase.from('library').select('id, status, up_next, title:titles!inner(source_id), logs(watched_at, tier, score, dropped)').eq('section', section).in('titles.source_id', sourceIds);
   const out: Record<string, Owned> = {};
   (data ?? []).forEach((r: any) => {
     const last = (r.logs ?? []).slice().sort((a: any, b: any) => String(b.watched_at).localeCompare(String(a.watched_at)))[0];
-    out[r.title.source_id] = { id: r.id, status: r.status, up_next: r.up_next, tier: last?.tier ?? null, score: last?.score ?? null };
+    out[r.title.source_id] = { id: r.id, status: r.status, up_next: r.up_next, tier: last?.tier ?? null, score: last?.score ?? null, dropped: !!last?.dropped };
   });
   return out;
 }

@@ -32,3 +32,7 @@ export const TIERS = [
   { id: 'filth', label: 'Fucking filth', color: '#DE3C49' },
   { id: 'dropped', label: 'Dropped', color: '#A98BE0' }
 ] as const;
+
+/** Ratings you can pick. "Dropped" is not a rating anymore — it's a mark on a viewing (movies) or a state (shows). */
+export const PICK_TIERS = TIERS.filter((t) => t.id !== 'dropped');
+export const DROPPED_COLOR = '#A98BE0';

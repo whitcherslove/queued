@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMsg, CollectionPart, ItemLog, LibItem, Overrides, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
-import { TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
+import { DROPPED_COLOR, PICK_TIERS, TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
 import { diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import {
   type Owned, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
@@ -111,12 +111,12 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
     if (!planned && last && last.tier === id) {
       await deleteLog(last.id);
       const remaining = logs.filter((l) => l.id !== last.id);
-      await updateItem(item.id, { status: remaining.length ? ((latestLog(remaining)!.tier === 'dropped') ? 'dropped' : 'done') : 'backlog' });
+      await updateItem(item.id, { status: remaining.length ? 'done' : 'backlog' });
       return;
     }
     if (last && !planned) await updateLog(last.id, { tier: id });
     else await insertLog(item.id, { tier: id, score: item.score, rewatch: !!item.rewatch, watched_at: new Date().toISOString() });
-    await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done', up_next: false, rewatch: false });
+    await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
   })();
 
   const setScore = (v: number | null) => guard(async () => {
@@ -140,7 +140,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
     else { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }
   };
   const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: backlogCount }); setTakeOpen(true); };
-  const cancelRewatch = async () => { await updateItem(item.id, { status: last?.tier === 'dropped' ? 'dropped' : 'done', rewatch: false, up_next: false, score: null }); };
+  const cancelRewatch = async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false, score: null }); };
   const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else await planRewatch(); });
   const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: backlogCount })); };
 
@@ -189,7 +189,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           <h2>{t.title}</h2>
           <div className="row">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).map((c) => <span key={c} className="hero-chip">{c}</span>)}</div>
           {t.directors.length > 0 && <span className="hero-sub">{t.directors.join(', ')}</span>}
-          {origTr && (done || planned) && (() => { const tr = origTr; return <span className="hero-tier" style={{ background: tr.color, color: tr.id === 'dropped' ? '#17161A' : '#17161A' }}>{tr.label}</span>; })()}
+          {last?.dropped && (done || planned) && !origTr && <span className="hero-tier" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{origTr && (done || planned) && (() => { const tr = origTr; return <span className="hero-tier" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span>; })()}
         </div>
       </div>
 
@@ -231,7 +231,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
             <div className="stack">
               <div className="sec-head"><span className="h2">My take</span><button className="link" onClick={() => setTakeOpen(false)}>Done</button></div>
               <div className="chips">
-                {TIERS.map((x) => {
+                {PICK_TIERS.map((x) => {
                   const on = last?.tier === x.id;
                   return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>;
                 })}
@@ -255,6 +255,14 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                     <span className="rew-icon">{EYE_PLUS}</span><strong className="grow">Rewatch</strong>
                     <span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span>
                   </button>
+              {(!last || planned) && <><div className="divider" />
+              <button className="switch-row flat" role="switch" aria-checked={false} onClick={guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: item.score, rewatch: !!item.rewatch, watched_at: new Date().toISOString() }); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); })}>
+                <span className="stack-sm grow"><strong>Didn’t finish</strong><span className="muted small">Log this viewing as Dropped in Watched</span></span><span className="switch"><span /></span>
+              </button></>}
+              {last && !planned && <><div className="divider" />
+              <button className="switch-row flat" role="switch" aria-checked={!!last.dropped} onClick={() => { const l = last, v = !l.dropped; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: !v } : x))), () => updateLog(l.id, { dropped: v })); }}>
+                <span className="stack-sm grow"><strong>Didn’t finish</strong><span className="muted small">Marks this viewing as Dropped in Watched</span></span><span className={'switch' + (last.dropped ? ' on' : '')}><span /></span>
+              </button></>}
             </div>
           )}
         </section>
@@ -274,7 +282,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
             <div className="sec-head"><span className="h2">{coll.name}</span><span className="muted small">{coll.parts.findIndex((p) => p.sourceId === item.title.source_id) + 1} of {coll.parts.length}</span></div>
             {coll.parts.map((p, i) => {
               const o = owned[p.sourceId]; const isCur = p.sourceId === item.title.source_id;
-              const st = isCur ? 'This movie' : o ? (o.status === 'backlog' ? (o.up_next ? 'Up next' : 'Backlog') : o.status === 'dropped' ? 'Dropped' : 'Watched') : '';
+              const st = isCur ? 'This movie' : o ? (o.status === 'backlog' ? (o.up_next ? 'Up next' : 'Backlog') : o.dropped ? 'Dropped' : 'Watched') : '';
               return (
                 <div key={p.sourceId} className={'coll-row' + (isCur ? ' cur' : '')}>
                   <span className="coll-n">{i + 1}</span>
@@ -329,17 +337,17 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                     <span className="muted tiny">{editLog === l.id ? 'Done' : 'Edit'}</span>
                   </button>
                   <button className={'rew-toggle' + (l.rewatch ? ' on' : '')} aria-pressed={l.rewatch} aria-label={l.rewatch ? 'Marked as rewatch — tap to unmark' : 'Mark this viewing as a rewatch'} onClick={guard(async () => { await updateLog(l.id, { rewatch: !l.rewatch }); })}>{EYE_PLUS}</button>
-                  {x && <span className="pill" style={{ background: x.color, color: '#17161A' }}>{x.label}</span>}
+                  {l.dropped ? <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span> : x && <span className="pill" style={{ background: x.color, color: '#17161A' }}>{x.label}</span>}
                   <ScoreRing value={l.score} scale={scale} size={32} fontSize={12} />
                   <button className="del-x" aria-label="Delete this viewing" onClick={() => setDelView(l.id)}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
                 </div>
                 {editLog === l.id && (
                   <div className="view-edit">
                     <div className="chips">
-                      {TIERS.map((tt) => {
+                      {PICK_TIERS.map((tt) => {
                         const on = l.tier === tt.id;
                         return <button key={tt.id} aria-pressed={on} className="chip sm" style={on ? { background: tt.color, borderColor: tt.color, color: '#17161A' } : undefined}
-                          onClick={guard(async () => { await updateLog(l.id, { tier: tt.id }); if (i === 0 && !planned) await updateItem(item.id, { status: tt.id === 'dropped' ? 'dropped' : 'done' }); })}>
+                          onClick={guard(async () => { await updateLog(l.id, { tier: tt.id }); if (i === 0 && !planned) await updateItem(item.id, { status: 'done' }); })}>
                           <span className="dot" style={{ background: on ? '#17161A' : tt.color }} />{tt.label}</button>;
                       })}
                     </div>
@@ -404,7 +412,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
         onSave={(at, tier, sc) => { setPastOpen(false); guard(async () => {
           await insertLog(item.id, { watched_at: at, tier, score: sc, rewatch: false });
           // a backlog movie you'd already seen counts as watched now (unless it's a planned rewatch)
-          if (item.status === 'backlog' && !item.rewatch) await updateItem(item.id, { status: tier === 'dropped' ? 'dropped' : 'done', up_next: false });
+          if (item.status === 'backlog' && !item.rewatch) await updateItem(item.id, { status: 'done', up_next: false });
         })(); }} />}
       {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }}
@@ -534,7 +542,7 @@ function PastMovieSheet({ t, scale, onCancel, onSave }: { t: Title; scale: 5 | 1
         <div className="stack-sm"><strong className="sheet-title">{t.title}</strong><span className="muted small">A viewing from before you started tracking</span></div>
         <div className="score-row"><label htmlFor="past-day" className="strong">Watched on</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => { if (e.target.value) { touched.current = true; setDay(e.target.value); } }} /></div>
         <span className="muted small">Don’t remember? Keep the release date — the entry still lands in the right place in Watched.</span>
-        <div className="chips">{TIERS.map((x) => { const on = tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => setTier(on ? null : x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}</div>
+        <div className="chips">{PICK_TIERS.map((x) => { const on = tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => setTier(on ? null : x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}</div>
         <div className="score-row"><span className="small strong">Score</span><ScoreSlider compact id="past-score" label="Score" value={score} scale={scale} onCommit={setScore} /></div>
         <div className="row nowrap"><button className="btn grow" onClick={onCancel}>Cancel</button><button className="btn primary grow" onClick={() => onSave(new Date(day + 'T20:00:00').toISOString(), tier, score)}>Add to Watched</button></div>
       </div>

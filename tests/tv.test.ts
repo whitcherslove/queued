@@ -75,3 +75,19 @@ describe('covered seasons', () => {
     expect([...coveredSeasons(r, [{ scope: 'show', watched_at: '2021-01-01T20:00:00Z' }])]).toEqual([1, 2]);
   });
 });
+
+import { showState } from '../src/lib/tv';
+describe('show state', () => {
+  const run = show('Returning Series', [[1, '2020-01-01', 2], [2, '2021-01-01', 2], [3, '2026-10-01', 2], [4, '2027-03-01', 2]]);
+  const ended = show('Ended', [[1, '2010-01-01', 2], [2, '2011-01-01', 2], [3, '2012-01-01', 2]]);
+  const log = (seasons: number[], at = '2025-01-01T20:00:00Z') => ({ scope: 'seasons', seasons, watched_at: at });
+  it('puts every show in exactly one place', () => {
+    expect(showState({ status: 'done' }, run, [log([1, 2])], null, '2026-10-28').state).toBe('newSeason');
+    expect(showState({ status: 'done' }, run, [log([1, 2, 3])], null, '2026-10-28')).toEqual({ state: 'caughtUp', seasons: [4] });
+    expect(showState({ status: 'done' }, run, [log([1, 2, 3, 4])], null, '2026-10-28').state).toBe('upToDate');
+    expect(showState({ status: 'done' }, ended, [log([1])], null, '2026-10-28')).toEqual({ state: 'lastChance', seasons: [2, 3] });
+    expect(showState({ status: 'done' }, ended, [{ scope: 'show', watched_at: '2013-01-01T00:00:00Z' }], null, '2026-10-28').state).toBe('finished');
+    expect(showState({ status: 'dropped' }, run, [log([1])]).state).toBe('dropped');
+    expect(showState({ status: 'backlog', plan_seasons: [3] }, run, [log([1, 2])]).state).toBe('backlog');
+  });
+});
