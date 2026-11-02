@@ -164,6 +164,13 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
       default: return 'Hidden from your lists · search still finds it';
     }
   })();
+  /** "Watched": logs the viewing with today's date (it shows up in Watched) and opens My take to rate it */
+  const watchedIt = guard(async () => {
+    await insertLog(item.id, { watched_at: new Date().toISOString(), tier: null, score: item.score, rewatch: !!item.rewatch });
+    await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
+    setTakeOpen(true);
+    window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
+  });
   const markDidntFinish = guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: item.score, rewatch: !!item.rewatch, watched_at: new Date().toISOString() }); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); });
   const toggleDidntFinish = () => { if (!last) return; const l = last, v = !l.dropped; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: !v } : x))), () => updateLog(l.id, { dropped: v })); };
   const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: backlogCount })); };
@@ -230,27 +237,21 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           </button>
         </div>
 
-        {/* Where the movie lives + what you can do — same idea as the show card */}
-        <section className={'card status-card' + (statusPress.pressed ? ' pressed' : '')}>
-          <button className="take-head" aria-expanded={statusOpen} {...statusPress.bind} onClick={() => { setStatusOpen(!statusOpen); setConfirmDrop(false); }}>
-            <span className="stack-sm grow"><span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span><span className="small">{mSub}</span></span>
-            <ChevBtn open={statusOpen} />
-          </button>
-          {inBacklog && mState !== 'comingSoon' && (confirmDrop
-            ? <div className="status-actions"><span className="small grow">Started it but didn’t finish? It goes to Watched marked Dropped.</span>
-                <button className="btn sm" onClick={() => setConfirmDrop(false)}>Cancel</button>
-                <button className="btn sm danger-fill" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
-            : <div className="status-actions">
-                <button className="big-start" onClick={() => { setTakeOpen(true); window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60); }}>
-                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>I watched it</button>
-              </div>)}
-          {statusOpen && (
-            <div className="status-more">
-              {inBacklog && <button className={'act-chip' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{item.up_next ? '✓ Up next' : 'Pin as Up next'}</button>}
-              {last && !planned && <button className={'act-chip' + (last.dropped ? ' on' : '')} aria-pressed={!!last.dropped} onClick={toggleDidntFinish}>{last.dropped ? '✓ Didn’t finish' : 'Mark as didn’t finish'}</button>}
-              {mState === 'dropped' && <button className="act-chip" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
-              {inBacklog && <button className="act-chip" onClick={guard(async () => { await updateItem(item.id, { status: 'dropped', up_next: false }); })}>Not interested</button>}
-              {inBacklog && mState !== 'comingSoon' && <button className="act-chip danger-chip" onClick={() => setConfirmDrop(true)}>Drop</button>}
+        {/* Where the movie lives + every action as one row of same-sized buttons */}
+        <section className="card status-card">
+          <span className="stack-sm"><span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span><span className="small">{mSub}</span></span>
+          {confirmDrop ? (
+            <div className="status-actions"><span className="small grow">Started it but didn’t finish? It goes to Watched marked Dropped.</span>
+              <button className="st-btn" onClick={() => setConfirmDrop(false)}>Cancel</button>
+              <button className="st-btn danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
+          ) : (
+            <div className="st-row">
+              {inBacklog && <button className={'st-btn' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{item.up_next ? '✓ Up next' : 'Up next'}</button>}
+              {inBacklog && mState !== 'comingSoon' && <button className="st-btn primary" onClick={watchedIt}>
+                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>Watched</button>}
+              {last && !planned && <button className={'st-btn' + (last.dropped ? ' on-drop' : '')} aria-pressed={!!last.dropped} onClick={toggleDidntFinish}>{last.dropped ? '✓ Didn’t finish' : 'Didn’t finish'}</button>}
+              {mState === 'dropped' && <button className="st-btn" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
+              {inBacklog && mState !== 'comingSoon' && <button className="st-btn danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
             </div>
           )}
         </section>

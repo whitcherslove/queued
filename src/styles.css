@@ -587,3 +587,12 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .act-chip.danger-chip { background: color-mix(in srgb, #DE3C49 15%, transparent); color: #DE3C49; }
 
 .ep-rt { color: var(--muted); font-weight: 500; }
+
+/* status card actions: one row of same-sized, quiet buttons; Start/Watched is the accent one, Drop sits at the far right */
+.st-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.st-btn { height: 38px; padding: 0 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font-weight: 700; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
+.st-btn.primary { background: color-mix(in srgb, var(--accent) 18%, var(--surface2)); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--accent); }
+.st-btn.on { background: color-mix(in srgb, #39C316 16%, var(--surface2)); border-color: color-mix(in srgb, #39C316 45%, transparent); color: #39C316; }
+.st-btn.on-drop { background: color-mix(in srgb, #A98BE0 18%, var(--surface2)); border-color: color-mix(in srgb, #A98BE0 45%, transparent); color: #A98BE0; }
+.st-btn.danger { color: #DE3C49; border-color: color-mix(in srgb, #DE3C49 40%, transparent); background: transparent; }
+.st-btn.end { margin-left: auto; }

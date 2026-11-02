@@ -303,13 +303,11 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   };
 
   const shownRating = (l: LogRow): [number | null, string | null] => {
-    const multi = isTv && (logSeasons(l)?.length ?? 2) !== 1;
-    return multi ? [l.library.score, l.library.tier] : [l.score, l.tier];
+    return [l.score, l.tier];
   };
   const watchedRow = (l: LogRow) => {
-    // shows: one season → its rating; several seasons / full series → your overall rating (My take)
-    const multi = isTv && (logSeasons(l)?.length ?? 2) !== 1;
-    const lTier = multi ? l.library.tier : l.tier, lScore = multi ? l.library.score : l.score;
+    // every entry keeps its own rating: one season = that season's rating; several seasons = your overall rating when you finished
+    const lTier = l.tier, lScore = l.score;
     const t = l.library.title, tr = tierOf(lTier), d = dateParts(l.watched_at);
     return (
       <div key={l.id} {...rowState('w', l.id)}>
