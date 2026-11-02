@@ -345,14 +345,13 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
               {!(t.release_date && t.release_date > localDay(new Date().toISOString())) && <button className="act-chip" onClick={() => setPastOpen(true)}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>Watched before</button>}
               {logs.length > 0 && <button className={'act-chip' + (planned ? ' on' : '')} aria-pressed={planned} onClick={logRewatch}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12V9a3 3 0 0 1 3-3h13l-3-3M20 12v3a3 3 0 0 1-3 3H4l3 3" /></svg>{planned ? 'Rewatch planned' : 'Rewatch'}</button>}
             </div></div>
-            {logs.length === 0 && <span className="muted small">Seen it before you started tracking? Tap “Watched before”.</span>}
-            {planned && logs.length > 0 && (
+            {/* Top row = where the movie is now, like on shows: a first viewing or a rewatch waiting in Backlog */}
+            {planned && (
               <div className="view-row">
-                <span className="grow small strong">Planned rewatch <span className="accent-text normal">Next</span></span>
-                <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>
-                <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>Backlog</span>
-                <ScoreRing value={item.score} scale={scale} size={32} fontSize={12} />
-                <button className="del-x" aria-label="Cancel the planned rewatch" onClick={logRewatch}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
+                <span className="grow small strong">{logs.length ? 'Planned: rewatch' : 'Planned: first viewing'}</span>
+                {logs.length > 0 && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
+                <span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span>
+                {logs.length > 0 && <button className="del-x" aria-label="Cancel the planned rewatch" onClick={logRewatch}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>}
               </div>
             )}
             {logs.map((l, i) => {
