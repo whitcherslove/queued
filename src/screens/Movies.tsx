@@ -297,12 +297,19 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     );
   };
 
+  const shownRating = (l: LogRow): [number | null, string | null] => {
+    const multi = isTv && (logSeasons(l)?.length ?? 2) !== 1;
+    return multi ? [l.library.score, l.library.tier] : [l.score, l.tier];
+  };
   const watchedRow = (l: LogRow) => {
-    const t = l.library.title, tr = tierOf(l.tier), d = dateParts(l.watched_at);
+    // shows: one season → its rating; several seasons / full series → your overall rating (My take)
+    const multi = isTv && (logSeasons(l)?.length ?? 2) !== 1;
+    const lTier = multi ? l.library.tier : l.tier, lScore = multi ? l.library.score : l.score;
+    const t = l.library.title, tr = tierOf(lTier), d = dateParts(l.watched_at);
     return (
       <div key={l.id} {...rowState('w', l.id)}>
         <button className="row-main" {...longPress(l.id)} onClick={() => !edit && setSheet(l.library)}>
-          <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={l.score} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
+          <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={lScore} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
             <span className="row-meta">{isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{settings.listMetascore && <Metascore v={t.metascore} size="sm" />}</span>
@@ -459,7 +466,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
               const rows = libMatches.map((it) => ({ it, lg: it.status !== 'backlog' ? latestFor(it.id) : undefined }));
               return view === 'list'
                 ? rows.map(({ it, lg }) => (lg ? watchedRow(lg) : backlogRow(it, 's')))
-                : <div className="grid">{rows.map(({ it, lg }) => (lg ? tile(lg.library, 'w', () => setSheet(lg.library), lg.id, lg.score, lg.tier, lg.watched_at, lg.rewatch, lg.dropped) : tile(it, it.up_next ? 'n' : 'r', () => setSheet(it), it.id)))}</div>;
+                : <div className="grid">{rows.map(({ it, lg }) => (lg ? tile(lg.library, 'w', () => setSheet(lg.library), lg.id, ...shownRating(lg), lg.watched_at, lg.rewatch, lg.dropped) : tile(it, it.up_next ? 'n' : 'r', () => setSheet(it), it.id)))}</div>;
             })()}
             <div className="sec-head mt"><span className="h2">{`Add a new ${noun}`}</span><span className="muted small">{searching ? 'Searching…' : fresh.length || ''}</span></div>
             {imdbInQuery && (
@@ -487,7 +494,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           <div className="stack">
             {customOrder && <div className="sec-head"><span className="muted small">Custom order</span><button className="link" onClick={async () => { await resetLogOrder(logs.map((l) => l.id)); refresh(); }}>Sort by date</button></div>}
             {watched.length === 0 && <div className="empty"><p><strong>Nothing watched yet.</strong></p><p className="muted">{isTv ? 'Finished seasons and series land here as journal entries.' : 'Movies you rate land here.'}</p></div>}
-            {view === 'list' ? watched.map((l) => watchedRow(l)) : <div className="grid">{watched.map((l) => tile(l.library, 'w', () => setSheet(l.library), l.id, l.score, l.tier, l.watched_at, l.rewatch, l.dropped))}</div>}
+            {view === 'list' ? watched.map((l) => watchedRow(l)) : <div className="grid">{watched.map((l) => tile(l.library, 'w', () => setSheet(l.library), l.id, ...shownRating(l), l.watched_at, l.rewatch, l.dropped))}</div>}
           </div>
         ) : (
           <div className="stack">

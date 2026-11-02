@@ -99,7 +99,7 @@ export async function loadItemLogs(libraryId: string): Promise<ItemLog[]> {
   return (data ?? []) as ItemLog[];
 }
 
-export async function updateItem(id: string, patch: Partial<{ status: Status; up_next: boolean; position: number; score: number | null; rewatch: boolean; overrides: Overrides; plan_from: number | null; plan_to: number | null; plan_seasons: number[] | null; run_started_at: string | null; started_on: string | null }>): Promise<void> {
+export async function updateItem(id: string, patch: Partial<{ status: Status; up_next: boolean; position: number; tier: string | null; score: number | null; rewatch: boolean; overrides: Overrides; plan_from: number | null; plan_to: number | null; plan_seasons: number[] | null; run_started_at: string | null; started_on: string | null }>): Promise<void> {
   const { error } = await supabase.from('library').update(patch).eq('id', id);
   if (error) throw error;
 }

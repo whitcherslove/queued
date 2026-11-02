@@ -131,10 +131,11 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const runLog = logs.find((l) => since && l.watched_at >= since) ?? null;
   const currentLog = isDone ? (runLog ?? last) : null;
   const planned = (isBack || isPlaying) && logs.length > 0;
-  const tr = currentLog ? tierOf(currentLog.tier) : null;
-  const origTr = tierOf(last?.tier ?? null);
-  const score = currentLog ? currentLog.score : item.score;
-  const tileScore = currentLog ? currentLog.score : (item.score ?? last?.score ?? null);
+  // My take = your overall rating of the show. It's not tied to season ratings or to journal entries.
+  const tr = tierOf(item.tier);
+  const origTr = tr;
+  const score = item.score;
+  const tileScore = item.score;
   const seasons = seasonsOf(t);
   const plan = planOf(item);
   const planLabel = scopeLabel(plan, t);
@@ -175,17 +176,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
     const l = logs.filter((x) => singleOf(x) === n).sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
     if (l) await updateLog(l.id, patch);
   };
-  const pickTier = (id: string) => guard(async () => {
-    if (currentLog) {
-      if (currentLog.tier === id) { await setLogRating(currentLog, { tier: null }); return; }
-      await setLogRating(currentLog, { tier: id });
-      await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done' });
-      return;
-    }
-    await insertLog(item.id, { ...logScope(plan), watched_at: new Date().toISOString(), tier: id, score: item.score, rewatch: !!item.rewatch } as Partial<ItemLog>);
-    await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done', up_next: false, rewatch: false, score: null });
-  })();
-  const setScore = (v: number | null) => guard(async () => { setPreview(undefined); if (currentLog) await setLogRating(currentLog, { score: v }); else await updateItem(item.id, { score: v }); })();
+  const pickTier = (id: string) => { const v = item.tier === id ? null : id; optimistic(() => setItem({ ...item, tier: v }), () => setItem({ ...item, tier: item.tier }), () => updateItem(item.id, { tier: v })); };
+  const setScore = (v: number | null) => { setPreview(undefined); const was = item.score; optimistic(() => setItem({ ...item, score: v }), () => setItem({ ...item, score: was }), () => updateItem(item.id, { score: v })); };
   const rewOn = currentLog ? currentLog.rewatch : !!item.rewatch;
   const optimistic = (apply: () => void, revert: () => void, save: () => Promise<void>) => {
     apply();
@@ -202,12 +194,12 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
     const aired = (eps.find((e) => e.season === n)?.episodes ?? []).filter((e) => e.air_date && e.air_date <= today);
     return aired.length > 0 && aired.every((e) => marks.some((m) => m.season === n && m.episode === e.n));
   };
-  const cancelPlan = guard(async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false, score: null }); });
+  const cancelPlan = guard(async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false }); });
   const doneScope = (list: number[] | null) => guard(async () => {
     const kind = scopeFor; setScopeFor('');
     const planPatch = { plan_seasons: list, plan_from: list ? list[0] : null, plan_to: list ? list[list.length - 1] : null };
     if (kind === 'plan') await updateItem(item.id, planPatch);
-    else await updateItem(item.id, { status: 'backlog', ...planPatch, run_started_at: new Date().toISOString(), rewatch: kind === 'rewatch', score: null, position: topPos, up_next: false });
+    else await updateItem(item.id, { status: 'backlog', ...planPatch, run_started_at: new Date().toISOString(), rewatch: kind === 'rewatch', position: topPos, up_next: false });
     setTakeOpen(false);
   })();
   const send = async (text: string) => {
@@ -275,7 +267,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           <h2>{t.title}</h2>
           <div className="row">{[showYears(t), seasons.length ? seasons.length + (seasons.length === 1 ? ' season' : ' seasons') + (data.number_of_episodes ? ' · ' + data.number_of_episodes + ' ep.' : '') : ''].filter(Boolean).map((c) => <span key={c} className="hero-chip">{c}</span>)}</div>
           {(data.network || data.status) && <span className="hero-sub">{[data.network, data.status].filter(Boolean).join(' · ')}</span>}
-          {origTr && (isDone || planned) && <span className="hero-tier" style={{ background: origTr.color, color: '#17161A' }}>{origTr.label}</span>}
+          {origTr && <span className="hero-tier" style={{ background: origTr.color, color: '#17161A' }}>{origTr.label}</span>}
         </div>
       </div>
 
@@ -309,20 +301,21 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             <span className="stack-sm grow"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
             <ChevBtn open={statusOpen} />
           </button>
-          {(canStart || canDrop) && (
+          {(canStart || confirmDrop) && (
             confirmDrop
               ? <div className="status-actions"><span className="small grow">Drop {t.title}? It disappears from your lists; entries stay in Watched.</span>
                   <button className="btn sm" onClick={() => setConfirmDrop(false)}>Cancel</button>
                   <button className="btn sm danger-fill" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
               : <div className="status-actions">
                   {canStart && <button className="big-start" onClick={() => act(() => startWatching(item, stSeasons))}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" /></svg>Start watching</button>}
-                  {canDrop && <button className="big-drop" onClick={() => setConfirmDrop(true)}>Drop</button>}
+
                 </div>
           )}
           {statusOpen && (
             <div className="status-more">
               {(isBack || isPlaying) && <button className="act-chip" onClick={() => setScopeFor('plan')}>Change seasons</button>}
               {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="act-chip" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>Move to Backlog</button>}
+              {canDrop && <button className="act-chip danger-chip" onClick={() => setConfirmDrop(true)}>Drop</button>}
               {isBack && <button className={'act-chip' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{item.up_next ? '✓ Up next' : 'Pin as Up next'}</button>}
               {st.state === 'dropped' && <button className="act-chip" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>Bring back</button>}
               {st.state === 'finished' && <span className="muted small">Ended and fully watched — use Rewatch in Viewings to watch it again.</span>}
@@ -344,7 +337,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           ) : (
             <div className="stack">
               <button className="take-head" aria-expanded="true" {...takePress.bind} onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
-              <span className="muted small">{currentLog ? (singleOf(currentLog) != null ? 'Your rating for ' + scopeShort(currentLog) + ' (same as in Seasons)' : 'Overall rating for ' + scopeShort(currentLog)) : 'Rating for ' + planLabel.split(' · ')[0] + (isDone ? '' : ' — picking one finishes it now')}</span>
+              <span className="muted small">{true ? 'Your overall rating of the show. Seasons are rated in Seasons.' : 'Rating for ' + planLabel.split(' · ')[0] + (isDone ? '' : ' — picking one finishes it now')}</span>
               <div className="chips">
                 {TIERS.map((x) => { const on = currentLog?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
               </div>
@@ -460,7 +453,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           {logs.map((l, i) => {
             // one season → shows that season's rating; several seasons → the entry's own Overall rating
             const sn1 = singleOf(l), sr = sn1 != null ? ratings.find((r) => r.season === sn1) : undefined;
-            const showTier = sr ? sr.tier : l.tier, showScore = sr ? sr.score : l.score;
+            const showTier = sn1 != null ? (sr ? sr.tier : l.tier) : item.tier, showScore = sn1 != null ? (sr ? sr.score : l.score) : item.score;
             const x = tierOf(showTier);
             if (delView === l.id) return (
               <div key={l.id} className="view-row"><span className="grow small strong">Delete this entry?</span><button className="btn sm" onClick={() => setDelView(null)}>Cancel</button>
@@ -471,7 +464,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                 <div className="view-row">
                   <button className="view-date grow" aria-expanded={editLog === l.id} onClick={() => setEditLog(editLog === l.id ? null : l.id)}>
                     <span className="small strong">{scopeShort(l)} · {longDate(l.watched_at)} {i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
-                    {sn1 == null && <span className="muted tiny">Overall rating</span>}
+                    {sn1 == null && <span className="muted tiny">Overall rating · from My take</span>}
                     <span className="muted tiny">{editLog === l.id ? 'Done' : 'Edit'}</span>
                   </button>
                   <button className={'rew-toggle' + (l.rewatch ? ' on' : '')} aria-pressed={l.rewatch} aria-label="Rewatch" onClick={guard(async () => { await updateLog(l.id, { rewatch: !l.rewatch }); })}>{EYE_PLUS}</button>
@@ -482,9 +475,9 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                 {editLog === l.id && (
                   <div className="view-edit">
                     <div className="score-row"><span className="small strong">Covers</span><span className="grow small">{scopeShort(l)}</span><button className="btn sm" onClick={() => setScopeLog(l)}>Change</button></div>
-                    <div className="chips">{TIERS.map((tt) => { const on = l.tier === tt.id; return <button key={tt.id} aria-pressed={on} className="chip sm" style={on ? { background: tt.color, borderColor: tt.color, color: '#17161A' } : undefined} onClick={guard(async () => { await setLogRating(l, { tier: on ? null : tt.id }); })}><span className="dot" style={{ background: on ? '#17161A' : tt.color }} />{tt.label}</button>; })}</div>
+                    {singleOf(l) != null ? <><div className="chips">{TIERS.map((tt) => { const on = l.tier === tt.id; return <button key={tt.id} aria-pressed={on} className="chip sm" style={on ? { background: tt.color, borderColor: tt.color, color: '#17161A' } : undefined} onClick={guard(async () => { await setLogRating(l, { tier: on ? null : tt.id }); })}><span className="dot" style={{ background: on ? '#17161A' : tt.color }} />{tt.label}</button>; })}</div>
                     <div className="score-row"><label htmlFor={'vs-' + l.id} className="small strong">Score</label>
-                      <ScoreSlider compact id={'vs-' + l.id} label="Score" value={l.score} scale={scale} onCommit={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); setLogRating(l, { score: st }).then(onChanged); }} /></div>
+                      <ScoreSlider compact id={'vs-' + l.id} label="Score" value={l.score} scale={scale} onCommit={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); setLogRating(l, { score: st }).then(onChanged); }} /></div></> : <span className="muted small">This entry covers several seasons — it shows your overall rating from My take.</span>}
                     <div className="score-row"><label htmlFor={'vd-' + l.id} className="small strong">Finished on</label>
                       <input id={'vd-' + l.id} type="date" className="date-input" value={localDay(l.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></div>
                   </div>

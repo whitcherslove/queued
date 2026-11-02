@@ -9,10 +9,13 @@ with single as (
    where (g.seasons is not null and array_length(g.seasons, 1) = 1)
       or (g.seasons is null and g.season_from is not null and g.season_from = coalesce(g.season_to, g.season_from))
 )
+-- a season can have several entries (rewatches): take the latest one per season
 insert into public.season_ratings (user_id, library_id, season, tier, score, rated_at)
-select l.user_id, s.library_id, s.season, s.tier, s.score, s.watched_at::date
+select distinct on (s.library_id, s.season)
+       l.user_id, s.library_id, s.season, s.tier, s.score, s.watched_at::date
   from single s join public.library l on l.id = s.library_id
  where s.season is not null
+ order by s.library_id, s.season, s.watched_at desc
 on conflict (library_id, season) do update
    set score = coalesce(public.season_ratings.score, excluded.score),
        tier = coalesce(public.season_ratings.tier, excluded.tier);

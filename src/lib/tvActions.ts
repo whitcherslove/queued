@@ -28,8 +28,8 @@ export async function applyEpisodeMarks(item: LibItem, t: Title, eps: SeasonEps[
   const since = item.run_started_at ?? '';  // the entry written in this run, if any
   const runLog = logs.find((l) => since && l.watched_at >= since) ?? null;
   if (p.complete && !isDone) {
-    await insertLog(item.id, { ...logScope(planOf(item)), watched_at: p.lastSeen ?? now, tier: null, score: item.score, rewatch: !!item.rewatch } as Partial<ItemLog>);
-    await updateItem(item.id, { status: 'done', up_next: false, rewatch: false, score: null });
+    await insertLog(item.id, { ...logScope(planOf(item)), watched_at: p.lastSeen ?? now, tier: null, score: null, rewatch: !!item.rewatch } as Partial<ItemLog>);
+    await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
     return { marks: next, finished: true };
   }
   if (!p.complete && isDone && runLog && !runLog.tier) {
