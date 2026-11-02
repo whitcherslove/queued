@@ -16,6 +16,14 @@ const GAME_TYPES = '(0,1,2,4,8,9,10,11)';
 const TYPE_NAME: Record<number, string> = { 0: 'game', 1: 'dlc', 2: 'expansion', 4: 'standalone', 8: 'remake', 9: 'remaster', 10: 'expanded', 11: 'port' };
 
 const env = (k: string) => Deno.env.get(k) ?? '';
+/** fetch that gives up after `ms` — a slow outside service must never make the app wait (RAWG sometimes hangs and returns 522) */
+async function fetchT(url: string, init: RequestInit = {}, ms = 6000): Promise<Response> {
+  const ac = new AbortController();
+  const timer = setTimeout(() => ac.abort(), ms);
+  try { return await fetch(url, { ...init, signal: ac.signal }); }
+  catch (e) { if ((e as Error).name === 'AbortError') return new Response(null, { status: 599, statusText: 'timeout' }); throw e; }
+  finally { clearTimeout(timer); }
+}
 const json = (body: unknown, status = 200) => Response.json(body, { status, headers: CORS });
 
 // ---------- IGDB (Twitch app token, cached in app_cache) ----------
@@ -30,7 +38,7 @@ async function igdbToken(db: any): Promise<string> {
 }
 async function igdb(db: any, endpoint: string, body: string): Promise<any[]> {
   const token = await igdbToken(db);
-  const r = await fetch('https://api.igdb.com/v4/' + endpoint, { method: 'POST', headers: { 'Client-ID': env('IGDB_CLIENT_ID'), Authorization: 'Bearer ' + token, Accept: 'application/json' }, body });
+  const r = await fetchT('https://api.igdb.com/v4/' + endpoint, { method: 'POST', headers: { 'Client-ID': env('IGDB_CLIENT_ID'), Authorization: 'Bearer ' + token, Accept: 'application/json' }, body }, 12000);
   if (!r.ok) throw new Error('IGDB ' + endpoint + ' ' + r.status + ': ' + (await r.text()).slice(0, 200));
   return await r.json();
 }
@@ -55,24 +63,28 @@ async function rawgGame(slug: string, name: string, year: number | null) {
   const key = env('RAWG_API_KEY'); if (!key) { rawgNote = 'RAWG_API_KEY is not set'; return null; }
   // IGDB slugs sometimes carry a "--1" suffix ("hades--1"); RAWG uses the plain one ("hades")
   const clean = slug.replace(/--\d+$/, '');
-  let r = await fetch(`https://api.rawg.io/api/games/${encodeURIComponent(clean)}?key=${key}`, { headers: RAWG_HEADERS });
+  let r = await fetchT(`https://api.rawg.io/api/games/${encodeURIComponent(clean)}?key=${key}`, { headers: RAWG_HEADERS });
   if (r.ok) { const j = await r.json(); if (j?.id) return j; }
   if (r.status === 401 || r.status === 403) { rawgNote = 'RAWG refused the key (' + r.status + ')'; return null; }
+  if (r.status >= 500) { rawgNote = r.status === 599 ? 'RAWG timed out' : 'RAWG is down (' + r.status + ')'; return null; }
   // fall back to a precise search by name (+ year)
-  r = await fetch(`https://api.rawg.io/api/games?key=${key}&search=${encodeURIComponent(name)}&search_precise=true&page_size=5`, { headers: RAWG_HEADERS });
+  r = await fetchT(`https://api.rawg.io/api/games?key=${key}&search=${encodeURIComponent(name)}&search_precise=true&page_size=5`, { headers: RAWG_HEADERS });
   if (!r.ok) { rawgNote = 'RAWG search ' + r.status; return null; }
   const list = (await r.json()).results ?? [];
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
   const hit = list.find((g: any) => norm(g.name) === norm(name) && (!year || String(g.released ?? '').startsWith(String(year)))) ?? list.find((g: any) => norm(g.name) === norm(name));
   if (!hit) { rawgNote = 'RAWG: no match for "' + name + '"'; return null; }
-  const d = await fetch(`https://api.rawg.io/api/games/${hit.id}?key=${key}`, { headers: RAWG_HEADERS });
+  const d = await fetchT(`https://api.rawg.io/api/games/${hit.id}?key=${key}`, { headers: RAWG_HEADERS });
   return d.ok ? await d.json() : hit;
 }
 
 // ---------- details → titles ----------
 async function details(db: any, igdbId: string, force = false) {
   const { data: cached } = await db.from('titles').select('*').eq('kind', 'game').eq('source', 'igdb').eq('source_id', igdbId).maybeSingle();
-  if (cached && !force && Date.now() - new Date(cached.fetched_at).getTime() < FRESH_DAYS * 864e5) return cached;
+  const age = cached ? Date.now() - new Date(cached.fetched_at).getTime() : Infinity;
+  // fresh for a week — but if RAWG was down last time, try again after a day
+  const rawgMissed = !!cached?.data?.rawg_note;
+  if (cached && !force && age < (rawgMissed ? 864e5 : FRESH_DAYS * 864e5)) return cached;
   const [g] = await igdb(db, 'games', `fields name,slug,summary,first_release_date,game_type,cover.image_id,artworks.image_id,screenshots.image_id,genres.name,themes.name,
     platforms.id,platforms.name,platforms.slug,platforms.abbreviation,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
     aggregated_rating,aggregated_rating_count,total_rating,parent_game.id,parent_game.name,dlcs.id,dlcs.name,dlcs.cover.image_id,dlcs.first_release_date,
@@ -120,7 +132,7 @@ async function details(db: any, igdbId: string, force = false) {
 // ---------- images: every cover / background candidate for "Edit details" ----------
 async function tgdbBoxart(name: string, platformName: string | null) {
   const key = env('TGDB_API_KEY'); if (!key) return [];
-  const r = await fetch(`https://api.thegamesdb.net/v1.1/Games/ByGameName?apikey=${key}&name=${encodeURIComponent(name)}&include=boxart,platform`);
+  const r = await fetchT(`https://api.thegamesdb.net/v1.1/Games/ByGameName?apikey=${key}&name=${encodeURIComponent(name)}&include=boxart,platform`);
   if (!r.ok) return [];
   const j = await r.json();
   const games: any[] = j.data?.games ?? [];
@@ -140,10 +152,10 @@ async function tgdbBoxart(name: string, platformName: string | null) {
 async function sgdbGrids(name: string) {
   const key = env('SGDB_API_KEY'); if (!key) return [];
   const h = { Authorization: 'Bearer ' + key };
-  const s = await fetch(`https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(name)}`, { headers: h });
+  const s = await fetchT(`https://www.steamgriddb.com/api/v2/search/autocomplete/${encodeURIComponent(name)}`, { headers: h });
   if (!s.ok) return [];
   const id = (await s.json()).data?.[0]?.id; if (!id) return [];
-  const g = await fetch(`https://www.steamgriddb.com/api/v2/grids/game/${id}?dimensions=600x900&types=static`, { headers: h });
+  const g = await fetchT(`https://www.steamgriddb.com/api/v2/grids/game/${id}?dimensions=600x900&types=static`, { headers: h });
   if (!g.ok) return [];
   return ((await g.json()).data ?? []).slice(0, 10).map((x: any) => ({ url: x.url, label: 'SteamGridDB' }));
 }
@@ -152,8 +164,8 @@ async function images(db: any, titleId: string, platformName: string | null) {
   if (!t) throw new Error('Title not found');
   const [g] = await igdb(db, 'games', `fields cover.image_id,artworks.image_id,screenshots.image_id; where id = ${Number(t.source_id)};`);
   const rawgKey = env('RAWG_API_KEY');
-  const rawg = rawgKey && t.data?.rawg_slug ? await fetch(`https://api.rawg.io/api/games/${t.data.rawg_slug}/screenshots?key=${rawgKey}`, { headers: RAWG_HEADERS }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
-  const rawgBg = rawgKey && t.data?.rawg_slug ? await fetch(`https://api.rawg.io/api/games/${t.data.rawg_slug}?key=${rawgKey}`, { headers: RAWG_HEADERS }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
+  const rawg = rawgKey && t.data?.rawg_slug ? await fetchT(`https://api.rawg.io/api/games/${t.data.rawg_slug}/screenshots?key=${rawgKey}`, { headers: RAWG_HEADERS }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
+  const rawgBg = rawgKey && t.data?.rawg_slug ? await fetchT(`https://api.rawg.io/api/games/${t.data.rawg_slug}?key=${rawgKey}`, { headers: RAWG_HEADERS }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
   const [tgdb, sgdb] = await Promise.all([tgdbBoxart(t.title, platformName).catch(() => []), sgdbGrids(t.title).catch(() => [])]);
   const posters = [
     ...(g?.cover?.image_id ? [{ url: IGDB_IMG(g.cover.image_id, 'cover_big'), label: 'IGDB' }] : []),
