@@ -232,3 +232,20 @@ export async function gameImages(titleId: string, platform?: string): Promise<{ 
   if (error) throw error;
   return data ?? { posters: [], backdrops: [] };
 }
+
+/** Your copies of these IGDB games (any game section), for the DLC list. */
+export async function findOwnedGames(sourceIds: string[]): Promise<Record<string, Owned>> {
+  if (!sourceIds.length) return {};
+  const { data } = await supabase.from('library').select('id, status, up_next, section, title:titles!inner(source_id, kind)').in('section', ['console', 'pc', 'retro']).eq('titles.kind', 'game').in('titles.source_id', sourceIds);
+  const out: Record<string, Owned> = {};
+  (data ?? []).forEach((r: any) => { out[r.title.source_id] = { id: r.id, status: r.status, up_next: r.up_next }; });
+  return out;
+}
+
+/** After the retro list changes: move each game to the section its platform now belongs to (Console ↔ Retro). */
+export async function resyncGameSections(sectionFor: (platform: string) => string): Promise<number> {
+  const { data } = await supabase.from('library').select('id, section, platform').in('section', ['console', 'retro']).not('platform', 'is', null);
+  const moves = (data ?? []).filter((r: any) => sectionFor(r.platform) !== r.section);
+  await Promise.all(moves.map((r: any) => supabase.from('library').update({ section: sectionFor(r.platform) }).eq('id', r.id)));
+  return moves.length;
+}

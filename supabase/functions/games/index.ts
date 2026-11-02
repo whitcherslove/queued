@@ -146,7 +146,7 @@ async function tgdbBoxart(name: string, platformName: string | null) {
     (art[String(g.id)] ?? []).filter((a) => a.side === 'front').forEach((a) => out.push({ url: base + a.filename, label: 'TheGamesDB · ' + pName, platform: pName }));
   });
   // the chosen platform's boxes first
-  if (platformName) out.sort((a, b) => Number(norm(b.platform).includes(norm(platformName))) - Number(norm(a.platform).includes(norm(platformName))));
+  if (platformName) out.sort((a, b) => Number(norm(b.platform).endsWith(norm(platformName))) - Number(norm(a.platform).endsWith(norm(platformName))));
   return out.slice(0, 12);
 }
 async function sgdbGrids(name: string) {

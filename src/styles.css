@@ -760,3 +760,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .state-card[data-state="playing"] { --st: #4C9BEA; }
 .state-pill[data-state="playing"] { background: color-mix(in srgb, #4C9BEA 22%, transparent); color: #4C9BEA; }
 .ttb-big { font-size: 22px; font-weight: 800; line-height: 48px; }
+
+.credits a { color: inherit; text-decoration: underline; }

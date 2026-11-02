@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Section, LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { localDay, topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
-import { ensureGame, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
+import { ensureGame, gameImages, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
 import { epLabel, epRuntime, isEnded, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, showState, todayIso, type ShowState } from '../lib/tv';
@@ -17,7 +17,7 @@ import { ChevBtn, IconMenu, IconSearch } from '../components/Icons';
 import { DROPPED_COLOR, TIERS } from '../lib/scores';
 import { movieState } from '../lib/movie';
 import GameAddSheet, { type GameAddMode } from '../components/GameAddSheet';
-import { DEFAULT_RETRO, platformLabel, sectionOf, type GameSection } from '../lib/platforms';
+import { DEFAULT_RETRO, keyOfIgdb, platformLabel, sectionOf, type GameSection, type IgdbPlatform } from '../lib/platforms';
 
 type GameItem = LibItem & { platform?: string | null; coop?: boolean };
 type GameLog = LogRow & { platform?: string | null; coop?: boolean };
@@ -189,6 +189,25 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie', g
   const offerAdd = async (t: Title) => {
     if (!isTv && t.release_date && t.release_date > today) { await addToBacklog(t.id, 'movies', topPosition(items)); await refresh(); return; }
     setAddChoice(t);
+  };
+  /**
+   * After adding a game: put the box art of the chosen platform on it (in the background).
+   * Console / Retro: TheGamesDB box for that platform; PC: SteamGridDB cover. Otherwise the IGDB cover stays.
+   */
+  const pickBoxArt = (t: Title, libId: string, platform: string, dest: string) => {
+    const igdbPlats = ((t.data as { platforms?: IgdbPlatform[] } | null)?.platforms ?? []);
+    // TheGamesDB names some platforms differently from IGDB
+    const TGDB: Record<string, string> = { 'psvr2-ps5': 'Playstation 5', 'xbox-series': 'Xbox Series X', snes: 'Super Nintendo (SNES)', nes: 'Nintendo Entertainment System (NES)', genesis: 'Sega Genesis', 'master-system': 'Sega Master System', gb: 'Nintendo Game Boy', gbc: 'Nintendo Game Boy Color', ds: 'Nintendo DS', '3ds': 'Nintendo 3DS', turbografx: 'TurboGrafx 16', 'neo-geo': 'Neo Geo' };
+    const base = TGDB[platform] ?? (platform === 'steam-deck' || platform === 'psvr2-pc' ? 'PC' : igdbPlats.find((p) => keyOfIgdb(p) === platform)?.name ?? platformLabel(platform));
+    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '').replace('microsoftwindows', '');
+    gameImages(t.id, base).then(async ({ posters }) => {
+      const pick = dest === 'pc'
+        ? posters.find((x) => x.label === 'SteamGridDB')
+        : posters.find((x) => x.label.startsWith('TheGamesDB') && norm(x.label).endsWith(norm(base)));
+      if (!pick) return;
+      await updateItem(libId, { overrides: { poster_url: pick.url } } as never);
+      refresh();
+    }).catch(() => undefined);
   };
   const imdbInQuery = (q.match(/tt\d{6,10}/) ?? [null])[0];
   const addByImdb = async () => {
@@ -646,6 +665,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie', g
         try {
           const id = await addToBacklog(t.id, dest, topPosition(items), { platform, coop, ...(mode === 'playing' ? { status: 'playing', started_on: today, run_started_at: new Date().toISOString() } : {}) });
           setQ(''); await refresh();
+          pickBoxArt(t, id, platform, dest);
           if (dest !== gameSection) setNotice('Added to ' + { console: 'Console games', pc: 'PC games', retro: 'Retro games' }[dest] + '.');
           if (mode === 'past') { setCardSeq([id]); setCardTake(false); setCardEnter(null); setCardPast(true); setCardId(id); }
         } catch { setError('Couldn’t add “' + t.title + '”.'); }

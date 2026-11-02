@@ -1,3 +1,6 @@
+import { ALL_PLATFORMS, DEFAULT_RETRO, sectionOf } from '../lib/platforms';
+import { resyncGameSections } from '../lib/remote';
+import { ChevBtn } from '../components/Icons';
 import { ChangeEvent, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { ACCENTS, Settings } from '../lib/theme';
@@ -13,6 +16,9 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
   const [error, setError] = useState('');
   const s = profile.settings;
   const set = (patch: Partial<Settings>) => onSettings({ ...s, ...patch });
+  const [retroOpen, setRetroOpen] = useState(false);
+  const [retroDraft, setRetroDraft] = useState<string[] | null>(null);
+  const [retroNote, setRetroNote] = useState('');
 
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -63,6 +69,27 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             <span className="stack-sm grow"><strong>Metascore in Watched</strong><span className="muted small">Metascore in the Watched list and grid. Backlog always shows it</span></span>
             <span className={'switch' + (s.listMetascore ? ' on' : '')}><span /></span>
           </button>
+          {/* which platforms count as Retro (the rest of the consoles go to Console games) */}
+          <button className="switch-row flat" onClick={() => setRetroOpen(!retroOpen)} aria-expanded={retroOpen}>
+            <span className="stack-sm grow"><strong>Retro platforms</strong><span className="muted small">{(s.retroPlatforms ?? DEFAULT_RETRO).length} platforms go to Retro games — tap to change</span></span>
+            <ChevBtn open={retroOpen} size={30} />
+          </button>
+          {retroOpen && (
+            <div className="stack-sm">
+              <div className="plat-grid">
+                {ALL_PLATFORMS.filter((p) => p.section !== 'pc' && !p.key.startsWith('psvr2')).map((p) => {
+                  const list = retroDraft ?? s.retroPlatforms ?? DEFAULT_RETRO, on = list.includes(p.key);
+                  return <button key={p.key} className={'chip plat-chip' + (on ? ' on' : '')} aria-pressed={on}
+                    onClick={() => setRetroDraft((d) => { const cur = d ?? list; return on ? cur.filter((k) => k !== p.key) : [...cur, p.key]; })}>{p.label}</button>;
+                })}
+              </div>
+              {retroDraft && <div className="row nowrap">
+                <button className="btn grow" onClick={() => setRetroDraft(null)}>Cancel</button>
+                <button className="btn primary grow" onClick={async () => { const list = retroDraft; setRetroDraft(null); set({ retroPlatforms: list }); const n = await resyncGameSections((k) => sectionOf(k, list)); setRetroNote(n ? n + (n === 1 ? ' game moved.' : ' games moved.') : 'Saved.'); }}>Save</button>
+              </div>}
+              {retroNote && <span className="muted small">{retroNote}</span>}
+            </div>
+          )}
           <span className="muted small">Accent</span>
           <div className="row">
             {ACCENTS.map((a) => (
@@ -73,6 +100,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
           </div>
         </section>
 
+        <p className="muted small credits">Game data from <a href="https://www.igdb.com" target="_blank" rel="noopener">IGDB</a> · <a href="https://rawg.io" target="_blank" rel="noopener">RAWG</a> · <a href="https://thegamesdb.net" target="_blank" rel="noopener">TheGamesDB</a> · <a href="https://www.steamgriddb.com" target="_blank" rel="noopener">SteamGridDB</a>. Movies and shows from TMDB.</p>
         <ImportCard email={profile.email} />
 
         <button className="btn danger" onClick={() => supabase.auth.signOut()}>Sign out</button>

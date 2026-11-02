@@ -5,7 +5,7 @@ import { DROPPED_COLOR, PICK_TIERS, TIERS, displayScore, imdbColor, metascoreCol
 import { diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import { shortCountries } from '../lib/logic';
 import {
-  type Owned, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
+  type Owned, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import Overview from '../components/Overview';
@@ -41,6 +41,16 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const [confirmDrop, setConfirmDrop] = useState(false);
   const [justWatched, setJustWatched] = useState(false);
   const [collOpen, setCollOpen] = useState(true);
+  const [ownedGames, setOwnedGames] = useState<Record<string, Owned>>({});
+  const [addingDlc, setAddingDlc] = useState<string | null>(null);
+  // which DLCs / main game you already have (games only), once the full game data is here
+  const dlcKey = game && item?.title?.data ? JSON.stringify([((item.title.data as { dlcs?: { id: string }[] }).dlcs ?? []).map((d) => d.id), (item.title.data as { parent?: { id: string } | null }).parent?.id ?? null]) : '';
+  useEffect(() => {
+    if (!dlcKey) return;
+    const [ids, parent] = JSON.parse(dlcKey) as [string[], string | null];
+    const all = parent ? [...ids, parent] : ids;
+    if (all.length) findOwnedGames(all).then(setOwnedGames).catch(() => undefined);
+  }, [dlcKey]);
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
   const [quick, setQuick] = useState<null | 'metascore' | 'imdb_rating'>(null);
@@ -179,6 +189,20 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
     </>;
   };
   const sectionOfKey = (k: string) => sectionOf(k, settings.retroPlatforms ?? undefined);
+  // DLC & expansions of a game (or the main game of a DLC) — owned ones open, the rest can be added with the same platform
+  const gameDlcs = (game ? ((t.data as { dlcs?: { id: string; name: string; kind: string; cover: string | null; release_date: string | null }[] } | null)?.dlcs ?? []) : []);
+  const gameParent = game ? ((t.data as { parent?: { id: string; name: string } | null } | null)?.parent ?? null) : null;
+  const addDlc = async (igdbId: string) => {
+    setAddingDlc(igdbId);
+    try {
+      const dt = await ensureGame(igdbId);
+      const plat = gItem.platform ?? null;
+      const newId = await addToBacklog(dt.id, (plat ? sectionOf(plat, settings.retroPlatforms ?? undefined) : item.section) as never, backlogCount, { platform: plat, coop: false });
+      setOwnedGames((o) => ({ ...o, [igdbId]: { id: newId, status: 'backlog', up_next: false } }));
+      onChanged();
+    } catch { setError('Couldn’t add it. Try again in a moment.'); }
+    setAddingDlc(null);
+  };
   /** games: Backlog → Playing on the chosen platform */
   const startPlaying = guard(async () => { await updateItem(item.id, { status: 'playing', started_on: localDay(new Date().toISOString()), run_started_at: new Date().toISOString(), up_next: false } as never); });
   /** "Watched": logs the viewing with today's date (it shows up in Watched) and opens My take to rate it */
@@ -356,6 +380,27 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           {!game && cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
         </section>
 
+        {game && (gameDlcs.length > 0 || gameParent) && (
+          <section className={'card stack-sm' + (collPress.pressed ? ' pressed' : '')}>
+            <button className="take-head" aria-expanded={collOpen} {...collPress.bind} onClick={() => setCollOpen(!collOpen)}>
+              <span className="h2 grow">{gameParent ? 'Main game' : 'DLC & expansions'}</span>
+              <span className="muted small">{gameParent ? '' : gameDlcs.length}</span><ChevBtn open={collOpen} />
+            </button>
+            {collOpen && <div className="stack-sm">
+              {(gameParent ? [{ id: gameParent.id, name: gameParent.name, kind: 'game', cover: null, release_date: null }] : gameDlcs).map((d) => {
+                const o = ownedGames[d.id];
+                return (
+                  <div key={d.id} className="coll-row">
+                    <button className="coll-title" disabled={!o} onClick={() => o && onOpenOther(o.id)}>{d.name}{d.kind !== 'game' && <> <span className="type-pill">{d.kind === 'dlc' ? 'DLC' : d.kind === 'expansion' ? 'Expansion' : 'Standalone'}</span></>} <span className="muted">{d.release_date ? d.release_date.slice(0, 4) : ''}</span></button>
+                    {o ? <span className={'pill status' + (o.status === 'backlog' ? '' : ' accent')}>{o.status === 'backlog' ? (o.up_next ? 'Up next' : 'Backlog') : o.status === 'playing' ? 'Playing' : o.status === 'dropped' ? 'Dropped' : 'Finished'}</span>
+                      : <button className="add-btn" aria-label={'Add ' + d.name} disabled={addingDlc === d.id} onClick={() => addDlc(d.id)}>{addingDlc === d.id ? '…' : '+'}</button>}
+                  </div>
+                );
+              })}
+            </div>}
+          </section>
+        )}
+
         {!game && coll && coll.parts?.length > 1 && (
           <section className={'card stack-sm' + (collPress.pressed ? ' pressed' : '')}>
             <button className="take-head" aria-expanded={collOpen} {...collPress.bind} onClick={() => setCollOpen(!collOpen)}><span className="h2 grow">{coll.name}</span><span className="muted small">{coll.parts.findIndex((p) => p.sourceId === item.title.source_id) + 1} of {coll.parts.length}</span><ChevBtn open={collOpen} /></button>
@@ -404,7 +449,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
             {logs.map((l, i) => {
               const x = tierOf(l.tier);
               return delView === l.id ? (
-                <div key={l.id} className="view-row"><span className="grow small strong">Delete the {longDate(l.watched_at)} viewing?</span>
+                <div key={l.id} className="view-row"><span className="grow small strong">Delete the {longDate(l.watched_at)} {game ? 'playthrough' : 'viewing'}?</span>
                   <button className="btn sm" onClick={() => setDelView(null)}>Cancel</button>
                   <button className="btn sm danger-fill" onClick={guard(async () => { await deleteLog(l.id); const rem = logs.filter((y) => y.id !== l.id); if (!planned) await updateItem(item.id, { status: rem.length ? (latestLog(rem)!.tier === 'dropped' ? 'dropped' : 'done') : 'backlog' }); setDelView(null); })}>Delete</button></div>
               ) : (
@@ -412,6 +457,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 <div className="view-row">
                   <button className="view-date grow" aria-expanded={editLog === l.id} onClick={() => setEditLog(editLog === l.id ? null : l.id)}>
                     <span className="small strong">{longDate(l.watched_at)} {i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
+                    {game && <span className="muted tiny">{platformLabel((l as typeof l & { platform?: string | null }).platform ?? gItem.platform)}{(l as typeof l & { coop?: boolean }).coop ? ' · co-op' : ''}</span>}
                     <span className="muted tiny">{editLog === l.id ? 'Done' : 'Edit'}</span>
                   </button>
                   <button className={'rew-toggle' + (l.rewatch ? ' on' : '')} aria-pressed={l.rewatch} aria-label={l.rewatch ? 'Marked as rewatch — tap to unmark' : 'Mark this viewing as a rewatch'} onClick={guard(async () => { await updateLog(l.id, { rewatch: !l.rewatch }); })}>{EYE_PLUS}</button>
@@ -478,14 +524,14 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           </div>
         </div>
       )}
-      {pastOpen && <PastMovieSheet t={t} scale={scale} onCancel={() => setPastOpen(false)}
+      {pastOpen && <PastMovieSheet t={t} scale={scale} game={game} onCancel={() => setPastOpen(false)}
         onSave={(at, tier, sc) => { setPastOpen(false); guard(async () => {
           await insertLog(item.id, { watched_at: at, tier, score: sc, rewatch: false });
           // a backlog movie you'd already seen counts as watched now (unless it's a planned rewatch)
           if (item.status === 'backlog' && !item.rewatch) await updateItem(item.id, { status: 'done', up_next: false });
         })(); }} />}
       {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
-      {editOpen && <EditDetails item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }}
+      {editOpen && <EditDetails kind={game ? 'game' : 'movie'} item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }}
         onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
     </div>
   );
@@ -513,7 +559,7 @@ export function QuickNumber({ media = 'movie', kind, title, item, onClose, onSav
   );
 }
 
-export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' }: { item: LibItem; onClose: () => void; onSaved: () => void; onDeleted: () => void; kind?: 'movie' | 'tv' }) {
+export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' }: { item: LibItem; onClose: () => void; onSaved: () => void; onDeleted: () => void; kind?: 'movie' | 'tv' | 'game' }) {
   const m = merged(item.title, item.overrides);
   const [f, setF] = useState({
     title: m.title, release_date: m.release_date ?? '', runtime: m.runtime ? String(m.runtime) : '', directors: m.directors.join(', '),
@@ -528,7 +574,15 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
   const [showStatus, setShowStatus] = useState<string>((item.overrides as { status?: string })?.status ?? '');
   const endedNow = ['Ended', 'Canceled'].includes(showStatus || tmdbStatus);
   const isTmdb = item.title.source === 'tmdb';
-  const openPicker = async (k: 'poster' | 'backdrop') => { setPicker(picker === k ? '' : k); if (!pics) setPics(await loadImages(item.title.source_id, kind)); };
+  const openPicker = async (k: 'poster' | 'backdrop') => {
+    setPicker(picker === k ? '' : k);
+    if (pics) return;
+    if (kind === 'game') {
+      // box art for the platform you play on first (TheGamesDB / SteamGridDB), then IGDB; backgrounds RAWG first, then IGDB
+      const g = await gameImages(item.title.id, platformLabel((item as LibItem & { platform?: string | null }).platform) || undefined).catch(() => ({ posters: [], backdrops: [] }));
+      setPics({ posters: g.posters.map((x) => ({ thumb: x.url, full: x.url, label: x.label })), backdrops: g.backdrops.map((x) => ({ thumb: x.url, full: x.url, label: x.label })) } as never);
+    } else setPics(await loadImages(item.title.source_id, kind));
+  };
   const upload = (k: 'poster' | 'backdrop') => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
     setUploading(k); setNote('');
@@ -569,7 +623,7 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
     const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im, backdrop_url: backdrop, poster_url: poster, ...(kind === 'tv' && showStatus ? { status: showStatus } : {}) };
     setBusy(true); await updateItem(item.id, { overrides: { ...diffOverrides(item.title, edited), ...(kind === 'tv' && showStatus && showStatus !== tmdbStatus ? { status: showStatus } : {}) } }); setBusy(false); onSaved();
   };
-  const refresh = async () => { setBusy(true); try { if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle(kind, item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
+  const refresh = async () => { setBusy(true); try { if (kind === 'game') await ensureGame(item.title.source_id, true); else if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle(kind, item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
   const clearEdits = async () => { await updateItem(item.id, { overrides: {} }); onSaved(); };
 
   const field = (k: keyof typeof f, label: string, mode: 'text' | 'numeric' | 'decimal', ph: string) => (
@@ -592,22 +646,22 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
         )}
         {field('title', 'Title', 'text', 'Title')}
         {field('release_date', kind === 'tv' ? 'First aired (YYYY-MM-DD)' : 'Release date (YYYY-MM-DD)', 'numeric', '2019-11-22')}
-        {field('runtime', kind === 'tv' ? 'Episode runtime, minutes' : 'Runtime, minutes', 'numeric', '103')}
-        {field('directors', kind === 'tv' ? 'Created by' : 'Director', 'text', 'Name, Name')}
+        {kind !== 'game' && field('runtime', kind === 'tv' ? 'Episode runtime, minutes' : 'Runtime, minutes', 'numeric', '103')}
+        {field('directors', kind === 'tv' ? 'Created by' : kind === 'game' ? 'Developer' : 'Director', 'text', 'Name, Name')}
         {field('genres', 'Genres', 'text', 'Drama, Comedy')}
         {field('metascore', 'Metascore (0–100)', 'numeric', '64')}
-        {field('imdb_rating', 'IMDb (0–10)', 'decimal', '6.8')}
+        {kind !== 'game' && field('imdb_rating', 'IMDb (0–10)', 'decimal', '6.8')}
         {Object.keys(item.overrides ?? {}).length > 0 && <button className="link left" onClick={clearEdits}>Clear my edits</button>}
         {confirm
           ? <div className="row"><span className="small">Delete “{m.title}” and its viewings?</span><button className="btn sm" onClick={() => setConfirm(false)}>Cancel</button><button className="btn sm danger-fill" onClick={onDeleted}>Delete</button></div>
-          : <button className="btn danger" onClick={() => setConfirm(true)}>{kind === 'tv' ? 'Delete show' : 'Delete movie'}</button>}
+          : <button className="btn danger" onClick={() => setConfirm(true)}>{kind === 'tv' ? 'Delete show' : kind === 'game' ? 'Delete game' : 'Delete movie'}</button>}
       </div>
     </div>
   );
 }
 
 /** "Add past": a viewing from before you started tracking. Default date = release date. */
-function PastMovieSheet({ t, scale, onCancel, onSave }: { t: Title; scale: 5 | 10; onCancel: () => void; onSave: (at: string, tier: string | null, score: number | null) => void }) {
+function PastMovieSheet({ t, scale, game, onCancel, onSave }: { t: Title; scale: 5 | 10; game?: boolean; onCancel: () => void; onSave: (at: string, tier: string | null, score: number | null) => void }) {
   const def = t.release_date ?? (t.year ? t.year + '-12-31' : null);
   const [day, setDay] = useState<string>(def ?? localDay(new Date().toISOString()));
   const touched = useRef(false);
@@ -617,10 +671,10 @@ function PastMovieSheet({ t, scale, onCancel, onSave }: { t: Title; scale: 5 | 1
   return (
     <div className="sheet-wrap">
       <button className="sheet-scrim" aria-label="Close" onClick={onCancel} />
-      <div className="sheet" role="dialog" aria-label="Past viewing">
-        <div className="stack-sm"><strong className="sheet-title">{t.title}</strong><span className="muted small">A viewing from before you started tracking</span></div>
-        <div className="score-row"><label htmlFor="past-day" className="strong">Watched on</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => { if (e.target.value) { touched.current = true; setDay(e.target.value); } }} /></div>
-        <span className="muted small">Don’t remember? Keep the release date — the entry still lands in the right place in Watched.</span>
+      <div className="sheet" role="dialog" aria-label={game ? 'Past playthrough' : 'Past viewing'}>
+        <div className="stack-sm"><strong className="sheet-title">{t.title}</strong><span className="muted small">{game ? 'A playthrough from before you started tracking' : 'A viewing from before you started tracking'}</span></div>
+        <div className="score-row"><label htmlFor="past-day" className="strong">{game ? 'Finished on' : 'Watched on'}</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => { if (e.target.value) { touched.current = true; setDay(e.target.value); } }} /></div>
+        <span className="muted small">{'Don’t remember? Keep the release date — the entry still lands in the right place in ' + (game ? 'Finished' : 'Watched') + '.'}</span>
         <RatingTiles value={tier} onPick={setTier} />
         <ScoreStepper size="sm" label="Score" value={score} scale={scale} onChange={setScore} />
         <div className="row nowrap"><button className="btn grow" onClick={onCancel}>Cancel</button><button className="btn primary grow" onClick={() => onSave(new Date(day + 'T20:00:00').toISOString(), tier, score)}>Add to Watched</button></div>
