@@ -38,14 +38,19 @@ Deno.serve(async (req) => {
 
     const context = [
       `Title: ${t.title}${t.year ? ` (${t.year})` : ''}`,
-      t.directors?.length ? `Director: ${t.directors.join(', ')}` : '',
+      t.kind === 'game' ? 'Type: video game' : t.kind === 'tv' ? 'Type: TV show' : 'Type: movie',
+      t.directors?.length ? `${t.kind === 'game' ? 'Developer' : t.kind === 'tv' ? 'Created by' : 'Director'}: ${t.directors.join(', ')}` : '',
+      t.kind === 'game' && t.data?.platforms?.length ? `Platforms: ${t.data.platforms.map((p: any) => p.name).join(', ')}` : '',
+      t.kind === 'game' && t.data?.ttb?.main ? `Time to beat (story): about ${t.data.ttb.main} h` : '',
       t.genres?.length ? `Genres: ${t.genres.join(', ')}` : '',
       t.overview ? `Overview: ${t.overview}` : ''
     ].filter(Boolean).join('\n');
 
     const body = {
       systemInstruction: { parts: [{ text:
-        'You are a friendly film and TV expert inside a personal watch-log app. Answer questions about the title below. ' +
+        (t.kind === 'game'
+          ? 'You are a friendly video game expert inside a personal backlog app. Answer questions about the game below. '
+          : 'You are a friendly film and TV expert inside a personal watch-log app. Answer questions about the title below. ') +
         'Reply in the same language as the question, briefly (2–6 sentences) unless asked for more. ' +
         'Use web search for facts you are not sure about. Do not reveal major plot twists unless the user clearly asks about the plot or ending.\n\n' + context } ] },
       contents: [...(history ?? []).map((h: any) => ({ role: h.role, parts: [{ text: h.content }] })), { role: 'user', parts: [{ text: q }] }],
