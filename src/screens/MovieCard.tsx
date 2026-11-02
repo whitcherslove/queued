@@ -249,8 +249,8 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
               {inBacklog && <button className={'act-chip' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{item.up_next ? '✓ Up next' : 'Pin as Up next'}</button>}
               {last && !planned && <button className={'act-chip' + (last.dropped ? ' on' : '')} aria-pressed={!!last.dropped} onClick={toggleDidntFinish}>{last.dropped ? '✓ Didn’t finish' : 'Mark as didn’t finish'}</button>}
               {mState === 'dropped' && <button className="act-chip" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
-              {inBacklog && mState !== 'comingSoon' && <button className="act-chip danger-chip" onClick={() => setConfirmDrop(true)}>Drop</button>}
               {inBacklog && <button className="act-chip" onClick={guard(async () => { await updateItem(item.id, { status: 'dropped', up_next: false }); })}>Not interested</button>}
+              {inBacklog && mState !== 'comingSoon' && <button className="act-chip danger-chip" onClick={() => setConfirmDrop(true)}>Drop</button>}
             </div>
           )}
         </section>
