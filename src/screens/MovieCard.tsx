@@ -243,13 +243,13 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
             : <div className="status-actions">
                 <button className="big-start" onClick={() => { setTakeOpen(true); window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60); }}>
                   <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>I watched it</button>
-                <button className="big-drop" onClick={() => setConfirmDrop(true)}>Drop</button>
               </div>)}
           {statusOpen && (
             <div className="status-more">
               {inBacklog && <button className={'act-chip' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{item.up_next ? '✓ Up next' : 'Pin as Up next'}</button>}
               {last && !planned && <button className={'act-chip' + (last.dropped ? ' on' : '')} aria-pressed={!!last.dropped} onClick={toggleDidntFinish}>{last.dropped ? '✓ Didn’t finish' : 'Mark as didn’t finish'}</button>}
               {mState === 'dropped' && <button className="act-chip" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
+              {inBacklog && mState !== 'comingSoon' && <button className="act-chip danger-chip" onClick={() => setConfirmDrop(true)}>Drop</button>}
               {inBacklog && <button className="act-chip" onClick={guard(async () => { await updateItem(item.id, { status: 'dropped', up_next: false }); })}>Not interested</button>}
             </div>
           )}

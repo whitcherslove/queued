@@ -339,7 +339,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               <button className="take-head" aria-expanded="true" {...takePress.bind} onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
               <span className="muted small">{true ? 'Your overall rating of the show. Seasons are rated in Seasons.' : 'Rating for ' + planLabel.split(' · ')[0] + (isDone ? '' : ' — picking one finishes it now')}</span>
               <div className="chips">
-                {TIERS.map((x) => { const on = currentLog?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
+                {TIERS.map((x) => { const on = item.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
               </div>
               <div className="divider" />
               <div className="score-row"><label htmlFor="score" className="strong">My score</label>{score !== null && <button className="link" onClick={() => setScore(null)}>Clear</button>}<ScoreRing value={preview !== undefined ? preview : score} scale={scale} size={46} fontSize={16} /></div>
