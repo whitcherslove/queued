@@ -112,3 +112,16 @@ describe('status override', () => {
     expect((merged(base, {}).data as { status: string }).status).toBe('Returning Series');
   });
 });
+
+import { movieState } from '../src/lib/movie';
+describe('movie state', () => {
+  const t = (d: string | null) => ({ release_date: d, year: d ? +d.slice(0, 4) : null });
+  it('backlog sections and watched states', () => {
+    expect(movieState({ status: 'backlog', up_next: true }, t('2001-01-01'), null, '2026-10-30')).toBe('upNext');
+    expect(movieState({ status: 'backlog', up_next: false }, t('2026-12-18'), null, '2026-10-30')).toBe('comingSoon');
+    expect(movieState({ status: 'backlog', up_next: false }, t('2026-03-01'), null, '2026-10-30')).toBe('outNow');
+    expect(movieState({ status: 'backlog', up_next: false }, t('2019-03-01'), null, '2026-10-30')).toBe('backlog');
+    expect(movieState({ status: 'done', up_next: false }, t('2019-03-01'), { dropped: true })).toBe('didntFinish');
+    expect(movieState({ status: 'dropped', up_next: false }, t('2019-03-01'), null)).toBe('dropped');
+  });
+});

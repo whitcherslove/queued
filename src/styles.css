@@ -565,3 +565,22 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 
 .card.pressed { transform: scale(.985); }
 .seasons-summary.pressed { transform: scale(.985); }
+
+/* Start: the one filled accent button in its spot, a bit larger */
+.act-chip.start-chip { height: 36px; padding: 0 14px; font-size: 13px; background: var(--accent); color: var(--on-accent); box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 35%, transparent); }
+.act-chip.start-chip svg { color: var(--on-accent); }
+.action-list button.start-item, .action-list button.start-item strong { color: var(--accent); }
+
+/* show status card: Start (filled) + Drop (red outline) always visible; other actions inside */
+.status-card { gap: 10px; }
+.status-actions { display: flex; align-items: center; gap: 8px; }
+.big-start { flex: 1; height: 44px; border: 0; border-radius: 12px; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 30%, transparent); }
+.big-drop { height: 44px; padding: 0 16px; border-radius: 12px; border: 1.5px solid color-mix(in srgb, #DE3C49 60%, transparent); background: transparent; color: #DE3C49; font-weight: 800; font-size: 14px; }
+.status-actions .big-drop:only-child { margin-left: auto; }
+.status-more { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding-top: 2px; }
+.act-chip.on { background: color-mix(in srgb, #39C316 18%, transparent); color: #39C316; }
+.season-card { scroll-margin-top: 16px; }
+.state-pill[data-state="upNext"] { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+.state-pill[data-state="outNow"] { background: color-mix(in srgb, #39C316 20%, transparent); color: #39C316; }
+.state-pill[data-state="comingSoon"] { background: color-mix(in srgb, #F6B26B 22%, transparent); color: #F6B26B; }
+.state-pill[data-state="didntFinish"] { background: color-mix(in srgb, #A98BE0 24%, transparent); color: #A98BE0; }

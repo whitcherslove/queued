@@ -15,6 +15,7 @@ import { useDragReorder } from '../lib/drag';
 import { GripIcon, Metascore, Poster } from '../components/Rows';
 import { ChevBtn, IconMenu, IconSearch } from '../components/Icons';
 import { DROPPED_COLOR, TIERS } from '../lib/scores';
+import { movieState } from '../lib/movie';
 
 type Row = { it: LibItem; p: ReturnType<typeof progress>; state: ShowState; seasons: number[]; when: string | null; last: string | null };
 const WATCHING: { key: ShowState; title: string; hint: string }[] = [
@@ -224,6 +225,16 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           <span className="row-meta"><Metascore v={it.title.metascore} size="sm" /></span>
         </span>
       </button>
+      {!edit && (() => {
+        // movies: release date; shows: the last aired episode (or the premiere if it hasn't started)
+        const lastAired = isTv ? ((it.title.data as { last_air_date?: string | null } | null)?.last_air_date ?? null) : null;
+        const rel = it.title.release_date;
+        const [cap, when] = isTv
+          ? (rel && rel > today ? ['Premieres', rel] : ['Last aired', lastAired ?? rel])
+          : (rel && rel > today ? ['Out on', rel] : ['Released', rel]);
+        const d = when ? dateParts(when) : null;
+        return <span className="date-col"><span className="date-cap">{cap}</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">TBA</span>}</span>;
+      })()}
       {grip(list, it.id, it.title.title)}
     </div>
   );
@@ -480,12 +491,33 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           </div>
         ) : (
           <div className="stack">
-            <div className="sec-head"><span className="h2">Up next</span><span className="muted small">{next.length || ''}</span></div>
-            {next.length === 0 && <div className="empty small-pad">Open something in your Backlog and turn on “Up next” — it’ll show up here.</div>}
-            {view === 'list' ? next.map((it) => backlogRow(it, 'n')) : <div className="grid">{next.map((it) => tile(it, 'n', () => setSheet(it), it.id))}</div>}
-            <div className="sec-head mt"><span className="h2">Deep backlog</span><span className="muted small">{rest.length}</span></div>
-            {rest.length === 0 && <div className="empty small-pad">{`Search above to add ${noun}s.`}</div>}
-            {view === 'list' ? rest.map((it) => backlogRow(it, 'r')) : <div className="grid">{rest.map((it) => tile(it, 'r', () => setSheet(it), it.id))}</div>}
+            {(() => {
+              const outNow = isTv ? [] : rest.filter((it) => movieState(it, it.title, null, today) === 'outNow').sort((x, y) => (y.title.release_date ?? '').localeCompare(x.title.release_date ?? ''));
+              const soon = isTv ? [] : rest.filter((it) => movieState(it, it.title, null, today) === 'comingSoon').sort((x, y) => (x.title.release_date ?? '').localeCompare(y.title.release_date ?? ''));
+              const deep = rest.filter((it) => !outNow.includes(it) && !soon.includes(it));
+              const block = (key: string, title: string, hint: string, list: LibItem[], code: string, empty?: string) => {
+                const shut = isCollapsed('b-' + key);
+                if (!list.length && !empty) return null;
+                return (
+                  <section key={key} className="w-section">
+                    <button className="w-head" aria-expanded={!shut} onClick={() => toggleSection('b-' + key)}>
+                      <span className="h2">{title}</span><span className="w-count">{list.length}</span><span className="grow" /><ChevBtn open={!shut} size={30} />
+                    </button>
+                    {!shut && <>
+                      {hint && <span className="muted small">{hint}</span>}
+                      {!list.length && empty && <div className="empty small-pad">{empty}</div>}
+                      {view === 'list' ? list.map((it) => backlogRow(it, code)) : <div className="grid">{list.map((it) => tile(it, code, () => setSheet(it), it.id))}</div>}
+                    </>}
+                  </section>
+                );
+              };
+              return <>
+                {block('next', 'Up next', '', next, 'n', `Pin a ${noun} as Up next — it shows up here.`)}
+                {block('out', 'Out now', 'Released this year', outNow, 'o')}
+                {block('soon', 'Coming soon', 'Not released yet — soonest first', soon, 's')}
+                {block('deep', 'Deep backlog', '', deep, 'r', `Search above to add ${noun}s.`)}
+              </>;
+            })()}
           </div>
         )}
         </div>
@@ -524,7 +556,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
                     const st = showState(item, item.title, mine, item.status === 'playing' ? progress(item, item.title, tvEps.filter((e) => e.title_id === item.title_id), tvMarks.filter((m) => m.library_id === item.id), today) : null, today);
                     const ss = st.seasons.length ? st.seasons : planOf(item);
                     return <>
-                      {item.status !== 'playing' && item.status !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button role="menuitem" onClick={run(async () => { await startWatching(item, ss); })}>Start watching</button>}
+                      {item.status !== 'playing' && item.status !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button role="menuitem" className="start-item" onClick={run(async () => { await startWatching(item, ss); })}>▶ Start watching</button>}
                       {item.status !== 'backlog' && item.status !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button role="menuitem" onClick={run(async () => { await moveToBacklog(item, ss, topPosition(items)); })}>Move to Backlog</button>}
                       {item.status !== 'dropped' && st.state !== 'finished' && <button role="menuitem" onClick={run(async () => { await dropShow(item); })}>Drop</button>}
                       {item.status === 'dropped' && <button role="menuitem" onClick={run(async () => { await bringBack(item, mine.length > 0, topPosition(items)); })}>Bring back</button>}

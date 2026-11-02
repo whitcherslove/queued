@@ -11,6 +11,7 @@ import {
 import { STATE_LABEL, coveredSeasons, epLabel, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showState, showYears, todayIso } from '../lib/tv';
 import { applyEpisodeMarks, bringBack, dropShow, moveToBacklog, startWatching } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
+import Overview from '../components/Overview';
 import ScoreSlider from '../components/ScoreSlider';
 import ScopeSheet from '../components/ScopeSheet';
 import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
@@ -50,7 +51,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [ready, setReady] = useState(false);
   const [takeOpen, setTakeOpen] = useState(!!openTake);
-  const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress();
+  const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress(), statusPress = usePress();
+  const [confirmDrop, setConfirmDrop] = useState(false);
   const [openS, setOpenS] = useState<Record<number, boolean>>({});
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
@@ -75,7 +77,6 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   useBackLayer(!!scopeFor, () => setScopeFor(''));
   useBackLayer(!!scopeLog, () => setScopeLog(null));
   useBackLayer(!!pastStep, () => setPastStep(''));
-  useBackLayer(statusOpen, () => setStatusOpen(false));
   useBackLayer(whatNow, () => setWhatNow(false));
 
   // swipe to the previous / next show (DOM transforms while dragging, like the movie card)
@@ -162,17 +163,29 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   };
   epHandler.current = (key) => { const [s, e] = key.split(':').map(Number); applyMarks(airedUpTo(s, e), true); };
 
+  // Ratings, one source of truth: an entry for ONE season and that season's rating are the same thing.
+  // Entries for several seasons / the full series carry their own "Overall" rating.
+  const singleOf = (l: { scope?: string; season_from?: number | null; season_to?: number | null; seasons?: number[] | null }) => { const ls = logSeasons(l); return ls && ls.length === 1 ? ls[0] : null; };
+  const setLogRating = async (l: ItemLog, patch: { tier?: string | null; score?: number | null }) => {
+    await updateLog(l.id, patch);
+    const n = singleOf(l); if (n != null) await saveSeasonRating(item.id, n, patch);
+  };
+  const setSeasonRating = async (n: number, patch: { tier?: string | null; score?: number | null }) => {
+    await saveSeasonRating(item.id, n, patch);
+    const l = logs.filter((x) => singleOf(x) === n).sort((a, b) => b.watched_at.localeCompare(a.watched_at))[0];
+    if (l) await updateLog(l.id, patch);
+  };
   const pickTier = (id: string) => guard(async () => {
     if (currentLog) {
-      if (currentLog.tier === id) { await updateLog(currentLog.id, { tier: null }); return; }
-      await updateLog(currentLog.id, { tier: id });
+      if (currentLog.tier === id) { await setLogRating(currentLog, { tier: null }); return; }
+      await setLogRating(currentLog, { tier: id });
       await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done' });
       return;
     }
     await insertLog(item.id, { ...logScope(plan), watched_at: new Date().toISOString(), tier: id, score: item.score, rewatch: !!item.rewatch } as Partial<ItemLog>);
     await updateItem(item.id, { status: id === 'dropped' ? 'dropped' : 'done', up_next: false, rewatch: false, score: null });
   })();
-  const setScore = (v: number | null) => guard(async () => { setPreview(undefined); if (currentLog) await updateLog(currentLog.id, { score: v }); else await updateItem(item.id, { score: v }); })();
+  const setScore = (v: number | null) => guard(async () => { setPreview(undefined); if (currentLog) await setLogRating(currentLog, { score: v }); else await updateItem(item.id, { score: v }); })();
   const rewOn = currentLog ? currentLog.rewatch : !!item.rewatch;
   const optimistic = (apply: () => void, revert: () => void, save: () => Promise<void>) => {
     apply();
@@ -224,7 +237,16 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const st = showState(item, t, logs, isPlaying ? p : null, today);
   const stSeasons = st.seasons.length ? st.seasons : plan;
   const stAir = st.seasons.length ? seasonAir(t, st.seasons[0]) : null;
-  const act = (fn: () => Promise<unknown>) => { setStatusOpen(false); guard(async () => { await fn(); })(); };
+  const act = (fn: () => Promise<unknown>) => { guard(async () => { await fn(); })(); };
+  const canStart = st.state === 'backlog' || st.state === 'newSeason' || st.state === 'lastChance';
+  const canDrop = st.state !== 'dropped' && st.state !== 'finished';
+  /** Progress ring → open Seasons, unfold the current season and scroll to it */
+  const goToCurrentSeason = () => {
+    const n = p.nextEp?.season ?? p.nextFuture?.season ?? (plan ? plan[plan.length - 1] : seasons[seasons.length - 1]?.n);
+    if (n == null) return;
+    setSeasonsOpen(true); setOpenS((o) => ({ ...o, [n]: true }));
+    window.setTimeout(() => document.getElementById('season-' + n)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  };
   const statusSub = (() => {
     switch (st.state) {
       case 'progress': return (item.rewatch ? 'Rewatching ' : 'Watching ') + planLabel;
@@ -260,37 +282,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
       {!ready && <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div>}
       <div className={'card-body' + (ready ? ' shown' : ' hidden-until-ready')} aria-busy={!ready}>
         {error && <p className="error" role="alert">{error}</p>}
-        {t.overview && <div className="stack-sm"><p className={'overview' + (ovOpen ? ' open' : '')}>{t.overview}</p>{t.overview.length > 150 && <button className="link left" onClick={() => setOvOpen(!ovOpen)}>{ovOpen ? 'Less' : 'More'}</button>}</div>}
-
-        <div className="tiles3">
-          {tileMC('metascore')}
-          {tileMC('imdb_rating')}
-          {isPlaying
-            ? <button className="tile3" onClick={() => setOpenS({ ...openS, [p.nextEp?.season ?? seasons[0]?.n ?? 1]: true })} aria-label="Show seasons"><ProgressRing pct={p.pct} text={p.pct + '%'} /><span className="muted small">Progress</span></button>
-            : <button className="tile3" onClick={() => setTakeOpen(true)} aria-label="Change my take"><ScoreRing value={tileScore} scale={scale} size={48} fontSize={17} /><span className="muted small">My score</span></button>}
-        </div>
-
-        {isBack && (
-          <button className="switch-row card" role="switch" aria-checked={item.up_next} onClick={toggleNext}>
-            <span className="stack-sm"><strong>Up next</strong><span className="muted small">{item.up_next ? 'Pinned to the top of your Backlog' : 'Pin it to the top of your Backlog'}</span></span>
-            <span className={'switch' + (item.up_next ? ' on' : '')}><span /></span>
-          </button>
-        )}
-
-        {/* Where the show lives right now + what you can do with it (the same words as the tabs) */}
-        <div className="status-row card">
-          <button className="status-main" aria-haspopup="menu" aria-expanded={statusOpen} onClick={() => setStatusOpen(true)}>
-            <span className="stack-sm grow"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
-          </button>
-          {/* the one action you most likely want, one tap away; everything else is behind the dots */}
-          {(st.state === 'backlog' || st.state === 'newSeason' || st.state === 'lastChance') && (
-            <button className="act-chip" onClick={() => act(() => startWatching(item, stSeasons))}>
-              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" /></svg>Start
-            </button>
-          )}
-          <button className="chev-plain" aria-label="Status actions" aria-haspopup="menu" onClick={() => setStatusOpen(true)}><MoreBtn /></button>
-        </div>
-
+        {/* the thing you'll tap most while watching sits right at the top */}
         {isPlaying && p.nextEp && (
           <div className="next-ep card">
             <span className="stack-sm grow"><span className="muted small upper">Next episode</span><strong>{epLabel(p.nextEp)} — {p.nextEp.name}</strong></span>
@@ -300,6 +292,44 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         {isPlaying && !p.nextEp && p.caughtUp && (
           <div className="next-ep card"><span className="stack-sm grow"><span className="muted small upper">Caught up</span><strong>{p.nextFuture ? 'Next: ' + epLabel(p.nextFuture) + (p.nextFuture.air_date ? ' on ' + longDate(p.nextFuture.air_date) : '') : 'No new episodes announced yet'}</strong></span></div>
         )}
+
+        {t.overview && <Overview text={t.overview} />}
+
+        <div className="tiles3">
+          {tileMC('metascore')}
+          {tileMC('imdb_rating')}
+          {isPlaying
+            ? <button className="tile3" onClick={goToCurrentSeason} aria-label="Show the current season"><ProgressRing pct={p.pct} text={p.pct + '%'} /><span className="muted small">Progress</span></button>
+            : <button className="tile3" onClick={() => setTakeOpen(true)} aria-label="Change my take"><ScoreRing value={tileScore} scale={scale} size={48} fontSize={17} /><span className="muted small">My score</span></button>}
+        </div>
+
+        {/* Where the show lives + what you can do. Start and Drop are always one tap away; the rest is inside. */}
+        <section className={'card status-card' + (statusPress.pressed ? ' pressed' : '')}>
+          <button className="take-head" aria-expanded={statusOpen} {...statusPress.bind} onClick={() => { setStatusOpen(!statusOpen); setConfirmDrop(false); }}>
+            <span className="stack-sm grow"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
+            <ChevBtn open={statusOpen} />
+          </button>
+          {(canStart || canDrop) && (
+            confirmDrop
+              ? <div className="status-actions"><span className="small grow">Drop {t.title}? It disappears from your lists; entries stay in Watched.</span>
+                  <button className="btn sm" onClick={() => setConfirmDrop(false)}>Cancel</button>
+                  <button className="btn sm danger-fill" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
+              : <div className="status-actions">
+                  {canStart && <button className="big-start" onClick={() => act(() => startWatching(item, stSeasons))}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" /></svg>Start watching</button>}
+                  {canDrop && <button className="big-drop" onClick={() => setConfirmDrop(true)}>Drop</button>}
+                </div>
+          )}
+          {statusOpen && (
+            <div className="status-more">
+              {(isBack || isPlaying) && <button className="act-chip" onClick={() => setScopeFor('plan')}>Change seasons</button>}
+              {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="act-chip" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>Move to Backlog</button>}
+              {isBack && <button className={'act-chip' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{item.up_next ? '✓ Up next' : 'Pin as Up next'}</button>}
+              {st.state === 'dropped' && <button className="act-chip" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>Bring back</button>}
+              {st.state === 'finished' && <span className="muted small">Ended and fully watched — use Rewatch in Viewings to watch it again.</span>}
+              {(isBack || isPlaying) && <span className="muted small wide">Plan: {planLabel}</span>}
+            </div>
+          )}
+        </section>
 
         <section className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (
@@ -314,7 +344,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           ) : (
             <div className="stack">
               <button className="take-head" aria-expanded="true" {...takePress.bind} onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
-              <span className="muted small">{currentLog ? 'Your rating for ' + scopeShort(currentLog) : 'Rating for ' + planLabel.split(' · ')[0] + (isDone ? '' : ' — picking one finishes it now')}</span>
+              <span className="muted small">{currentLog ? (singleOf(currentLog) != null ? 'Your rating for ' + scopeShort(currentLog) + ' (same as in Seasons)' : 'Overall rating for ' + scopeShort(currentLog)) : 'Rating for ' + planLabel.split(' · ')[0] + (isDone ? '' : ' — picking one finishes it now')}</span>
               <div className="chips">
                 {TIERS.map((x) => { const on = currentLog?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
               </div>
@@ -356,7 +386,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             const allSeen = aired > 0 && seen === aired;
             const lastAt = marks.filter((m) => m.season === s.n && runSeen(m.season, m.episode)).map((m) => m.watched_at).sort().pop() ?? null;
             return (
-              <div key={s.n} className={'season-card' + (inPlan ? '' : ' out')}>
+              <div key={s.n} id={'season-' + s.n} className={'season-card' + (inPlan ? '' : ' out')}>
                 <button className="season-head" aria-expanded={open} onClick={() => setOpenS({ ...openS, [s.n]: !open })}>
                   <span className="stack-sm grow">
                     <span className="row nowrap"><strong>Season {s.n}</strong>{rt && <span className="pill" style={{ background: rt.color, color: '#17161A' }}>{rt.label}</span>}</span>
@@ -372,11 +402,11 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                     <div className="row between"><span className="muted small">{rating ? 'Rated ' + longDate(rating.rated_at) : 'Not rated yet'}</span>
                       {aired > 0 && <button className="btn sm" onClick={() => applyMarks(list.filter((e) => e.air_date && e.air_date <= today && (allSeen || !runSeen(s.n, e.n))).map((e) => ({ season: s.n, episode: e.n })), !allSeen)}>{allSeen ? 'Unmark all' : 'Mark season watched'}</button>}</div>
                     <div className="chips">
-                      {TIERS.map((x) => { const on = rating?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={guard(async () => { await saveSeasonRating(item.id, s.n, { tier: on ? null : x.id }); })}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
+                      {TIERS.map((x) => { const on = rating?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={guard(async () => { await setSeasonRating(s.n, { tier: on ? null : x.id }); })}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
                     </div>
                     <div className="score-row"><label htmlFor={'ss-' + s.n} className="small strong">Score</label>
-                      {rating?.score != null && <button className="link" onClick={() => { setRatings((r) => r.map((x) => (x.season === s.n ? { ...x, score: null } : x))); saveSeasonRating(item.id, s.n, { score: null }).then(onChanged).catch(() => setError('Couldn’t save. Try again.')); }}>Clear</button>}
-                      <ScoreSlider compact id={'ss-' + s.n} label={'Season ' + s.n + ' score'} value={rating?.score ?? null} scale={scale} onCommit={(sc) => { setRatings((r) => { const o = r.filter((x) => x.season !== s.n); return o.concat([{ library_id: item.id, season: s.n, tier: rating?.tier ?? null, score: sc, rated_at: today }]); }); saveSeasonRating(item.id, s.n, { score: sc }); }} /></div>
+                      {rating?.score != null && <button className="link" onClick={() => { setRatings((r) => r.map((x) => (x.season === s.n ? { ...x, score: null } : x))); setSeasonRating(s.n, { score: null }).then(onChanged).catch(() => setError('Couldn’t save. Try again.')); }}>Clear</button>}
+                      <ScoreSlider compact id={'ss-' + s.n} label={'Season ' + s.n + ' score'} value={rating?.score ?? null} scale={scale} onCommit={(sc) => { setRatings((r) => { const o = r.filter((x) => x.season !== s.n); return o.concat([{ library_id: item.id, season: s.n, tier: rating?.tier ?? null, score: sc, rated_at: today }]); }); setSeasonRating(s.n, { score: sc }); }} /></div>
                     <div className="ep-list">
                       {list.length === 0 && <span className="muted small">{ready ? 'No episodes announced yet.' : 'Loading episodes…'}</span>}
                       {list.map((e) => {
@@ -428,7 +458,10 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             );
           })()}
           {logs.map((l, i) => {
-            const x = tierOf(l.tier);
+            // one season → shows that season's rating; several seasons → the entry's own Overall rating
+            const sn1 = singleOf(l), sr = sn1 != null ? ratings.find((r) => r.season === sn1) : undefined;
+            const showTier = sr ? sr.tier : l.tier, showScore = sr ? sr.score : l.score;
+            const x = tierOf(showTier);
             if (delView === l.id) return (
               <div key={l.id} className="view-row"><span className="grow small strong">Delete this entry?</span><button className="btn sm" onClick={() => setDelView(null)}>Cancel</button>
                 <button className="btn sm danger-fill" onClick={guard(async () => { await deleteLog(l.id); if (logs.length === 1 && isDone) await updateItem(item.id, { status: p.anySeen ? 'playing' : 'backlog' }); setDelView(null); })}>Delete</button></div>
@@ -438,19 +471,20 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                 <div className="view-row">
                   <button className="view-date grow" aria-expanded={editLog === l.id} onClick={() => setEditLog(editLog === l.id ? null : l.id)}>
                     <span className="small strong">{scopeShort(l)} · {longDate(l.watched_at)} {i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
+                    {sn1 == null && <span className="muted tiny">Overall rating</span>}
                     <span className="muted tiny">{editLog === l.id ? 'Done' : 'Edit'}</span>
                   </button>
                   <button className={'rew-toggle' + (l.rewatch ? ' on' : '')} aria-pressed={l.rewatch} aria-label="Rewatch" onClick={guard(async () => { await updateLog(l.id, { rewatch: !l.rewatch }); })}>{EYE_PLUS}</button>
                   {l.dropped ? <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span> : x ? <span className="pill" style={{ background: x.color, color: '#17161A' }}>{x.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
-                  <ScoreRing value={l.score} scale={scale} size={32} fontSize={12} />
+                  <ScoreRing value={showScore} scale={scale} size={32} fontSize={12} />
                   <button className="del-x" aria-label="Delete this entry" onClick={() => setDelView(l.id)}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>
                 </div>
                 {editLog === l.id && (
                   <div className="view-edit">
                     <div className="score-row"><span className="small strong">Covers</span><span className="grow small">{scopeShort(l)}</span><button className="btn sm" onClick={() => setScopeLog(l)}>Change</button></div>
-                    <div className="chips">{TIERS.map((tt) => { const on = l.tier === tt.id; return <button key={tt.id} aria-pressed={on} className="chip sm" style={on ? { background: tt.color, borderColor: tt.color, color: '#17161A' } : undefined} onClick={guard(async () => { await updateLog(l.id, { tier: on ? null : tt.id }); })}><span className="dot" style={{ background: on ? '#17161A' : tt.color }} />{tt.label}</button>; })}</div>
+                    <div className="chips">{TIERS.map((tt) => { const on = l.tier === tt.id; return <button key={tt.id} aria-pressed={on} className="chip sm" style={on ? { background: tt.color, borderColor: tt.color, color: '#17161A' } : undefined} onClick={guard(async () => { await setLogRating(l, { tier: on ? null : tt.id }); })}><span className="dot" style={{ background: on ? '#17161A' : tt.color }} />{tt.label}</button>; })}</div>
                     <div className="score-row"><label htmlFor={'vs-' + l.id} className="small strong">Score</label>
-                      <ScoreSlider compact id={'vs-' + l.id} label="Score" value={l.score} scale={scale} onCommit={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); updateLog(l.id, { score: st }).then(onChanged); }} /></div>
+                      <ScoreSlider compact id={'vs-' + l.id} label="Score" value={l.score} scale={scale} onCommit={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); setLogRating(l, { score: st }).then(onChanged); }} /></div>
                     <div className="score-row"><label htmlFor={'vd-' + l.id} className="small strong">Finished on</label>
                       <input id={'vd-' + l.id} type="date" className="date-input" value={localDay(l.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></div>
                   </div>
@@ -513,22 +547,6 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           if (seasons.some((x) => !nowCovered.has(x.n))) setWhatNow(true);
         })(); }} />}
 
-      {statusOpen && (
-        <div className="sheet-wrap">
-          <button className="sheet-scrim" aria-label="Close" onClick={() => setStatusOpen(false)} />
-          <div className="sheet action-sheet" role="menu" aria-label="Status">
-            <div className="stack-sm"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></div>
-            <div className="action-list">
-              {!isPlaying && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button role="menuitem" onClick={() => act(() => startWatching(item, stSeasons))}><span className="stack-sm"><strong>Start watching</strong><span className="muted small">Move to Watching › In progress</span></span></button>}
-              {(isBack || isPlaying) && <button role="menuitem" onClick={() => { setStatusOpen(false); setScopeFor('plan'); }}><span className="stack-sm"><strong>Change seasons…</strong><span className="muted small">What this run covers: {planLabel}</span></span></button>}
-              {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button role="menuitem" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}><span className="stack-sm"><strong>Move to Backlog</strong><span className="muted small">Watch it later — you can start it from Backlog anytime</span></span></button>}
-              {st.state !== 'dropped' && st.state !== 'finished' && <button role="menuitem" className="danger" onClick={() => act(() => dropShow(item))}><span className="stack-sm"><strong>Drop</strong><span className="muted small">Hide it from every list; your journal entries stay in Watched</span></span></button>}
-              {st.state === 'dropped' && <button role="menuitem" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}><span className="stack-sm"><strong>Bring back</strong><span className="muted small">{logs.length ? 'Back to Watching / Watched' : 'Back to Backlog'}</span></span></button>}
-              {st.state === 'finished' && <span className="muted small">Ended and fully watched. Use Rewatch in Viewings to watch it again.</span>}
-            </div>
-          </div>
-        </div>
-      )}
 
       {whatNow && (
         <div className="sheet-wrap">

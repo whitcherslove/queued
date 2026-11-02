@@ -8,6 +8,8 @@ import {
   type Owned, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
+import Overview from '../components/Overview';
+import { MOVIE_STATE_LABEL, movieState } from '../lib/movie';
 import ScoreSlider from '../components/ScoreSlider';
 import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
@@ -32,7 +34,10 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [owned, setOwned] = useState<Record<string, Owned>>(initialOwned ?? {});
   const [takeOpen, setTakeOpen] = useState(!!openTake || initial?.status === 'backlog');
-  const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress();
+  const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress(), statusPress = usePress(), collPress = usePress();
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [confirmDrop, setConfirmDrop] = useState(false);
+  const [collOpen, setCollOpen] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
   const [quick, setQuick] = useState<null | 'metascore' | 'imdb_rating'>(null);
@@ -145,6 +150,22 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: backlogCount }); setTakeOpen(true); };
   const cancelRewatch = async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false, score: null }); };
   const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else await planRewatch(); });
+  const mState = movieState(item, t, planned ? null : last);
+  const inBacklog = item.status === 'backlog';
+  const rel = t.release_date;
+  const mSub = (() => {
+    switch (mState) {
+      case 'upNext': return 'Pinned to the top of your Backlog';
+      case 'comingSoon': return 'Out on ' + (rel ? longDate(rel) : 'a date TBA');
+      case 'outNow': return 'Released ' + (rel ? longDate(rel) : 'this year');
+      case 'backlog': return item.rewatch ? 'Rewatch planned' : 'In your Backlog';
+      case 'watched': return 'Watched ' + (last ? longDate(last.watched_at) : '');
+      case 'didntFinish': return 'Didn’t finish · ' + (last ? longDate(last.watched_at) : '');
+      default: return 'Hidden from your lists · search still finds it';
+    }
+  })();
+  const markDidntFinish = guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: item.score, rewatch: !!item.rewatch, watched_at: new Date().toISOString() }); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); });
+  const toggleDidntFinish = () => { if (!last) return; const l = last, v = !l.dropped; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: !v } : x))), () => updateLog(l.id, { dropped: v })); };
   const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: backlogCount })); };
 
   const send = async (text: string) => {
@@ -198,12 +219,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
 
       <div className="card-body">
         {error && <p className="error" role="alert">{error}</p>}
-        {ov && (
-          <div className="stack-sm">
-            <p className={'overview' + (ovOpen ? ' open' : '')}>{ov}</p>
-            {ov.length > 150 && <button className="link left" onClick={() => setOvOpen(!ovOpen)}>{ovOpen ? 'Less' : 'More'}</button>}
-          </div>
-        )}
+        {ov && <Overview text={ov} />}
 
         <div className="tiles3">
           {tile('metascore')}
@@ -214,14 +230,32 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           </button>
         </div>
 
-        {item.status === 'backlog' && (
-          <button className="switch-row card" role="switch" aria-checked={item.up_next} onClick={toggleNext}>
-            <span className="stack-sm"><strong>Up next</strong><span className="muted small">{item.up_next ? 'Pinned to the top of your Backlog' : 'Pin it to the top of your Backlog'}</span></span>
-            <span className={'switch' + (item.up_next ? ' on' : '')}><span /></span>
+        {/* Where the movie lives + what you can do — same idea as the show card */}
+        <section className={'card status-card' + (statusPress.pressed ? ' pressed' : '')}>
+          <button className="take-head" aria-expanded={statusOpen} {...statusPress.bind} onClick={() => { setStatusOpen(!statusOpen); setConfirmDrop(false); }}>
+            <span className="stack-sm grow"><span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span><span className="small">{mSub}</span></span>
+            <ChevBtn open={statusOpen} />
           </button>
-        )}
+          {inBacklog && (confirmDrop
+            ? <div className="status-actions"><span className="small grow">Started it but didn’t finish? It goes to Watched marked Dropped.</span>
+                <button className="btn sm" onClick={() => setConfirmDrop(false)}>Cancel</button>
+                <button className="btn sm danger-fill" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
+            : <div className="status-actions">
+                <button className="big-start" onClick={() => { setTakeOpen(true); window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 60); }}>
+                  <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>I watched it</button>
+                <button className="big-drop" onClick={() => setConfirmDrop(true)}>Drop</button>
+              </div>)}
+          {statusOpen && (
+            <div className="status-more">
+              {inBacklog && <button className={'act-chip' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{item.up_next ? '✓ Up next' : 'Pin as Up next'}</button>}
+              {last && !planned && <button className={'act-chip' + (last.dropped ? ' on' : '')} aria-pressed={!!last.dropped} onClick={toggleDidntFinish}>{last.dropped ? '✓ Didn’t finish' : 'Mark as didn’t finish'}</button>}
+              {mState === 'dropped' && <button className="act-chip" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
+              {inBacklog && <button className="act-chip" onClick={guard(async () => { await updateItem(item.id, { status: 'dropped', up_next: false }); })}>Not interested</button>}
+            </div>
+          )}
+        </section>
 
-        <section className={'card take' + (takePress.pressed ? ' pressed' : '')}>
+        <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (
             <button className="take-summary" {...takePress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
               <span className="h2">My take</span>
@@ -258,14 +292,6 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                     <span className="rew-icon">{EYE_PLUS}</span><strong className="grow">Rewatch</strong>
                     <span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span>
                   </button>
-              {(!last || planned) && <><div className="divider" />
-              <button className="switch-row flat" role="switch" aria-checked={false} onClick={guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: item.score, rewatch: !!item.rewatch, watched_at: new Date().toISOString() }); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); })}>
-                <span className="stack-sm grow"><strong>Didn’t finish</strong><span className="muted small">Log this viewing as Dropped in Watched</span></span><span className="switch"><span /></span>
-              </button></>}
-              {last && !planned && <><div className="divider" />
-              <button className="switch-row flat" role="switch" aria-checked={!!last.dropped} onClick={() => { const l = last, v = !l.dropped; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: !v } : x))), () => updateLog(l.id, { dropped: v })); }}>
-                <span className="stack-sm grow"><strong>Didn’t finish</strong><span className="muted small">Marks this viewing as Dropped in Watched</span></span><span className={'switch' + (last.dropped ? ' on' : '')}><span /></span>
-              </button></>}
             </div>
           )}
         </section>
@@ -281,9 +307,9 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
         </section>
 
         {coll && coll.parts?.length > 1 && (
-          <section className="card stack-sm">
-            <div className="sec-head"><span className="h2">{coll.name}</span><span className="muted small">{coll.parts.findIndex((p) => p.sourceId === item.title.source_id) + 1} of {coll.parts.length}</span></div>
-            {coll.parts.map((p, i) => {
+          <section className={'card stack-sm' + (collPress.pressed ? ' pressed' : '')}>
+            <button className="take-head" aria-expanded={collOpen} {...collPress.bind} onClick={() => setCollOpen(!collOpen)}><span className="h2 grow">{coll.name}</span><span className="muted small">{coll.parts.findIndex((p) => p.sourceId === item.title.source_id) + 1} of {coll.parts.length}</span><ChevBtn open={collOpen} /></button>
+            {collOpen && <div className="stack-sm">{coll.parts.map((p, i) => {
               const o = owned[p.sourceId]; const isCur = p.sourceId === item.title.source_id;
               const st = isCur ? 'This movie' : o ? (o.status === 'backlog' ? (o.up_next ? 'Up next' : 'Backlog') : o.dropped ? 'Dropped' : 'Watched') : '';
               return (
@@ -305,7 +331,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                   })()}
                 </div>
               );
-            })}
+            })}</div>}
           </section>
         )}
 
