@@ -14,7 +14,7 @@ export async function ensureTitle(kind: 'movie' | 'tv', sourceId: string, force 
   return data.title as Title;
 }
 
-const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on';
+const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop';
 const LIB_FIELDS = LIB_BASE + ', title:titles(*)';
 // Lists only need what the rows show. Movies skip the heavy "data" (cast, collection, budget…) — the card loads it when opened.
 // Shows keep "data": seasons and status drive Watching / Caught up.
@@ -40,7 +40,7 @@ export async function loadLibrary(section: Section): Promise<LibItem[]> {
 export type LogLite = Omit<LogRow, 'library'>;
 export async function loadLogs(section: Section): Promise<LogLite[]> {
   return allPages<LogLite>((a, b) => supabase.from('logs')
-    .select('id, library_id, scope, season_from, season_to, seasons, watched_at, tier, score, rewatch, dropped, position, library:library!inner(section)')
+    .select('id, library_id, scope, season_from, season_to, seasons, watched_at, tier, score, rewatch, dropped, platform, coop, position, library:library!inner(section)')
     .eq('library.section', section).eq('folded', false).order('watched_at', { ascending: false }).order('id').range(a, b) as never);
 }
 
@@ -94,7 +94,7 @@ export async function loadItem(id: string): Promise<LibItem> {
 }
 
 export async function loadItemLogs(libraryId: string): Promise<ItemLog[]> {
-  const { data, error } = await supabase.from('logs').select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons').eq('library_id', libraryId).order('watched_at', { ascending: false });
+  const { data, error } = await supabase.from('logs').select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons, platform, coop').eq('library_id', libraryId).order('watched_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as ItemLog[];
 }
@@ -105,7 +105,7 @@ export async function updateItem(id: string, patch: Partial<{ status: Status; up
 }
 
 export async function insertLog(libraryId: string, log: Partial<ItemLog>): Promise<ItemLog> {
-  const { data, error } = await supabase.from('logs').insert({ library_id: libraryId, ...log }).select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons').single();
+  const { data, error } = await supabase.from('logs').insert({ library_id: libraryId, ...log }).select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons, platform, coop').single();
   if (error) throw error;
   return data as ItemLog;
 }
