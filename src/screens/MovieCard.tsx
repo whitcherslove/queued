@@ -101,7 +101,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const reload = useCallback(async () => {
     const [it, lg, ch] = await Promise.all([loadItem(itemId), loadItemLogs(itemId), loadChat(itemId)]);
     setItem(it); setLogs(lg); setChat(ch); setLogsReady(true); setFull(true);
-    if (firstFor.current !== it.id) { firstFor.current = it.id; setTakeOpen(!!openTake || it.status === 'backlog'); }
+    if (firstFor.current !== it.id) { firstFor.current = it.id; setTakeOpen(!!openTake); }
     const parts = ((it.title.data as any)?.collection?.parts ?? []) as CollectionPart[];
     setOwned(await findOwnedBySource(parts.map((p) => p.sourceId), 'movies'));
   }, [itemId]);
@@ -217,18 +217,6 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
 
       <div className="card-body">
         {error && <p className="error" role="alert">{error}</p>}
-        {/* "Now" card: where the movie is + the main thing to do */}
-        <section className="card now-card">
-          <span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span>
-          <span className="now-title small-title">{mSub}{inBacklog && t.runtime ? ' · ' + runtimeText(t.runtime) : ''}</span>
-          {inBacklog && (
-            <div className="now-actions">
-              {canWatchNow && <button className="now-main" onClick={watchedIt}>{Ico.check}Watched</button>}
-              <button className={'now-side' + (item.up_next ? ' on' : '') + (canWatchNow ? '' : ' wide')} aria-pressed={item.up_next} aria-label={item.up_next ? 'Up next — on' : 'Pin as Up next'} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next' : canWatchNow ? '' : 'Pin as Up next'}</button>
-            </div>
-          )}
-        </section>
-
         {ov && <Overview text={ov} />}
 
         <div className="tiles3">
@@ -241,7 +229,29 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
         </div>
 
 
-        {(logs.length > 0 || canWatchNow || mState === 'dropped') && <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
+        {/* State card: where the movie is + what you can do with that state */}
+        <section className="card state-card" data-state={mState}>
+          <span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span>
+          <span className="state-title">{mState === 'watched' || mState === 'didntFinish' ? mSub : mState === 'dropped' ? 'Not in your lists' : mSub}</span>
+          {inBacklog && t.runtime ? <span className="small muted">{runtimeText(t.runtime)}{item.rewatch ? ' · rewatch' : ''}</span> : null}
+          {inBacklog && (
+            <div className="state-actions">
+              {canWatchNow && <button className="btn primary" onClick={watchedIt}>{Ico.check}Watched</button>}
+              <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>
+            </div>
+          )}
+          {(canWatchNow || mState === 'dropped') && (confirmDrop ? (
+            <div className="quiet-row"><span className="small grow">Started it but didn’t finish? It goes to Watched marked Dropped.</span>
+              <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
+          ) : (
+            <div className="quiet-row">
+              {mState === 'dropped' && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
+              {canWatchNow && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
+            </div>
+          ))}
+        </section>
+
+        {(logs.length > 0) && <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (
             <button className="take-summary" {...takePress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
               <span className="h2">My take</span>
@@ -262,19 +272,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                   <ListRow icon={Ico.date} label="Watched on"><input type="date" className="date-input" aria-label="Watched on" value={localDay(last.watched_at)} onChange={(e) => setDate(e.target.value)} /></ListRow>
                   <ListRow icon={Ico.rewatch} label="It was a rewatch" onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
                 </div>
-              </> : <span className="muted small">Rate it after you’ve watched it — press Watched at the bottom.</span>}
-              {(canWatchNow || mState === 'dropped') && <>
-                <span className="list-group-title">Manage</span>
-                <div className="list-group">
-                  {confirmDrop ? (
-                    <div className="list-row"><span className="li-label">Started it but didn’t finish? It goes to Watched marked Dropped.</span>
-                      <button className="st-btn" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="st-btn danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
-                  ) : <>
-                    {mState === 'dropped' && <ListRow icon={Ico.back} label="Bring back" value="›" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })} />}
-                    {canWatchNow && <ListRow icon={Ico.drop} label="Drop" danger onClick={() => setConfirmDrop(true)} />}
-                  </>}
-                </div>
-              </>}
+              </> : null}
             </div>
           )}
         </section>}

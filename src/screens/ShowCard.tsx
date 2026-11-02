@@ -282,34 +282,12 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
       {!ready && <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div>}
       <div className={'card-body' + (ready ? ' shown' : ' hidden-until-ready')} aria-busy={!ready}>
         {error && <p className="error" role="alert">{error}</p>}
-        {/* "Now" card: where the show is + the one thing to do. Start turns into the next-episode row once you begin. */}
-        {(() => {
-          const firstOf = (n: number | undefined) => { if (n == null) return null; const e = (eps.find((x) => x.season === n)?.episodes ?? [])[0]; return e ? { season: n, episode: e.n, name: e.name, runtime: e.runtime ?? null } : null; };
-          const up = canStart ? firstOf(stSeasons?.[0] ?? seasons[0]?.n) : null;
-          const lead = st.state === 'backlog' ? 'Up first' : st.state === 'newSeason' ? 'New season' : st.state === 'lastChance' ? 'Left to watch' : '';
-          return (
-            <section className="card now-card">
-              <span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span>
-              {isPlaying && p.nextEp ? <>
-                <span className="now-title">{epLabel(p.nextEp)} — {p.nextEp.name}</span>
-                <span className="small muted">{[p.nextEp.runtime ? epRuntime(p.nextEp.runtime) : '', p.nextEp.air_date ? 'aired ' + longDate(p.nextEp.air_date) : '', p.pct + '% watched'].filter(Boolean).join(' · ')}</span>
-                <button className="now-main" onClick={() => applyMarks([{ season: p.nextEp!.season, episode: p.nextEp!.episode }], true)}>{Ico.check}Watched</button>
-              </> : canStart ? <>
-                <span className="now-title">{up ? lead + ': ' + epLabel(up) + ' — ' + up.name : statusSub}</span>
-                <span className="small muted">{up ? [up.runtime ? epRuntime(up.runtime) : '', statusSub].filter(Boolean).join(' · ') : ''}</span>
-                <div className="now-actions">
-                  <button className="now-main" onClick={() => act(() => startWatching(item, stSeasons))}>{Ico.play}Start watching</button>
-                  {isBack && <button className={'now-side' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} aria-label={item.up_next ? 'Up next — on' : 'Pin as Up next'} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next' : ''}</button>}
-                </div>
-              </> : <span className="now-title small-title">{statusSub}</span>}
-              {(isBack || isPlaying) && (
-                <button className="plan-link" onClick={() => setScopeFor('plan')}>
-                  <span className="li-icon" aria-hidden="true">{Ico.seasons}</span><span className="grow">{planLabel.split(' · ')[0]}</span><span className="muted small">Change ›</span>
-                </button>
-              )}
-            </section>
-          );
-        })()}
+        {isPlaying && p.nextEp && (
+          <div className="next-ep card">
+            <span className="stack-sm grow"><span className="muted small upper">Next episode</span><strong>{epLabel(p.nextEp)} — {p.nextEp.name}{p.nextEp.runtime ? <span className="muted normal"> · {epRuntime(p.nextEp.runtime)}</span> : null}</strong></span>
+            <button className="btn primary sm" onClick={() => applyMarks([{ season: p.nextEp!.season, episode: p.nextEp!.episode }], true)}>✓ Watched</button>
+          </div>
+        )}
 
         {t.overview && <Overview text={t.overview} />}
 
@@ -321,6 +299,53 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             : <button className="tile3" onClick={() => setTakeOpen(true)} aria-label="Change my take"><ScoreRing value={tileScore} scale={scale} size={48} fontSize={17} /><span className="muted small">My score</span></button>}
         </div>
 
+
+        {/* State card: where the show is + what you can do with that state */}
+        {(() => {
+          const firstOf = (n: number | undefined) => { if (n == null) return null; const e = (eps.find((x) => x.season === n)?.episodes ?? [])[0]; return e ? { season: n, episode: e.n, name: e.name } : null; };
+          const up = canStart ? firstOf(stSeasons?.[0] ?? seasons[0]?.n) : null;
+          const upLine = up ? 'Up first: ' + epLabel(up) + ' — ' + up.name : '';
+          const title = st.state === 'progress' ? 'Watching ' + planLabel.split(' · ')[0]
+            : st.state === 'backlog' ? planLabel.split(' · ')[0] + ' · ' + seasons.length + (seasons.length === 1 ? ' season' : ' seasons')
+            : st.state === 'newSeason' ? seasonsName(st.seasons) + ' is out'
+            : st.state === 'lastChance' ? seasonsName(st.seasons) + ' left to watch'
+            : st.state === 'caughtUp' ? (isPlaying ? 'Waiting for new episodes' : 'Waiting for ' + seasonsName(st.seasons))
+            : st.state === 'upToDate' ? 'All caught up' : st.state === 'dropped' ? 'You dropped this show' : 'Finished';
+          const sub = st.state === 'progress' ? [p.pct + '% watched', item.started_on ? 'started ' + longDate(item.started_on) : ''].filter(Boolean).join(' · ')
+            : st.state === 'backlog' ? upLine
+            : st.state === 'newSeason' ? [stAir ? 'Premiered ' + longDate(stAir) : '', upLine].filter(Boolean).join(' · ')
+            : st.state === 'lastChance' ? ['The show has ended', upLine].filter(Boolean).join(' · ')
+            : statusSub;
+          return (
+            <section className="card state-card" data-state={st.state}>
+              <span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span>
+              <span className="state-title">{title}</span>
+              {sub && <span className="small muted">{sub}</span>}
+              {(isBack || isPlaying) && (
+                <button className="plan-link" onClick={() => setScopeFor('plan')}>
+                  <span className="li-icon" aria-hidden="true">{Ico.seasons}</span><span className="grow">{planLabel.split(' · ')[0]}</span><span className="muted small">Change ›</span>
+                </button>
+              )}
+              {canStart && (
+                <div className="state-actions">
+                  <button className="btn primary" onClick={() => act(() => startWatching(item, stSeasons))}>{Ico.play}Start watching</button>
+                  {isBack && <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>}
+                </div>
+              )}
+              {confirmDrop ? (
+                <div className="quiet-row"><span className="small grow">Drop {t.title}? It disappears from your lists; entries stay in Watched.</span>
+                  <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
+              ) : (
+                <div className="quiet-row">
+                  {st.state !== 'dropped' && <button className="link" onClick={() => { setPastMode('now'); setPastStep('seasons'); }}>Mark watched…</button>}
+                  {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="link" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>Move to Backlog</button>}
+                  {st.state === 'dropped' && <button className="link" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>Bring back</button>}
+                  {canDrop && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
+                </div>
+              )}
+            </section>
+          );
+        })()}
 
         <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (
@@ -339,23 +364,9 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               <span className="muted small">Your overall rating of the show. Seasons are rated in Seasons.</span>
               <RatingTiles value={item.tier} onPick={(v) => pickTier(v ?? item.tier ?? '')} />
               <ScoreStepper value={score} scale={scale} onChange={(v) => setScore(v)} />
-              {justFinished && (runLog ?? last) && (() => { const l = (runLog ?? last)!; return (
-                <div className="list-group">
-                  <ListRow icon={Ico.date} label="Finished on"><input type="date" className="date-input" aria-label="Finished on" value={localDay(l.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></ListRow>
-                  <ListRow icon={Ico.rewatch} label="It was a rewatch" onClick={() => toggleLogRewatch(l)}><span className={'switch' + (l.rewatch ? ' on-green' : '')}><span /></span></ListRow>
-                </div>
-              ); })()}
-              <span className="list-group-title">Manage</span>
               <div className="list-group">
-                {confirmDrop ? (
-                  <div className="list-row"><span className="li-label">Drop {t.title}? Entries stay in Watched.</span>
-                    <button className="st-btn" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="st-btn danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
-                ) : <>
-                  <ListRow icon={Ico.check} label="Mark seasons as watched" value="›" onClick={() => { setPastMode('now'); setPastStep('seasons'); }} />
-                  {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <ListRow icon={Ico.backlog} label="Move to Backlog" value="›" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))} />}
-                  {st.state === 'dropped' && <ListRow icon={Ico.back} label="Bring back" value="›" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))} />}
-                  {canDrop && <ListRow icon={Ico.drop} label="Drop" danger onClick={() => setConfirmDrop(true)} />}
-                </>}
+                {currentLog && <ListRow icon={Ico.date} label="Finished on"><input type="date" className="date-input" aria-label="Finished on" value={localDay(currentLog.watched_at)} onChange={(e) => { const d = e.target.value; const l = currentLog; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></ListRow>}
+                <ListRow icon={Ico.rewatch} label="Rewatch" onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
               </div>
             </div>
           )}
