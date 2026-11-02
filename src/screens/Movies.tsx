@@ -235,8 +235,8 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
         const lastAired = isTv ? ((it.title.data as { last_air_date?: string | null } | null)?.last_air_date ?? null) : null;
         const rel = it.title.release_date;
         const [cap, when] = isTv
-          ? (rel && rel > today ? ['Premieres', rel] : ['Last aired', lastAired ?? rel])
-          : (rel && rel > today ? ['Out on', rel] : ['Released', rel]);
+          ? (rel && rel > today ? ['Premieres on', rel] : ['Last aired on', lastAired ?? rel])
+          : (rel && rel > today ? ['Out on', rel] : ['Released on', rel]);
         const d = when ? dateParts(when) : null;
         return <span className="date-col"><span className="date-cap">{cap}</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">TBA</span>}</span>;
       })()}
@@ -250,11 +250,11 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     const fresh = !!when && when <= today && Date.now() - new Date(when).getTime() < 30 * 864e5;
     switch (state) {
       case 'progress': return { line: 'Next: ' + epLabel(p.nextEp!) + (p.nextEp!.name ? ' — ' + p.nextEp!.name : '') + (p.nextEp!.runtime ? ' · ' + epRuntime(p.nextEp!.runtime) : ''), cap: 'Started on', date: it.started_on ?? null, isNew: !!(p.nextEp?.air_date && p.seen > 0 && Date.now() - new Date(p.nextEp.air_date).getTime() < 21 * 864e5), bar: true };
-      case 'newSeason': return { line: seasonsName(seasons) + (fresh ? ' · out now' : ' · available'), cap: 'Premiered', date: when, isNew: fresh, bar: false };
+      case 'newSeason': return { line: seasonsName(seasons) + (fresh ? ' · out now' : ' · available'), cap: 'Premiered on', date: when, isNew: fresh, bar: false };
       case 'lastChance': return { line: seasonsName(seasons) + ' · not watched yet', cap: 'Last watched', date: r.last, isNew: false, bar: false };
       case 'caughtUp': return it.status === 'playing'
         ? { line: 'Caught up' + (p.nextFuture ? ' · next ' + epLabel(p.nextFuture) : ''), cap: 'Next episode', date: when, isNew: false, bar: true }
-        : { line: seasonsName(seasons) + (when ? ' · coming' : ' · announced'), cap: 'Premieres', date: when, isNew: false, bar: false };
+        : { line: seasonsName(seasons) + (when ? ' · coming' : ' · announced'), cap: 'Premieres on', date: when, isNew: false, bar: false };
       default: return { line: 'Up to date · no new season yet', cap: 'Last watched', date: r.last, isNew: false, bar: false };
     }
   };

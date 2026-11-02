@@ -264,9 +264,9 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const statusSub = (() => {
     switch (st.state) {
       case 'progress': return (item.rewatch ? 'Rewatching ' : 'Watching ') + planLabel;
-      case 'newSeason': return seasonsName(st.seasons) + ' is out' + (stAir ? ' · ' + longDate(stAir) : '');
+      case 'newSeason': return seasonsName(st.seasons) + ' is out' + (stAir ? ' · premiered on ' + longDate(stAir) : '');
       case 'lastChance': return seasonsName(st.seasons) + ' not watched yet · show has ended';
-      case 'caughtUp': return isPlaying ? (p.nextFuture ? 'Next: ' + epLabel(p.nextFuture) + (p.nextFuture.air_date ? ' on ' + longDate(p.nextFuture.air_date) : '') : 'Waiting for new episodes') : seasonsName(st.seasons) + (stAir ? ' premieres ' + longDate(stAir) : ' announced');
+      case 'caughtUp': return isPlaying ? (p.nextFuture ? 'Next: ' + epLabel(p.nextFuture) + (p.nextFuture.air_date ? ' on ' + longDate(p.nextFuture.air_date) : '') : 'Waiting for new episodes') : seasonsName(st.seasons) + (stAir ? ' premieres on ' + longDate(stAir) : ' announced');
       case 'upToDate': return 'All watched · no new season announced yet';
       case 'backlog': return (item.rewatch ? 'Rewatch · ' : '') + planLabel;
       case 'dropped': return 'Hidden from your lists · search still finds it';
@@ -325,9 +325,9 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             : st.state === 'lastChance' ? seasonsName(st.seasons) + ' left to watch'
             : st.state === 'caughtUp' ? (isPlaying ? 'Waiting for new episodes' : 'Waiting for ' + seasonsName(st.seasons))
             : st.state === 'upToDate' ? 'All caught up' : st.state === 'dropped' ? 'You dropped this show' : 'Finished';
-          const sub = st.state === 'progress' ? (item.started_on ? 'Started ' + longDate(item.started_on) : '')
+          const sub = st.state === 'progress' ? (item.started_on ? 'Started on ' + longDate(item.started_on) : '')
             : st.state === 'backlog' ? upLine
-            : st.state === 'newSeason' ? [stAir ? 'Premiered ' + longDate(stAir) : '', upLine].filter(Boolean).join(' · ')
+            : st.state === 'newSeason' ? [stAir ? 'Premiered on ' + longDate(stAir) : '', upLine].filter(Boolean).join(' · ')
             : st.state === 'lastChance' ? ['The show has ended', upLine].filter(Boolean).join(' · ')
             : statusSub;
           return (
@@ -429,7 +429,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                 </button>
                 {open && (
                   <div className="season-body">
-                    <div className="row between"><span className="muted small">{rating ? 'Rated ' + longDate(rating.rated_at) : 'Not rated yet'}</span>
+                    <div className="row between"><span className="muted small">{rating ? 'Rated on ' + longDate(rating.rated_at) : 'Not rated yet'}</span>
                       {aired > 0 && <button className="btn sm" onClick={() => applyMarks(list.filter((e) => e.air_date && e.air_date <= today && (allSeen || !runSeen(s.n, e.n))).map((e) => ({ season: s.n, episode: e.n })), !allSeen)}>{allSeen ? 'Unmark all' : 'Mark season watched'}</button>}</div>
                     {rateFocus === s.n && <span className="just-finished">Season {s.n} finished · rate it</span>}
                     <div id={'season-rate-' + s.n} className={rateFocus === s.n ? 'rate-focus' : undefined}><RatingTiles label={'Season ' + s.n + ' rating'} value={rating?.tier ?? null} onPick={(v) => guard(async () => { await setSeasonRating(s.n, { tier: v }); })()} /></div>

@@ -146,10 +146,10 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
     switch (mState) {
       case 'upNext': return 'Pinned to the top of your Backlog';
       case 'comingSoon': return 'Out on ' + (rel ? longDate(rel) : 'a date TBA');
-      case 'outNow': return 'Released ' + (rel ? longDate(rel) : 'this year');
+      case 'outNow': return 'Released on ' + (rel ? longDate(rel) : 'this year');
       case 'backlog': return item.rewatch ? 'Rewatch planned' : 'In your Backlog';
-      case 'watched': return 'Watched ' + (last ? longDate(last.watched_at) : '');
-      case 'didntFinish': return 'Didn’t finish · ' + (last ? longDate(last.watched_at) : '');
+      case 'watched': return 'Watched on ' + (last ? longDate(last.watched_at) : '');
+      case 'didntFinish': return 'Didn’t finish · stopped on ' + (last ? longDate(last.watched_at) : '');
       default: return 'Hidden from your lists · search still finds it';
     }
   })();
