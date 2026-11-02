@@ -744,3 +744,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .take-line-label { flex: 1; font-weight: 800; font-size: 15px; }
 .take-line .pill { flex: none; }
 .take-body { display: flex; flex-direction: column; gap: 12px; }
+.take-line > * { align-self: center; }
+.take-line .pill { align-self: center; margin: 0; }

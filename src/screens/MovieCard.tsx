@@ -271,7 +271,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                 <ScoreStepper value={score} scale={scale} onChange={(v) => setScore(v)} />
                 <div className="list-group">
                   <ListRow icon={Ico.date} label="Watched on"><input type="date" className="date-input" aria-label="Watched on" value={localDay(last.watched_at)} onChange={(e) => setDate(e.target.value)} /></ListRow>
-                  <ListRow icon={Ico.rewatch} label="It was a rewatch" onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
+                  <ListRow icon={Ico.rewatch} label="Rewatch" onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
                 </div>
               </> : <>
                 {/* Not watched yet: everything is here; rating it logs a viewing with today's date (change it after) */}
@@ -279,7 +279,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                 <RatingTiles value={null} onPick={(v) => { if (v) rateFirst({ tier: v }); }} />
                 <ScoreStepper value={null} scale={scale} onChange={(v) => { if (v !== null) rateFirst({ score: v }); }} />
                 <div className="list-group">
-                  <ListRow icon={Ico.rewatch} label="It will be a rewatch" onClick={() => { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }}><span className={'switch' + (item.rewatch ? ' on-green' : '')}><span /></span></ListRow>
+                  <ListRow icon={Ico.rewatch} label="Rewatch" onClick={() => { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }}><span className={'switch' + (item.rewatch ? ' on-green' : '')}><span /></span></ListRow>
                 </div>
               </>}
             </div>
