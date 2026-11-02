@@ -311,7 +311,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             : st.state === 'lastChance' ? seasonsName(st.seasons) + ' left to watch'
             : st.state === 'caughtUp' ? (isPlaying ? 'Waiting for new episodes' : 'Waiting for ' + seasonsName(st.seasons))
             : st.state === 'upToDate' ? 'All caught up' : st.state === 'dropped' ? 'You dropped this show' : 'Finished';
-          const sub = st.state === 'progress' ? [p.pct + '% watched', item.started_on ? 'started ' + longDate(item.started_on) : ''].filter(Boolean).join(' · ')
+          const sub = st.state === 'progress' ? (item.started_on ? 'Started ' + longDate(item.started_on) : '')
             : st.state === 'backlog' ? upLine
             : st.state === 'newSeason' ? [stAir ? 'Premiered ' + longDate(stAir) : '', upLine].filter(Boolean).join(' · ')
             : st.state === 'lastChance' ? ['The show has ended', upLine].filter(Boolean).join(' · ')
