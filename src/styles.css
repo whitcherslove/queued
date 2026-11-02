@@ -708,3 +708,8 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .state-pill[data-state="backlog"] { background: color-mix(in srgb, #7D8AA6 24%, transparent); color: #9BA6BE; }
 .state-pill[data-state="upToDate"], .state-pill[data-state="finished"], .state-pill[data-state="watched"] { background: color-mix(in srgb, #8A8A93 22%, transparent); color: #A3A3AC; }
 .state-pill[data-state="dropped"], .state-pill[data-state="didntFinish"] { background: color-mix(in srgb, #A98BE0 24%, transparent); color: #A98BE0; }
+
+/* one type style for blocks inside a title card: the same as the state card title (Onest, bold, sentence case) */
+.card-body .h2 { font-family: 'Onest', system-ui, sans-serif; text-transform: none; letter-spacing: 0; font-size: 17px; font-weight: 800; }
+.rate-chip { white-space: nowrap; }
+.rate-chip:not(.wide) { white-space: normal; }

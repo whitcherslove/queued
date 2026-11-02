@@ -2,9 +2,11 @@ import type { ReactNode } from 'react';
 import { PICK_TIERS, displayScore, myScoreColor } from '../lib/scores';
 import ScoreRing from './ScoreRing';
 
-/** Rating chips (same look as in Viewings), worst → best, two even rows: 3 on top, 2 below, both rows full width. */
+/** Rating chips (same look as in Viewings) in two even rows: 3 on top, 2 wider ones below; both rows full width. */
 export function RatingTiles({ value, onPick, label = 'Rating' }: { value: string | null; onPick: (id: string | null) => void; label?: string }) {
-  const order = [...PICK_TIERS].reverse();
+  // top row: This is fine · Awesome · 10 out of 10; bottom row (wider, so the long names fit on one line): Fucking filth · So bad it's good
+  const ORDER = ['fine', 'awesome', 'ten', 'filth', 'sobad'];
+  const order = ORDER.map((id) => PICK_TIERS.find((t) => t.id === id)!).filter(Boolean);
   return (
     <div className="rate-grid" role="radiogroup" aria-label={label}>
       {order.map((t, i) => {
