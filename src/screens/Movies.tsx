@@ -5,7 +5,7 @@ import { localDay, topPosition, merged, dateParts, matchLibrary, moveBy, moveId,
 import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
-import { epLabel, isEnded, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, showState, todayIso, type ShowState } from '../lib/tv';
+import { epLabel, epRuntime, isEnded, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, showState, todayIso, type ShowState } from '../lib/tv';
 import { bringBack, dropShow, moveToBacklog, startWatching } from '../lib/tvActions';
 import MovieCard from './MovieCard';
 import ScoreRing from '../components/ScoreRing';
@@ -244,7 +244,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     const { it, p, state, seasons, when } = r;
     const fresh = !!when && when <= today && Date.now() - new Date(when).getTime() < 30 * 864e5;
     switch (state) {
-      case 'progress': return { line: 'Next: ' + epLabel(p.nextEp!) + (p.nextEp!.name ? ' — ' + p.nextEp!.name : ''), cap: 'Started on', date: it.started_on ?? null, isNew: !!(p.nextEp?.air_date && p.seen > 0 && Date.now() - new Date(p.nextEp.air_date).getTime() < 21 * 864e5), bar: true };
+      case 'progress': return { line: 'Next: ' + epLabel(p.nextEp!) + (p.nextEp!.name ? ' — ' + p.nextEp!.name : '') + (p.nextEp!.runtime ? ' · ' + epRuntime(p.nextEp!.runtime) : ''), cap: 'Started on', date: it.started_on ?? null, isNew: !!(p.nextEp?.air_date && p.seen > 0 && Date.now() - new Date(p.nextEp.air_date).getTime() < 21 * 864e5), bar: true };
       case 'newSeason': return { line: seasonsName(seasons) + (fresh ? ' · out now' : ' · available'), cap: 'Premiered', date: when, isNew: fresh, bar: false };
       case 'lastChance': return { line: seasonsName(seasons) + ' · not watched yet', cap: 'Last watched', date: r.last, isNew: false, bar: false };
       case 'caughtUp': return it.status === 'playing'
@@ -586,10 +586,10 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
             <div className="choice-buttons">
               <button className="choice primary" onClick={async () => { const t = addChoice; setAddChoice(null); if (isTv) { setScopeAdd(t); return; } try { await addToBacklog(t.id, 'movies', topPosition(items)); await refresh(); } catch { setError('Couldn’t add “' + t.title + '”.'); } }}>
                 <strong>Add to Backlog</strong><span>{isTv ? 'Then pick the seasons you’ll watch' : 'Goes to the top of your Backlog'}</span></button>
-              <button className="choice" onClick={async () => { const t = addChoice; setAddChoice(null);
+              {!(addChoice.release_date && addChoice.release_date > today) && <button className="choice" onClick={async () => { const t = addChoice; setAddChoice(null);
                 try { const id = await addToBacklog(t.id, section, topPosition(items), isTv ? { run_started_at: new Date().toISOString() } : {}); await refresh(); setQ(''); setCardSeq([id]); setCardTake(false); setCardEnter(null); setCardPast(true); setCardId(id); }
                 catch { setError('Couldn’t add “' + t.title + '”.'); } }}>
-                <strong>I’ve seen it</strong><span>{isTv ? 'Add a past viewing: seasons, date, rating' : 'Add a past viewing: date and rating'}</span></button>
+                <strong>I’ve seen it</strong><span>{isTv ? 'Add a past viewing: seasons, date, rating' : 'Add a past viewing: date and rating'}</span></button>}
               <button className="choice ghost" onClick={() => setAddChoice(null)}>Cancel</button>
             </div>
           </div>

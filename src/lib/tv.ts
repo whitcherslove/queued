@@ -67,7 +67,7 @@ export function logScope(list: number[] | null) {
   return { scope: (s.length === 1 ? 'season' : 'seasons') as 'season' | 'seasons', season_from: s[0], season_to: s[s.length - 1], seasons: s };
 }
 
-export interface EpRef { season: number; episode: number; name: string; air_date: string | null }
+export interface EpRef { season: number; episode: number; name: string; air_date: string | null; runtime?: number | null }
 export interface Progress {
   aired: number; seen: number; total: number; pct: number;
   nextEp: EpRef | null; nextFuture: EpRef | null; lastSeen: string | null;
@@ -86,7 +86,7 @@ export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_sea
     const se = eps.find((e) => e.season === sn);
     (se?.episodes ?? []).forEach((e) => {
       total++;
-      const ref = { season: sn, episode: e.n, name: e.name, air_date: e.air_date };
+      const ref = { season: sn, episode: e.n, name: e.name, air_date: e.air_date, runtime: e.runtime ?? null };
       const isAired = !!e.air_date && e.air_date <= today;
       if (isAired) {
         aired++;
@@ -180,3 +180,9 @@ export const STATE_LABEL: Record<ShowState, string> = {
   progress: 'In progress', newSeason: 'New season out', lastChance: 'Last chance', caughtUp: 'Caught up',
   upToDate: 'Up to date', backlog: 'Backlog', dropped: 'Dropped', finished: 'Finished'
 };
+
+/** "52m", "1h 5m" */
+export function epRuntime(min: number | null | undefined): string {
+  if (!min) return '';
+  return min >= 60 ? Math.floor(min / 60) + 'h ' + (min % 60 ? (min % 60) + 'm' : '').trim() : min + 'm';
+}

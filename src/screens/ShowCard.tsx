@@ -8,7 +8,7 @@ import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
   refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog, addMarksAt
 } from '../lib/remote';
-import { STATE_LABEL, coveredSeasons, epLabel, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showState, showYears, todayIso } from '../lib/tv';
+import { STATE_LABEL, coveredSeasons, epLabel, epRuntime, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showState, showYears, todayIso } from '../lib/tv';
 import { applyEpisodeMarks, bringBack, dropShow, moveToBacklog, startWatching } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
 import Overview from '../components/Overview';
@@ -277,7 +277,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         {/* the thing you'll tap most while watching sits right at the top */}
         {isPlaying && p.nextEp && (
           <div className="next-ep card">
-            <span className="stack-sm grow"><span className="muted small upper">Next episode</span><strong>{epLabel(p.nextEp)} — {p.nextEp.name}</strong></span>
+            <span className="stack-sm grow"><span className="muted small upper">Next episode</span><strong>{epLabel(p.nextEp)} — {p.nextEp.name}{p.nextEp.runtime ? <span className="muted normal"> · {epRuntime(p.nextEp.runtime)}</span> : null}</strong></span>
             <button className="btn primary sm" onClick={() => applyMarks([{ season: p.nextEp!.season, episode: p.nextEp!.episode }], true)}>Watched</button>
           </div>
         )}
@@ -409,7 +409,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                             {...(future ? {} : epPress(s.n + ':' + e.n))} onClick={() => applyMarks([{ season: s.n, episode: e.n }], !on)}>
                             <span className={'ep-box' + (on ? ' on' : before ? ' before' : '')} aria-hidden="true">{(on || before) && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}</span>
                             <span className="ep-n">{e.n}</span>
-                            <span className="ep-name">{e.name}</span>
+                            <span className="ep-name">{e.name}{e.runtime ? <span className="ep-rt"> · {epRuntime(e.runtime)}</span> : null}</span>
                             <span className={'ep-date' + (before ? ' before' : '')}>{future ? (e.air_date ? 'Airs ' + releaseText(e.air_date, null) : 'TBA') : (on || before) ? (before ? 'Seen ' : '') + releaseText(marks.find((m) => m.season === s.n && m.episode === e.n)?.watched_at ?? null, null) : releaseText(e.air_date, null)}</span>
                           </button>
                         );
@@ -427,7 +427,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         <section className="card stack-sm">
           <div className="sec-head wrap"><span className="h2">Viewings <span className="muted small normal">{logs.length}</span></span>
           <div className="act-chips">
-            <button className="act-chip" onClick={() => { setPastMode('past'); setPastStep('seasons'); }}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>Watched before</button>
+            {!(t.release_date && t.release_date > today) && <button className="act-chip" onClick={() => { setPastMode('past'); setPastStep('seasons'); }}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>Watched before</button>}
             {isDone && <button className="act-chip" onClick={() => setScopeFor('rewatch')}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12V9a3 3 0 0 1 3-3h13l-3-3M20 12v3a3 3 0 0 1-3 3H4l3 3" /></svg>Rewatch</button>}
           </div></div>
           {/* Top row = where the show is right now (same words as the Watching sections). It's not a journal entry. */}

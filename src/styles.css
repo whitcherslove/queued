@@ -585,3 +585,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .state-pill[data-state="comingSoon"] { background: color-mix(in srgb, #F6B26B 22%, transparent); color: #F6B26B; }
 .state-pill[data-state="didntFinish"] { background: color-mix(in srgb, #A98BE0 24%, transparent); color: #A98BE0; }
 .act-chip.danger-chip { background: color-mix(in srgb, #DE3C49 15%, transparent); color: #DE3C49; }
+
+.ep-rt { color: var(--muted); font-weight: 500; }
