@@ -213,3 +213,22 @@ export async function addMarksAt(libraryId: string, eps: { season: number; episo
     if (error) throw error;
   }
 }
+
+// ---------- games (IGDB + RAWG + TheGamesDB + SteamGridDB via the "games" function) ----------
+export interface GameHit { sourceId: string; title: string; year: number | null; releaseDate: string | null; posterUrl: string | null; type: string; parent: string | null; platforms: string[] }
+export async function searchGames(q: string): Promise<GameHit[]> {
+  const { data, error } = await supabase.functions.invoke('games', { body: { action: 'search', q } });
+  if (error) throw error;
+  return (data?.results ?? []) as GameHit[];
+}
+export async function ensureGame(igdbId: string, force = false): Promise<Title> {
+  const { data, error } = await supabase.functions.invoke('games', { body: { action: 'details', igdbId, force } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data.title as Title;
+}
+export async function gameImages(titleId: string, platform?: string): Promise<{ posters: { url: string; label: string }[]; backdrops: { url: string; label: string }[] }> {
+  const { data, error } = await supabase.functions.invoke('games', { body: { action: 'images', titleId, platform } });
+  if (error) throw error;
+  return data ?? { posters: [], backdrops: [] };
+}
