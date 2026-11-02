@@ -737,3 +737,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .rate-focus { border-radius: 14px; animation: rate-pulse 1.2s ease-out 2; }
 @keyframes rate-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 100% { box-shadow: 0 0 0 12px transparent; } }
 @media (prefers-reduced-motion: reduce) { .rate-focus { animation: none; outline: 2px solid var(--accent); } }
+
+/* My take inside the state card */
+.take-divider { height: 1px; background: var(--line); margin: 2px 0; }
+.take-line { display: flex; align-items: center; gap: 8px; width: 100%; min-height: 40px; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.take-line-label { flex: 1; font-weight: 800; font-size: 15px; }
+.take-line .pill { flex: none; }
+.take-body { display: flex; flex-direction: column; gap: 12px; }

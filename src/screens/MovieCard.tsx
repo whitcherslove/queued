@@ -37,7 +37,6 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const [owned, setOwned] = useState<Record<string, Owned>>(initialOwned ?? {});
   const [takeOpen, setTakeOpen] = useState(!!openTake);
   const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress(), statusPress = usePress(), collPress = usePress();
-  const [statusOpen, setStatusOpen] = useState(false);
   const [confirmDrop, setConfirmDrop] = useState(false);
   const [justWatched, setJustWatched] = useState(false);
   const [collOpen, setCollOpen] = useState(true);
@@ -236,16 +235,15 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
 
 
         {/* State card: where the movie is + what you can do with that state */}
-        <section className={'card state-card' + (statusPress.pressed ? ' pressed' : '')} data-state={mState}>
+        <section id="my-take" className={'card state-card' + (statusPress.pressed ? ' pressed' : '')} data-state={mState}>
           {(() => {
             const head = <>
               <span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span>
               <span className="state-title">{mState === 'dropped' ? 'Not in your lists' : mSub}</span>
               {inBacklog && t.runtime ? <span className="small muted">{runtimeText(t.runtime)}{item.rewatch ? ' · rewatch' : ''}</span> : null}
             </>;
-            return canWatchNow || mState === 'dropped'
-              ? <button className="state-head" aria-expanded={statusOpen} {...statusPress.bind} onClick={() => { setStatusOpen(!statusOpen); setConfirmDrop(false); }}><span className="state-head-text">{head}</span><ChevBtn open={statusOpen} /></button>
-              : <span className="state-head-text">{head}</span>;
+            // the whole card folds/unfolds from here (also when there's nothing but My take to open)
+            return <button className="state-head" aria-expanded={takeOpen} {...statusPress.bind} onClick={() => { setTakeOpen(!takeOpen); setConfirmDrop(false); }}><span className="state-head-text">{head}</span><ChevBtn open={takeOpen} /></button>;
           })()}
           {inBacklog && (
             <div className="state-actions">
@@ -253,30 +251,19 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
               <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>
             </div>
           )}
-          {statusOpen && (canWatchNow || mState === 'dropped') && (confirmDrop ? (
-            <div className="quiet-row"><span className="small grow">Started it but didn’t finish? It goes to Watched marked Dropped.</span>
-              <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
-          ) : (
-            <div className="quiet-row">
-              {canWatchNow && <button className="link" onClick={() => setPastOpen(true)}>Watched before</button>}
-              {mState === 'dropped' && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
-              {canWatchNow && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
-            </div>
-          ))}
-        </section>
 
-        <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
+          {/* My take lives in the same card: folded = one line with your rating, unfolded = rating, score, rewatch, date */}
+          <div className="take-divider" />
           {!takeOpen ? (
-            <button className="take-summary" {...takePress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
-              <span className="h2">My take</span>
+            <button className="take-line" {...statusPress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
+              <span className="take-line-label">My take</span>
               {!logsReady ? null : !last ? <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not watched yet</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not watched yet</span>}
               {rewOn && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
-              <span className="spacer" />
-              <ChevBtn open={false} />
+              {score !== null && <ScoreRing value={score} scale={scale} size={30} fontSize={11} />}
             </button>
           ) : (
-            <div className="stack">
-              <button className="take-head" aria-expanded="true" {...takePress.bind} onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
+            <div className="take-body">
+              <span className="take-line-label">My take</span>
               {last ? <>
                 {justWatched && <span className="just-finished">Just watched · rate it</span>}
                 <span className="muted small">{'Your rating of the viewing on ' + longDate(last.watched_at) + (planned ? ' · a rewatch is planned' : '')}</span>
@@ -297,7 +284,18 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
               </>}
             </div>
           )}
+          {takeOpen && (canWatchNow || mState === 'dropped') && (confirmDrop ? (
+            <div className="quiet-row"><span className="small grow">Started it but didn’t finish? It goes to Watched marked Dropped.</span>
+              <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
+          ) : (
+            <div className="quiet-row">
+              {canWatchNow && <button className="link" onClick={() => setPastOpen(true)}>Watched before</button>}
+              {mState === 'dropped' && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
+              {canWatchNow && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
+            </div>
+          ))}
         </section>
+
 
         {/* Lower part (details, collection, viewings, AI) appears in one piece once the full card is loaded */}
         {!full ? <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div> : (

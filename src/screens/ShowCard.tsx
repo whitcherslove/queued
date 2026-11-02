@@ -69,7 +69,6 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const [pastStep, setPastStep] = useState<'' | 'seasons' | 'details'>(openPast ? 'seasons' : '');
   const [pastSeasons, setPastSeasons] = useState<number[] | null>(null);
   const [pastMode, setPastMode] = useState<'past' | 'now'>('past');
-  const [statusOpen, setStatusOpen] = useState(false);
   const [seasonsOpen, setSeasonsOpen] = useState(initial?.status === 'playing');
   const [whatNow, setWhatNow] = useState(false);
   const [preview, setPreview] = useState<number | null | undefined>(undefined);
@@ -332,17 +331,17 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             : st.state === 'lastChance' ? ['The show has ended', upLine].filter(Boolean).join(' · ')
             : statusSub;
           return (
-            <section className={'card state-card' + (statusPress.pressed ? ' pressed' : '')} data-state={shownState(st.state, !!item.up_next)}>
+            <section id="my-take" className={'card state-card' + (statusPress.pressed ? ' pressed' : '')} data-state={shownState(st.state, !!item.up_next)}>
               {/* tap the top part to show / hide the extra options at the bottom */}
-              <button className="state-head" aria-expanded={statusOpen} {...statusPress.bind} onClick={() => { setStatusOpen(!statusOpen); setConfirmDrop(false); }}>
+              <button className="state-head" aria-expanded={takeOpen} {...statusPress.bind} onClick={() => { setTakeOpen(!takeOpen); setConfirmDrop(false); }}>
                 <span className="state-head-text">
                   <span className="state-pill" data-state={shownState(st.state, !!item.up_next)}>{STATE_LABEL[shownState(st.state, !!item.up_next)]}</span>
                   <span className="state-title">{title}</span>
                   {sub && <span className="small muted">{sub}</span>}
                 </span>
-                <ChevBtn open={statusOpen} />
+                <ChevBtn open={takeOpen} />
               </button>
-              {statusOpen && (isBack || isPlaying) && (
+              {takeOpen && (isBack || isPlaying) && (
                 <button className="plan-link" onClick={() => setScopeFor('plan')}>
                   <span className="li-icon" aria-hidden="true">{Ico.seasons}</span><span className="grow">{planLabel.split(' · ')[0]}</span><span className="muted small">Change ›</span>
                 </button>
@@ -353,7 +352,32 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                   {isBack && <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>}
                 </div>
               )}
-              {statusOpen && (confirmDrop ? (
+
+          {/* My take lives in the same card: folded = one line with your rating, unfolded = rating, score, rewatch, date */}
+          <div className="take-divider" />
+          {!takeOpen ? (
+            <button className="take-line" {...statusPress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
+              <span className="take-line-label">My take</span>
+              {!ready ? null : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span>
+                : isDone ? <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>Not rated</span>
+                : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>{isPlaying ? 'Watching' : planned ? (item.rewatch ? 'Rewatch · Backlog' : 'Next seasons · Backlog') : 'Not watched yet'}</span>}
+              {rewOn && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
+              {score !== null && <ScoreRing value={score} scale={scale} size={30} fontSize={11} />}
+            </button>
+          ) : (
+            <div className="take-body">
+              <span className="take-line-label">My take</span>
+              {justFinished && <span className="just-finished">Just finished · rate it</span>}
+              <span className="muted small">Your overall rating of the show. Seasons are rated in Seasons.</span>
+              <RatingTiles value={item.tier} onPick={(v) => pickTier(v ?? item.tier ?? '')} />
+              <ScoreStepper value={score} scale={scale} onChange={(v) => setScore(v)} />
+              <div className="list-group">
+                {currentLog && <ListRow icon={Ico.date} label="Finished on"><input type="date" className="date-input" aria-label="Finished on" value={localDay(currentLog.watched_at)} onChange={(e) => { const d = e.target.value; const l = currentLog; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></ListRow>}
+                <ListRow icon={Ico.rewatch} label="Rewatch" onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
+              </div>
+            </div>
+          )}
+              {takeOpen && (confirmDrop ? (
                 <div className="quiet-row"><span className="small grow">Drop {t.title}? It disappears from your lists; entries stay in Watched.</span>
                   <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
               ) : (
@@ -368,30 +392,6 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           );
         })()}
 
-        <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
-          {!takeOpen ? (
-            <button className="take-summary" {...takePress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
-              <span className="h2">My take</span>
-              {!ready ? null : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span>
-                : isDone ? <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>Not rated</span>
-                : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>{isPlaying ? 'Watching' : planned ? (item.rewatch ? 'Rewatch · Backlog' : 'Next seasons · Backlog') : 'Not watched yet'}</span>}
-              {rewOn && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
-              <span className="spacer" /><ChevBtn open={false} />
-            </button>
-          ) : (
-            <div className="stack">
-              <button className="take-head" aria-expanded="true" {...takePress.bind} onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
-              {justFinished && <span className="just-finished">Just finished · rate it</span>}
-              <span className="muted small">Your overall rating of the show. Seasons are rated in Seasons.</span>
-              <RatingTiles value={item.tier} onPick={(v) => pickTier(v ?? item.tier ?? '')} />
-              <ScoreStepper value={score} scale={scale} onChange={(v) => setScore(v)} />
-              <div className="list-group">
-                {currentLog && <ListRow icon={Ico.date} label="Finished on"><input type="date" className="date-input" aria-label="Finished on" value={localDay(currentLog.watched_at)} onChange={(e) => { const d = e.target.value; const l = currentLog; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></ListRow>}
-                <ListRow icon={Ico.rewatch} label="Rewatch" onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
-              </div>
-            </div>
-          )}
-        </section>
 
         <section className="stack-sm">
           {/* Looks like the other tappable cards (My take): a card with a summary and a round chevron */}
