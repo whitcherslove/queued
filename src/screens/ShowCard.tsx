@@ -306,7 +306,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           const up = canStart ? firstOf(stSeasons?.[0] ?? seasons[0]?.n) : null;
           const upLine = up ? 'Up first: ' + epLabel(up) + ' — ' + up.name : '';
           const title = st.state === 'progress' ? 'Watching ' + planLabel.split(' · ')[0]
-            : st.state === 'backlog' ? planLabel.split(' · ')[0] + ' · ' + seasons.length + (seasons.length === 1 ? ' season' : ' seasons')
+            : st.state === 'backlog' ? (plan ? planLabel.split(' · ')[0] : 'Full series · ' + seasons.length + (seasons.length === 1 ? ' season' : ' seasons'))
             : st.state === 'newSeason' ? seasonsName(st.seasons) + ' is out'
             : st.state === 'lastChance' ? seasonsName(st.seasons) + ' left to watch'
             : st.state === 'caughtUp' ? (isPlaying ? 'Waiting for new episodes' : 'Waiting for ' + seasonsName(st.seasons))

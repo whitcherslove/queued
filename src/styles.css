@@ -723,3 +723,13 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .state-head-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
 .state-head .chev-btn { margin-top: 2px; }
 .state-card.pressed { transform: scale(.985); }
+
+/* Backlog › Up next rows: the same look as the "Up next" state card — pink stripe on the left + soft pink wash */
+.row-card.next { position: relative; overflow: hidden; border-color: color-mix(in srgb, #E26FB0 30%, var(--line));
+  background: linear-gradient(90deg, color-mix(in srgb, #E26FB0 14%, var(--surface)) 0%, var(--surface) 70%); }
+.row-card.next::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: #E26FB0; }
+.row-card.next.tile { background: var(--surface); }
+.row-card.next.tile::before { top: auto; right: 0; width: auto; height: 4px; }
+.w-count.upnext { background: color-mix(in srgb, #E26FB0 22%, transparent); color: #E26FB0; }
+.row-card.next { box-shadow: none; padding-left: 12px; }
+.row-card.next.drop { box-shadow: inset 0 0 0 2px #E26FB0; }

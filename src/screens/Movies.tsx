@@ -511,7 +511,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
                 return (
                   <section key={key} className="w-section">
                     <button className="w-head" aria-expanded={!shut} onClick={() => toggleSection('b-' + key)}>
-                      <span className="h2">{title}</span><span className="w-count">{list.length}</span><span className="grow" /><ChevBtn open={!shut} size={30} />
+                      <span className="h2">{title}</span><span className={'w-count' + (key === 'next' ? ' upnext' : '')}>{list.length}</span><span className="grow" /><ChevBtn open={!shut} size={30} />
                     </button>
                     {!shut && <>
                       {hint && <span className="muted small">{hint}</span>}
