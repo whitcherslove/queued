@@ -56,6 +56,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress(), statusPress = usePress();
   const [confirmDrop, setConfirmDrop] = useState(false);
   const [justFinished, setJustFinished] = useState(false);
+  const [rateFocus, setRateFocus] = useState<number | null>(null);
   const [openS, setOpenS] = useState<Record<number, boolean>>({});
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
@@ -154,9 +155,23 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const guard = (fn: () => Promise<void>) => async () => { try { setError(''); await fn(); await changed(); } catch { setError('Something went wrong. Try again.'); } };
 
   const applyMarks = (list: { season: number; episode: number }[], on: boolean) => guard(async () => {
+    // a season is "done" when every aired episode of it is marked (during a rewatch: marked in this rewatch)
+    const seasonDone = (n: number, ms: typeof marks) => {
+      const aired = (eps.find((e) => e.season === n)?.episodes ?? []).filter((e) => e.air_date && e.air_date <= today);
+      return aired.length > 0 && aired.every((e) => ms.some((m) => m.season === n && m.episode === e.n && (!rewatching || !inPlanSeason(n) || m.watched_at >= since)));
+    };
+    const touched = [...new Set(list.map((x) => x.season))];
+    const before = new Set(touched.filter((n) => seasonDone(n, marks)));
     const r = await applyEpisodeMarks(item, t, eps, marks, logs, list, on);
     setMarksState(r.marks);
-    if (r.finished) { setJustFinished(true); setTakeOpen(true); window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250); }
+    const justDone = on ? touched.filter((n) => !before.has(n) && seasonDone(n, r.marks)).sort((a, b) => b - a)[0] : undefined;
+    if (r.finished) { setJustFinished(true); setTakeOpen(true); }
+    if (justDone != null) {
+      // finished a season → straight to rating it
+      setSeasonsOpen(true); setOpenS((o) => ({ ...o, [justDone]: true })); setRateFocus(justDone);
+      window.setTimeout(() => document.getElementById('season-rate-' + justDone)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
+      window.setTimeout(() => setRateFocus(null), 2600);
+    } else if (r.finished) window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
   })();
   const airedUpTo = (s: number, e: number) => {
     const out: { season: number; episode: number }[] = [];
@@ -416,7 +431,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                   <div className="season-body">
                     <div className="row between"><span className="muted small">{rating ? 'Rated ' + longDate(rating.rated_at) : 'Not rated yet'}</span>
                       {aired > 0 && <button className="btn sm" onClick={() => applyMarks(list.filter((e) => e.air_date && e.air_date <= today && (allSeen || !runSeen(s.n, e.n))).map((e) => ({ season: s.n, episode: e.n })), !allSeen)}>{allSeen ? 'Unmark all' : 'Mark season watched'}</button>}</div>
-                    <RatingTiles label={'Season ' + s.n + ' rating'} value={rating?.tier ?? null} onPick={(v) => guard(async () => { await setSeasonRating(s.n, { tier: v }); })()} />
+                    {rateFocus === s.n && <span className="just-finished">Season {s.n} finished · rate it</span>}
+                    <div id={'season-rate-' + s.n} className={rateFocus === s.n ? 'rate-focus' : undefined}><RatingTiles label={'Season ' + s.n + ' rating'} value={rating?.tier ?? null} onPick={(v) => guard(async () => { await setSeasonRating(s.n, { tier: v }); })()} /></div>
                     <div className="score-row">
                       <ScoreStepper size="sm" label="Season score" value={rating?.score ?? null} scale={scale} onChange={(sc) => { setRatings((r) => { const o = r.filter((x) => x.season !== s.n); return o.concat([{ library_id: item.id, season: s.n, tier: rating?.tier ?? null, score: sc, rated_at: today }]); }); setSeasonRating(s.n, { score: sc }); }} /></div>
                     <div className="ep-list">

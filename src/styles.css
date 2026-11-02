@@ -733,3 +733,7 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .w-count.upnext { background: color-mix(in srgb, #E26FB0 22%, transparent); color: #E26FB0; }
 .row-card.next { box-shadow: none; padding-left: 12px; }
 .row-card.next.drop { box-shadow: inset 0 0 0 2px #E26FB0; }
+
+.rate-focus { border-radius: 14px; animation: rate-pulse 1.2s ease-out 2; }
+@keyframes rate-pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 100% { box-shadow: 0 0 0 12px transparent; } }
+@media (prefers-reduced-motion: reduce) { .rate-focus { animation: none; outline: 2px solid var(--accent); } }
