@@ -169,17 +169,22 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const toggleSection = (k: string) => setCollapsed((c) => { const n = { ...c, [k]: !(c[k] ?? k === 'upToDate') }; try { localStorage.setItem('queued.collapsed', JSON.stringify(n)); } catch { /* ignore */ } return n; });
   const isCollapsed = (k: string) => collapsed[k] ?? k === 'upToDate';
 
+  /** A movie that isn't out yet can only go to Backlog — add it straight away, no choice sheet. */
+  const offerAdd = async (t: Title) => {
+    if (!isTv && t.release_date && t.release_date > today) { await addToBacklog(t.id, 'movies', topPosition(items)); await refresh(); return; }
+    setAddChoice(t);
+  };
   const imdbInQuery = (q.match(/tt\d{6,10}/) ?? [null])[0];
   const addByImdb = async () => {
     if (!imdbInQuery) return;
     setAdding(imdbInQuery);
-    try { const t = await ensureTitleByImdb(imdbInQuery, false, kind); if (items.some((i) => i.title_id === t.id)) { setQ(''); } else setAddChoice(t); }
+    try { const t = await ensureTitleByImdb(imdbInQuery, false, kind); if (items.some((i) => i.title_id === t.id)) { setQ(''); } else await offerAdd(t); }
     catch { setError('Nothing found for ' + imdbInQuery + '.'); }
     setAdding(null);
   };
   const add = async (h: SearchHit) => {
     setAdding(h.sourceId);
-    try { const t = await ensureTitle(kind, h.sourceId); setAddChoice(t); }
+    try { const t = await ensureTitle(kind, h.sourceId); await offerAdd(t); }
     catch { setError('Couldn’t add “' + h.title + '”. Try again in a moment.'); }
     setAdding(null);
   };
