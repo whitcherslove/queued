@@ -146,7 +146,7 @@ const localDayOfIso = (iso: string) => { if (iso.length <= 10) return iso; const
  * Seasons a followed show waits for in Caught up (empty list = "up to date, no new season yet"), or null if it isn't followed.
  * Followed = has journal entries, not stopped/dropped/being rewatched; ended shows only for a season that premiered after your last entry.
  */
-export type ShowState = 'progress' | 'newSeason' | 'lastChance' | 'caughtUp' | 'upToDate' | 'backlog' | 'dropped' | 'finished';
+export type ShowState = 'progress' | 'newSeason' | 'lastChance' | 'caughtUp' | 'upToDate' | 'backlog' | 'upNext' | 'dropped' | 'finished';
 
 /**
  * Where a show lives — one state per show:
@@ -178,11 +178,16 @@ export function showState(item: Pick<LibItem, 'status' | 'plan_from' | 'plan_to'
 
 export const STATE_LABEL: Record<ShowState, string> = {
   progress: 'In progress', newSeason: 'New season out', lastChance: 'Last chance', caughtUp: 'Caught up',
-  upToDate: 'Up to date', backlog: 'Backlog', dropped: 'Dropped', finished: 'Finished'
+  upToDate: 'Up to date', backlog: 'Backlog', upNext: 'Up next', dropped: 'Dropped', finished: 'Finished'
 };
 
 /** "52m", "1h 5m" */
 export function epRuntime(min: number | null | undefined): string {
   if (!min) return '';
   return min >= 60 ? Math.floor(min / 60) + 'h ' + (min % 60 ? (min % 60) + 'm' : '').trim() : min + 'm';
+}
+
+/** What to show as the state label: a Backlog show pinned as Up next reads "Up next" (same as movies). */
+export function shownState(state: ShowState, upNext: boolean): ShowState {
+  return state === 'backlog' && upNext ? 'upNext' : state;
 }

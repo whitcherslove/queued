@@ -147,7 +147,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const today = todayIso();
   // TV: every show gets exactly one state (see showState); Watching is split into sections by it
   const watchingRows = useMemo(() => {
-    const out: Record<ShowState, Row[]> = { progress: [], newSeason: [], lastChance: [], caughtUp: [], upToDate: [], backlog: [], dropped: [], finished: [] };
+    const out: Record<ShowState, Row[]> = { progress: [], newSeason: [], lastChance: [], caughtUp: [], upToDate: [], backlog: [], upNext: [], dropped: [], finished: [] };
     if (!isTv) return out;
     items.forEach((it) => {
       const mine = logs.filter((l) => l.library.id === it.id);

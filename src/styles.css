@@ -713,3 +713,7 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .card-body .h2 { font-family: 'Onest', system-ui, sans-serif; text-transform: none; letter-spacing: 0; font-size: 17px; font-weight: 800; }
 .rate-chip { white-space: nowrap; }
 .rate-chip:not(.wide) { white-space: normal; }
+
+/* Up next — its own color (pink), the same for movies and shows; not used by any other state or rating */
+.state-card[data-state="upNext"] { --st: #E26FB0; }
+.state-pill[data-state="upNext"] { background: color-mix(in srgb, #E26FB0 22%, transparent); color: #E26FB0; }

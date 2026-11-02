@@ -8,7 +8,7 @@ import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
   refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog, addMarksAt
 } from '../lib/remote';
-import { STATE_LABEL, coveredSeasons, epLabel, epRuntime, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showState, showYears, todayIso } from '../lib/tv';
+import { STATE_LABEL, coveredSeasons, shownState, epLabel, epRuntime, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showState, showYears, todayIso } from '../lib/tv';
 import { applyEpisodeMarks, bringBack, dropShow, moveToBacklog, startWatching } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
 import Overview from '../components/Overview';
@@ -317,8 +317,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             : st.state === 'lastChance' ? ['The show has ended', upLine].filter(Boolean).join(' · ')
             : statusSub;
           return (
-            <section className="card state-card" data-state={st.state}>
-              <span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span>
+            <section className="card state-card" data-state={shownState(st.state, !!item.up_next)}>
+              <span className="state-pill" data-state={shownState(st.state, !!item.up_next)}>{STATE_LABEL[shownState(st.state, !!item.up_next)]}</span>
               <span className="state-title">{title}</span>
               {sub && <span className="small muted">{sub}</span>}
               {(isBack || isPlaying) && (
@@ -458,7 +458,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               <div className="view-row">
                 <span className="grow small strong">{what[st.state]}</span>
                 {item.rewatch && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
-                <span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span>
+                <span className="state-pill" data-state={shownState(st.state, !!item.up_next)}>{STATE_LABEL[shownState(st.state, !!item.up_next)]}</span>
                 {(isBack || isPlaying) && logs.length > 0 && <button className="del-x" aria-label="Cancel the plan" onClick={cancelPlan}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>}
               </div>
             );
