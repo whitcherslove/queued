@@ -317,10 +317,16 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             : st.state === 'lastChance' ? ['The show has ended', upLine].filter(Boolean).join(' · ')
             : statusSub;
           return (
-            <section className="card state-card" data-state={shownState(st.state, !!item.up_next)}>
-              <span className="state-pill" data-state={shownState(st.state, !!item.up_next)}>{STATE_LABEL[shownState(st.state, !!item.up_next)]}</span>
-              <span className="state-title">{title}</span>
-              {sub && <span className="small muted">{sub}</span>}
+            <section className={'card state-card' + (statusPress.pressed ? ' pressed' : '')} data-state={shownState(st.state, !!item.up_next)}>
+              {/* tap the top part to show / hide the extra options at the bottom */}
+              <button className="state-head" aria-expanded={statusOpen} {...statusPress.bind} onClick={() => { setStatusOpen(!statusOpen); setConfirmDrop(false); }}>
+                <span className="state-head-text">
+                  <span className="state-pill" data-state={shownState(st.state, !!item.up_next)}>{STATE_LABEL[shownState(st.state, !!item.up_next)]}</span>
+                  <span className="state-title">{title}</span>
+                  {sub && <span className="small muted">{sub}</span>}
+                </span>
+                <ChevBtn open={statusOpen} />
+              </button>
               {(isBack || isPlaying) && (
                 <button className="plan-link" onClick={() => setScopeFor('plan')}>
                   <span className="li-icon" aria-hidden="true">{Ico.seasons}</span><span className="grow">{planLabel.split(' · ')[0]}</span><span className="muted small">Change ›</span>
@@ -332,7 +338,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                   {isBack && <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>}
                 </div>
               )}
-              {confirmDrop ? (
+              {statusOpen && (confirmDrop ? (
                 <div className="quiet-row"><span className="small grow">Drop {t.title}? It disappears from your lists; entries stay in Watched.</span>
                   <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
               ) : (
@@ -342,7 +348,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                   {st.state === 'dropped' && <button className="link" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>Bring back</button>}
                   {canDrop && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
                 </div>
-              )}
+              ))}
             </section>
           );
         })()}

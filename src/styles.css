@@ -717,3 +717,9 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 /* Up next — its own color (pink), the same for movies and shows; not used by any other state or rating */
 .state-card[data-state="upNext"] { --st: #E26FB0; }
 .state-pill[data-state="upNext"] { background: color-mix(in srgb, #E26FB0 22%, transparent); color: #E26FB0; }
+
+/* state card: the top part folds the extra options; same chevron + press as the other cards */
+.state-head { display: flex; align-items: flex-start; gap: 10px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.state-head-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.state-head .chev-btn { margin-top: 2px; }
+.state-card.pressed { transform: scale(.985); }

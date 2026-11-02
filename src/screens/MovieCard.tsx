@@ -236,17 +236,24 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
 
 
         {/* State card: where the movie is + what you can do with that state */}
-        <section className="card state-card" data-state={mState}>
-          <span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span>
-          <span className="state-title">{mState === 'watched' || mState === 'didntFinish' ? mSub : mState === 'dropped' ? 'Not in your lists' : mSub}</span>
-          {inBacklog && t.runtime ? <span className="small muted">{runtimeText(t.runtime)}{item.rewatch ? ' · rewatch' : ''}</span> : null}
+        <section className={'card state-card' + (statusPress.pressed ? ' pressed' : '')} data-state={mState}>
+          {(() => {
+            const head = <>
+              <span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span>
+              <span className="state-title">{mState === 'dropped' ? 'Not in your lists' : mSub}</span>
+              {inBacklog && t.runtime ? <span className="small muted">{runtimeText(t.runtime)}{item.rewatch ? ' · rewatch' : ''}</span> : null}
+            </>;
+            return canWatchNow || mState === 'dropped'
+              ? <button className="state-head" aria-expanded={statusOpen} {...statusPress.bind} onClick={() => { setStatusOpen(!statusOpen); setConfirmDrop(false); }}><span className="state-head-text">{head}</span><ChevBtn open={statusOpen} /></button>
+              : <span className="state-head-text">{head}</span>;
+          })()}
           {inBacklog && (
             <div className="state-actions">
               {canWatchNow && <button className="btn primary" onClick={watchedIt}>{Ico.check}Watched</button>}
               <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>
             </div>
           )}
-          {(canWatchNow || mState === 'dropped') && (confirmDrop ? (
+          {statusOpen && (canWatchNow || mState === 'dropped') && (confirmDrop ? (
             <div className="quiet-row"><span className="small grow">Started it but didn’t finish? It goes to Watched marked Dropped.</span>
               <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
           ) : (
