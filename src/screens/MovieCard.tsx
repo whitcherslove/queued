@@ -26,6 +26,8 @@ export const tierOfId = (id: string | null) => TIERS.find((t) => t.id === id) ??
 export const EYE_PLUS_ICON = EYE_PLUS;
 export const EXT_ICON = EXT;
 
+const PIN = <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4.5l4.5 4.5-3 1.5-3.5 3.5.5 4-1.5 1.5-3.5-3.5L4 20M8.5 11.5L12.5 15.5M15 4.5L12 7.5 8.5 7 7 8.5l3.5 3.5" /></svg>;
+
 export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
@@ -237,24 +239,37 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           </button>
         </div>
 
-        {/* Where the movie lives + every action as one row of same-sized buttons */}
-        <section className="card status-card">
-          <span className="stack-sm"><span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span><span className="small">{mSub}</span></span>
-          {confirmDrop ? (
-            <div className="status-actions"><span className="small grow">Started it but didn’t finish? It goes to Watched marked Dropped.</span>
-              <button className="st-btn" onClick={() => setConfirmDrop(false)}>Cancel</button>
-              <button className="st-btn danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
-          ) : (
-            <div className="st-row">
-              {inBacklog && <button className={'st-btn' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{item.up_next ? '✓ Up next' : 'Up next'}</button>}
-              {inBacklog && mState !== 'comingSoon' && <button className="st-btn primary" onClick={watchedIt}>
-                <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>Watched</button>}
-              {last && !planned && <button className={'st-btn' + (last.dropped ? ' on-drop' : '')} aria-pressed={!!last.dropped} onClick={toggleDidntFinish}>{last.dropped ? '✓ Didn’t finish' : 'Didn’t finish'}</button>}
-              {mState === 'dropped' && <button className="st-btn" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
-              {inBacklog && mState !== 'comingSoon' && <button className="st-btn danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
-            </div>
-          )}
-        </section>
+        {/* Status: Watched and Up next are big and always visible; Drop / Bring back fold away. Watched movies just show their state. */}
+        {(() => {
+          const canWatch = inBacklog && mState !== 'comingSoon';
+          const more = canWatch || mState === 'dropped';
+          return (
+            <section className={'card status-card' + (statusPress.pressed ? ' pressed' : '')}>
+              {more
+                ? <button className="take-head" aria-expanded={statusOpen} {...statusPress.bind} onClick={() => { setStatusOpen(!statusOpen); setConfirmDrop(false); }}>
+                    <span className="stack-sm grow"><span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span><span className="small">{mSub}</span></span>
+                    <ChevBtn open={statusOpen} />
+                  </button>
+                : <span className="stack-sm"><span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span><span className="small">{mSub}</span></span>}
+              {inBacklog && (
+                <div className="big-row">
+                  {canWatch && <button className="big-start" onClick={watchedIt}><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>Watched</button>}
+                  <button className={'big-pin' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{PIN}{item.up_next ? 'Up next ✓' : 'Up next'}</button>
+                </div>
+              )}
+              {statusOpen && (confirmDrop ? (
+                <div className="status-actions"><span className="small grow">Started it but didn’t finish? It goes to Watched marked Dropped.</span>
+                  <button className="st-btn" onClick={() => setConfirmDrop(false)}>Cancel</button>
+                  <button className="st-btn danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
+              ) : (
+                <div className="st-row">
+                  {mState === 'dropped' && <button className="st-btn" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
+                  {canWatch && <button className="st-btn danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
+                </div>
+              ))}
+            </section>
+          );
+        })()}
 
         <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (

@@ -42,6 +42,8 @@ function ProgressRing({ pct, text, size = 48 }: { pct: number; text: string; siz
   );
 }
 
+const PIN = <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4.5l4.5 4.5-3 1.5-3.5 3.5.5 4-1.5 1.5-3.5-3.5L4 20M8.5 11.5L12.5 15.5M15 4.5L12 7.5 8.5 7 7 8.5l3.5 3.5" /></svg>;
+
 export default function ShowCard({ openPast, itemId, initial, initialLogs, settings, openTake, onPrev, onNext, enterFrom, onClose, onChanged, topPos }: Props) {
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logs, setLogs] = useState<ItemLog[]>(initialLogs ?? []);
@@ -297,24 +299,38 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             : <button className="tile3" onClick={() => setTakeOpen(true)} aria-label="Change my take"><ScoreRing value={tileScore} scale={scale} size={48} fontSize={17} /><span className="muted small">My score</span></button>}
         </div>
 
-        {/* Where the show lives + every action as one row of same-sized buttons (no hidden panel) */}
-        <section className="card status-card">
-          <span className="stack-sm"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
-          {confirmDrop ? (
-            <div className="status-actions"><span className="small grow">Drop {t.title}? It disappears from your lists; entries stay in Watched.</span>
-              <button className="st-btn" onClick={() => setConfirmDrop(false)}>Cancel</button>
-              <button className="st-btn danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
-          ) : (st.state !== 'finished' || logs.length > 0) && (
-            <div className="st-row">
-              {isBack && <button className={'st-btn' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{item.up_next ? '✓ Up next' : 'Up next'}</button>}
-              {canStart && <button className="st-btn primary" onClick={() => act(() => startWatching(item, stSeasons))}><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" /></svg>Start</button>}
-              {(isBack || isPlaying) && <button className="st-btn" onClick={() => setScopeFor('plan')}>Seasons</button>}
-              {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="st-btn" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>To Backlog</button>}
-              {st.state === 'dropped' && <button className="st-btn" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>Bring back</button>}
-              {canDrop && <button className="st-btn danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
-            </div>
-          )}
-        </section>
+        {/* Status: the two things you do most (Start, Up next) are big and always visible; the rest folds away */}
+        {(() => {
+          const more = (isBack || isPlaying) || (!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate') || st.state === 'dropped' || canDrop;
+          return (
+            <section className={'card status-card' + (statusPress.pressed ? ' pressed' : '')}>
+              {more
+                ? <button className="take-head" aria-expanded={statusOpen} {...statusPress.bind} onClick={() => { setStatusOpen(!statusOpen); setConfirmDrop(false); }}>
+                    <span className="stack-sm grow"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
+                    <ChevBtn open={statusOpen} />
+                  </button>
+                : <span className="stack-sm"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>}
+              {(canStart || isBack) && (
+                <div className="big-row">
+                  {canStart && <button className="big-start" onClick={() => act(() => startWatching(item, stSeasons))}><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" /></svg>Start watching</button>}
+                  {isBack && <button className={'big-pin' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{PIN}{item.up_next ? 'Up next ✓' : 'Up next'}</button>}
+                </div>
+              )}
+              {statusOpen && (confirmDrop ? (
+                <div className="status-actions"><span className="small grow">Drop {t.title}? It disappears from your lists; entries stay in Watched.</span>
+                  <button className="st-btn" onClick={() => setConfirmDrop(false)}>Cancel</button>
+                  <button className="st-btn danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
+              ) : (
+                <div className="st-row">
+                  {(isBack || isPlaying) && <button className="st-btn" onClick={() => setScopeFor('plan')}>Seasons</button>}
+                  {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="st-btn" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>To Backlog</button>}
+                  {st.state === 'dropped' && <button className="st-btn" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>Bring back</button>}
+                  {canDrop && <button className="st-btn danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
+                </div>
+              ))}
+            </section>
+          );
+        })()}
 
         <section className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (

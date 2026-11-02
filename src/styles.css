@@ -596,3 +596,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .st-btn.on-drop { background: color-mix(in srgb, #A98BE0 18%, var(--surface2)); border-color: color-mix(in srgb, #A98BE0 45%, transparent); color: #A98BE0; }
 .st-btn.danger { color: #DE3C49; border-color: color-mix(in srgb, #DE3C49 40%, transparent); background: transparent; }
 .st-btn.end { margin-left: auto; }
+
+/* status card, variant B: two big buttons under the status */
+.big-row { display: flex; gap: 8px; }
+.big-row .big-start { flex: 1; height: 44px; border-radius: 12px; font-size: 15px; box-shadow: none; }
+.big-pin { height: 44px; padding: 0 16px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font-weight: 800; font-size: 14px; display: inline-flex; align-items: center; gap: 7px; }
+.big-row .big-pin:only-child { flex: 1; justify-content: center; }
+.big-pin.on { background: color-mix(in srgb, #39C316 16%, var(--surface2)); border-color: color-mix(in srgb, #39C316 45%, transparent); color: #39C316; }
