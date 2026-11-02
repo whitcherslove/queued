@@ -327,7 +327,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                 </span>
                 <ChevBtn open={statusOpen} />
               </button>
-              {(isBack || isPlaying) && (
+              {statusOpen && (isBack || isPlaying) && (
                 <button className="plan-link" onClick={() => setScopeFor('plan')}>
                   <span className="li-icon" aria-hidden="true">{Ico.seasons}</span><span className="grow">{planLabel.split(' · ')[0]}</span><span className="muted small">Change ›</span>
                 </button>
