@@ -343,7 +343,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                   <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
               ) : (
                 <div className="quiet-row">
-                  {st.state !== 'dropped' && <button className="link" onClick={() => { setPastMode('now'); setPastStep('seasons'); }}>Mark watched…</button>}
+                  {st.state !== 'dropped' && <button className="link" onClick={() => { setPastMode('past'); setPastStep('seasons'); }}>Watched before</button>}
                   {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="link" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>Move to Backlog</button>}
                   {st.state === 'dropped' && <button className="link" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>Bring back</button>}
                   {canDrop && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
