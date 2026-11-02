@@ -110,47 +110,33 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const last = latestLog(logs);
   const done = item ? item.status === 'done' || item.status === 'dropped' : false;
   const planned = item?.status === 'backlog';
-  const score = planned ? item?.score ?? null : last ? last.score : item?.score ?? null;
+  // My take = the rating of your latest viewing (also while a rewatch waits in Backlog)
+  const score = last ? last.score : null;
 
   if (!item || !t) return <div className="card-screen"><div className="card-loading">{error || 'Loading…'}</div></div>;
 
   const changed = async () => { await reload(); onChanged(); };
   const guard = (fn: () => Promise<void>) => async () => { try { setError(''); await fn(); await changed(); } catch { setError('Something went wrong. Try again.'); } };
 
-  const pickTier = (id: string) => guard(async () => {
-    if (!planned && last && last.tier === id) {
-      await deleteLog(last.id);
-      const remaining = logs.filter((l) => l.id !== last.id);
-      await updateItem(item.id, { status: remaining.length ? 'done' : 'backlog' });
-      return;
-    }
-    if (last && !planned) await updateLog(last.id, { tier: id });
-    else await insertLog(item.id, { tier: id, score: item.score, rewatch: !!item.rewatch, watched_at: new Date().toISOString() });
-    await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
-  })();
-
-  const setScore = (v: number | null) => guard(async () => {
-    setPreview(undefined);
-    if (last && !planned) await updateLog(last.id, { score: v }); else await updateItem(item.id, { score: v });
-  })();
+  // Ratings only change your latest viewing. Viewings are created by Watched / Watched before / Drop, deleted only in Viewings.
+  const pickTier = (id: string) => { if (!last) return; const l = last, v = l.tier === id ? null : id; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, tier: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, tier: l.tier } : x))), () => updateLog(l.id, { tier: v })); };
+  const setScore = (v: number | null) => { setPreview(undefined); if (!last) return; const l = last; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, score: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, score: l.score } : x))), () => updateLog(l.id, { score: v })); };
 
   const setDate = (d: string) => guard(async () => {
     if (!last || !d) return;
     await updateLog(last.id, { watched_at: withLocalDay(last.watched_at, d) });
   })();
 
-  const rewOn = planned || !last ? !!item.rewatch : last.rewatch;
+  // the Rewatch switch in My take is about your latest viewing (was it a rewatch?)
+  const rewOn = !!last?.rewatch;
   // Switches flip instantly; saving happens in the background and rolls back if it fails.
   const optimistic = (apply: () => void, revert: () => void, save: () => Promise<void>) => {
     apply();
     save().then(() => onChanged()).catch(() => { revert(); setError('Couldn’t save. Try again.'); });
   };
-  const toggleRew = () => {
-    if (last && !planned) { const l = last, v = !l.rewatch; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: !v } : x))), () => updateLog(l.id, { rewatch: v })); }
-    else { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }
-  };
-  const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: backlogCount }); setTakeOpen(true); };
-  const cancelRewatch = async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false, score: null }); };
+  const toggleRew = () => { if (!last) return; const l = last, v = !l.rewatch; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: !v } : x))), () => updateLog(l.id, { rewatch: v })); };
+  const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, position: backlogCount }); };
+  const cancelRewatch = async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false }); };
   const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else await planRewatch(); });
   const mState = movieState(item, t, planned ? null : last);
   const inBacklog = item.status === 'backlog';
@@ -168,12 +154,13 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   })();
   /** "Watched": logs the viewing with today's date (it shows up in Watched) and opens My take to rate it */
   const watchedIt = guard(async () => {
-    await insertLog(item.id, { watched_at: new Date().toISOString(), tier: null, score: item.score, rewatch: !!item.rewatch });
+    // a rewatch starts from what you thought last time — adjust it if your opinion changed
+    await insertLog(item.id, { watched_at: new Date().toISOString(), tier: item.rewatch ? last?.tier ?? null : null, score: item.rewatch ? last?.score ?? null : null, rewatch: !!item.rewatch });
     await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
     setTakeOpen(true);
     window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 120);
   });
-  const markDidntFinish = guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: item.score, rewatch: !!item.rewatch, watched_at: new Date().toISOString() }); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); });
+  const markDidntFinish = guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: null, rewatch: !!item.rewatch, watched_at: new Date().toISOString() }); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); });
   const toggleDidntFinish = () => { if (!last) return; const l = last, v = !l.dropped; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: !v } : x))), () => updateLog(l.id, { dropped: v })); };
   const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: backlogCount })); };
 
@@ -194,7 +181,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   ] as [string, string][]).filter(([, v]) => v);
   const mcUrl = metacriticSearch(t.title, 'movie');
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
-  const tr = planned ? null : tierOf(last?.tier ?? null);
+  const tr = tierOf(last?.tier ?? null);
   const origTr = tierOf(last?.tier ?? null);
   const shownScore = planned ? (item.score ?? last?.score ?? null) : score;
   const ov = t.overview ?? '';
@@ -271,11 +258,11 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           );
         })()}
 
-        <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
+        {logs.length > 0 && <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (
             <button className="take-summary" {...takePress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
               <span className="h2">My take</span>
-              {!logsReady ? null : planned && logs.length ? <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--ink)' }}>Rewatch · Backlog</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not watched yet</span>}
+              {!logsReady ? null : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not watched yet</span>}
               {rewOn && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
               <span className="spacer" />
               <ChevBtn open={false} />
@@ -289,7 +276,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                   return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>;
                 })}
               </div>
-              {!done && <span className="muted small">{planned && logs.length ? 'Rewatch in your Backlog — pick a rating when you’ve watched it again' : 'Pick a rating to move it to Watched'}</span>}
+              <span className="muted small">{'Your rating of the viewing on ' + (last ? longDate(last.watched_at) : '') + (planned ? ' · a rewatch is planned — press Watched when you’ve seen it again' : '')}</span>
               <div className="divider" />
               <div className="score-row">
                 <label htmlFor="score" className="strong">My score</label>
@@ -297,7 +284,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                 <ScoreRing value={preview !== undefined ? preview : score} scale={scale} size={46} fontSize={16} />
               </div>
               <ScoreSlider id="score" label="My score" value={score} scale={scale} onCommit={(v) => setScore(v)} onPreview={(v) => setPreview(v)} />
-              {last && !planned && (
+              {last && (
                 <>
                   <div className="divider" />
                   <div className="score-row"><label htmlFor="wdate" className="strong">Watched on</label><input id="wdate" type="date" value={localDay(last.watched_at)} onChange={(e) => setDate(e.target.value)} className="date-input" /></div>
@@ -310,7 +297,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                   </button>
             </div>
           )}
-        </section>
+        </section>}
 
         {/* Lower part (details, collection, viewings, AI) appears in one piece once the full card is loaded */}
         {!full ? <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div> : (
