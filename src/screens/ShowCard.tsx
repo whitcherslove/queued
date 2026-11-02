@@ -12,7 +12,7 @@ import { STATE_LABEL, coveredSeasons, epLabel, epRuntime, isEnded, logScope, log
 import { applyEpisodeMarks, bringBack, dropShow, moveToBacklog, startWatching } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
 import Overview from '../components/Overview';
-import ScoreSlider from '../components/ScoreSlider';
+import { ActionBar, Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import ScopeSheet from '../components/ScopeSheet';
 import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
@@ -55,6 +55,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const [takeOpen, setTakeOpen] = useState(!!openTake);
   const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress(), statusPress = usePress();
   const [confirmDrop, setConfirmDrop] = useState(false);
+  const [justFinished, setJustFinished] = useState(false);
   const [openS, setOpenS] = useState<Record<number, boolean>>({});
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
@@ -155,7 +156,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const applyMarks = (list: { season: number; episode: number }[], on: boolean) => guard(async () => {
     const r = await applyEpisodeMarks(item, t, eps, marks, logs, list, on);
     setMarksState(r.marks);
-    if (r.finished) setTakeOpen(true);
+    if (r.finished) { setJustFinished(true); setTakeOpen(true); window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250); }
   })();
   const airedUpTo = (s: number, e: number) => {
     const out: { season: number; episode: number }[] = [];
@@ -180,7 +181,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   };
   const freshEntry = (() => { const l = runLog ?? last; if (!l || singleOf(l) != null) return null; return runLog || Date.now() - new Date(l.watched_at).getTime() < 30 * 864e5 ? l : null; })();
   const syncFresh = (patch: { tier?: string | null; score?: number | null }) => { const l = freshEntry; if (!l) return; setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, ...patch } : x))); updateLog(l.id, patch).catch(() => undefined); };
-  const pickTier = (id: string) => { const v = item.tier === id ? null : id; syncFresh({ tier: v }); optimistic(() => setItem({ ...item, tier: v }), () => setItem({ ...item, tier: item.tier }), () => updateItem(item.id, { tier: v })); };
+  const toggleLogRewatch = (l: ItemLog) => { const v = !l.rewatch; setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: v } : x))); updateLog(l.id, { rewatch: v }).then(onChanged).catch(() => setError('Couldn’t save. Try again.')); };
+  const pickTier = (id: string) => { if (!id) return; const v = item.tier === id ? null : id; syncFresh({ tier: v }); optimistic(() => setItem({ ...item, tier: v }), () => setItem({ ...item, tier: item.tier }), () => updateItem(item.id, { tier: v })); };
   const setScore = (v: number | null) => { setPreview(undefined); syncFresh({ score: v }); const was = item.score; optimistic(() => setItem({ ...item, score: v }), () => setItem({ ...item, score: was }), () => updateItem(item.id, { score: v })); };
   const rewOn = currentLog ? currentLog.rewatch : !!item.rewatch;
   const optimistic = (apply: () => void, revert: () => void, save: () => Promise<void>) => {
@@ -235,6 +237,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const stAir = st.seasons.length ? seasonAir(t, st.seasons[0]) : null;
   const act = (fn: () => Promise<unknown>) => { guard(async () => { await fn(); })(); };
   const canStart = st.state === 'backlog' || st.state === 'newSeason' || st.state === 'lastChance';
+  // what the floating bar at the bottom offers: the next episode while watching, Start when there's something to start
+  const barKind: 'episode' | 'start' | null = isPlaying && p.nextEp ? 'episode' : canStart ? 'start' : null;
   const canDrop = st.state !== 'dropped' && st.state !== 'finished';
   /** Progress ring → open Seasons, unfold the current season and scroll to it */
   const goToCurrentSeason = () => {
@@ -276,19 +280,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
       </div>
 
       {!ready && <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div>}
-      <div className={'card-body' + (ready ? ' shown' : ' hidden-until-ready')} aria-busy={!ready}>
+      <div className={'card-body' + (ready ? ' shown' : ' hidden-until-ready') + (barKind ? ' has-bar' : '')} aria-busy={!ready}>
         {error && <p className="error" role="alert">{error}</p>}
-        {/* the thing you'll tap most while watching sits right at the top */}
-        {isPlaying && p.nextEp && (
-          <div className="next-ep card">
-            <span className="stack-sm grow"><span className="muted small upper">Next episode</span><strong>{epLabel(p.nextEp)} — {p.nextEp.name}{p.nextEp.runtime ? <span className="muted normal"> · {epRuntime(p.nextEp.runtime)}</span> : null}</strong></span>
-            <button className="btn primary sm" onClick={() => applyMarks([{ season: p.nextEp!.season, episode: p.nextEp!.episode }], true)}>Watched</button>
-          </div>
-        )}
-        {isPlaying && !p.nextEp && p.caughtUp && (
-          <div className="next-ep card"><span className="stack-sm grow"><span className="muted small upper">Caught up</span><strong>{p.nextFuture ? 'Next: ' + epLabel(p.nextFuture) + (p.nextFuture.air_date ? ' on ' + longDate(p.nextFuture.air_date) : '') : 'No new episodes announced yet'}</strong></span></div>
-        )}
-
         {t.overview && <Overview text={t.overview} />}
 
         <div className="tiles3">
@@ -299,40 +292,17 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             : <button className="tile3" onClick={() => setTakeOpen(true)} aria-label="Change my take"><ScoreRing value={tileScore} scale={scale} size={48} fontSize={17} /><span className="muted small">My score</span></button>}
         </div>
 
-        {/* Status: the two things you do most (Start, Up next) are big and always visible; the rest folds away */}
-        {(() => {
-          const more = (isBack || isPlaying) || (!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate') || st.state === 'dropped' || canDrop;
-          return (
-            <section className={'card status-card' + (statusPress.pressed ? ' pressed' : '')}>
-              {more
-                ? <button className="take-head" aria-expanded={statusOpen} {...statusPress.bind} onClick={() => { setStatusOpen(!statusOpen); setConfirmDrop(false); }}>
-                    <span className="stack-sm grow"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
-                    <ChevBtn open={statusOpen} />
-                  </button>
-                : <span className="stack-sm"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>}
-              {(canStart || isBack) && (
-                <div className="big-row">
-                  {canStart && <button className="big-start" onClick={() => act(() => startWatching(item, stSeasons))}><svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" /></svg>Start watching</button>}
-                  {isBack && <button className={'big-pin' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{PIN}{item.up_next ? 'Up next ✓' : 'Up next'}</button>}
-                </div>
-              )}
-              {statusOpen && (confirmDrop ? (
-                <div className="status-actions"><span className="small grow">Drop {t.title}? It disappears from your lists; entries stay in Watched.</span>
-                  <button className="st-btn" onClick={() => setConfirmDrop(false)}>Cancel</button>
-                  <button className="st-btn danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
-              ) : (
-                <div className="st-row">
-                  {(isBack || isPlaying) && <button className="st-btn" onClick={() => setScopeFor('plan')}>Seasons</button>}
-                  {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="st-btn" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>To Backlog</button>}
-                  {st.state === 'dropped' && <button className="st-btn" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>Bring back</button>}
-                  {canDrop && <button className="st-btn danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
-                </div>
-              ))}
-            </section>
-          );
-        })()}
+        {/* Status = information. The main action lives in the bar at the bottom; managing the show is in My take. */}
+        <section className="card status-card">
+          <span className="status-info"><span className="state-pill" data-state={st.state}>{STATE_LABEL[st.state]}</span><span className="small">{statusSub}</span></span>
+          {(isBack || isPlaying) && (
+            <button className="plan-link" onClick={() => setScopeFor('plan')}>
+              <span className="li-icon" aria-hidden="true">{Ico.seasons}</span><span className="grow">{planLabel.split(' · ')[0]}</span><span className="muted small">Change ›</span>
+            </button>
+          )}
+        </section>
 
-        <section className={'card take' + (takePress.pressed ? ' pressed' : '')}>
+        <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (
             <button className="take-summary" {...takePress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
               <span className="h2">My take</span>
@@ -345,21 +315,28 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           ) : (
             <div className="stack">
               <button className="take-head" aria-expanded="true" {...takePress.bind} onClick={() => setTakeOpen(false)}><span className="h2">My take</span><span className="grow" /><ChevBtn open /></button>
-              <span className="muted small">{true ? 'Your overall rating of the show. Seasons are rated in Seasons.' : 'Rating for ' + planLabel.split(' · ')[0] + (isDone ? '' : ' — picking one finishes it now')}</span>
-              <div className="chips">
-                {TIERS.map((x) => { const on = item.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => pickTier(x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
+              {justFinished && <span className="just-finished">Just finished · rate it</span>}
+              <span className="muted small">Your overall rating of the show. Seasons are rated in Seasons.</span>
+              <RatingTiles value={item.tier} onPick={(v) => pickTier(v ?? item.tier ?? '')} />
+              <ScoreStepper value={score} scale={scale} onChange={(v) => setScore(v)} />
+              {justFinished && (runLog ?? last) && (() => { const l = (runLog ?? last)!; return (
+                <div className="list-group">
+                  <ListRow icon={Ico.date} label="Finished on"><input type="date" className="date-input" aria-label="Finished on" value={localDay(l.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></ListRow>
+                  <ListRow icon={Ico.rewatch} label="It was a rewatch" onClick={() => toggleLogRewatch(l)}><span className={'switch' + (l.rewatch ? ' on-green' : '')}><span /></span></ListRow>
+                </div>
+              ); })()}
+              <span className="list-group-title">Manage</span>
+              <div className="list-group">
+                {confirmDrop ? (
+                  <div className="list-row"><span className="li-label">Drop {t.title}? Entries stay in Watched.</span>
+                    <button className="st-btn" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="st-btn danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
+                ) : <>
+                  <ListRow icon={Ico.check} label="Mark seasons as watched" value="›" onClick={() => { setPastMode('now'); setPastStep('seasons'); }} />
+                  {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <ListRow icon={Ico.backlog} label="Move to Backlog" value="›" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))} />}
+                  {st.state === 'dropped' && <ListRow icon={Ico.back} label="Bring back" value="›" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))} />}
+                  {canDrop && <ListRow icon={Ico.drop} label="Drop" danger onClick={() => setConfirmDrop(true)} />}
+                </>}
               </div>
-              <div className="divider" />
-              <div className="score-row"><label htmlFor="score" className="strong">My score</label>{score !== null && <button className="link" onClick={() => setScore(null)}>Clear</button>}<ScoreRing value={preview !== undefined ? preview : score} scale={scale} size={46} fontSize={16} /></div>
-              <ScoreSlider id="score" label="My score" value={score} scale={scale} onCommit={(v) => setScore(v)} onPreview={(v) => setPreview(v)} />
-              {currentLog && <>
-                <div className="divider" />
-                <div className="score-row"><label htmlFor="wdate" className="strong">Finished on</label><input id="wdate" type="date" className="date-input" value={localDay(currentLog.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(currentLog.id, { watched_at: withLocalDay(currentLog.watched_at, d) }); })(); }} /></div>
-              </>}
-              <div className="divider" />
-              <button className="switch-row flat" role="switch" aria-checked={rewOn} onClick={toggleRew}><span className="rew-icon">{EYE_PLUS}</span><strong className="grow">Rewatch</strong><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></button>
-              <div className="divider" />
-              <button className="btn wide" onClick={() => { setPastMode('now'); setPastStep('seasons'); }}>Mark seasons as watched…</button>
             </div>
           )}
         </section>
@@ -405,9 +382,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                     <div className="chips">
                       {TIERS.map((x) => { const on = rating?.tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={guard(async () => { await setSeasonRating(s.n, { tier: on ? null : x.id }); })}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}
                     </div>
-                    <div className="score-row"><label htmlFor={'ss-' + s.n} className="small strong">Score</label>
-                      {rating?.score != null && <button className="link" onClick={() => { setRatings((r) => r.map((x) => (x.season === s.n ? { ...x, score: null } : x))); setSeasonRating(s.n, { score: null }).then(onChanged).catch(() => setError('Couldn’t save. Try again.')); }}>Clear</button>}
-                      <ScoreSlider compact id={'ss-' + s.n} label={'Season ' + s.n + ' score'} value={rating?.score ?? null} scale={scale} onCommit={(sc) => { setRatings((r) => { const o = r.filter((x) => x.season !== s.n); return o.concat([{ library_id: item.id, season: s.n, tier: rating?.tier ?? null, score: sc, rated_at: today }]); }); setSeasonRating(s.n, { score: sc }); }} /></div>
+                    <div className="score-row">
+                      <ScoreStepper size="sm" label="Season score" value={rating?.score ?? null} scale={scale} onChange={(sc) => { setRatings((r) => { const o = r.filter((x) => x.season !== s.n); return o.concat([{ library_id: item.id, season: s.n, tier: rating?.tier ?? null, score: sc, rated_at: today }]); }); setSeasonRating(s.n, { score: sc }); }} /></div>
                     <div className="ep-list">
                       {list.length === 0 && <span className="muted small">{ready ? 'No episodes announced yet.' : 'Loading episodes…'}</span>}
                       {list.map((e) => {
@@ -484,8 +460,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                   <div className="view-edit">
                     <div className="score-row"><span className="small strong">Covers</span><span className="grow small">{scopeShort(l)}</span><button className="btn sm" onClick={() => setScopeLog(l)}>Change</button></div>
                     <><div className="chips">{TIERS.map((tt) => { const on = l.tier === tt.id; return <button key={tt.id} aria-pressed={on} className="chip sm" style={on ? { background: tt.color, borderColor: tt.color, color: '#17161A' } : undefined} onClick={guard(async () => { await setLogRating(l, { tier: on ? null : tt.id }); })}><span className="dot" style={{ background: on ? '#17161A' : tt.color }} />{tt.label}</button>; })}</div>
-                    <div className="score-row"><label htmlFor={'vs-' + l.id} className="small strong">Score</label>
-                      <ScoreSlider compact id={'vs-' + l.id} label="Score" value={l.score} scale={scale} onCommit={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); setLogRating(l, { score: st }).then(onChanged); }} /></div></>
+                    <div className="score-row">
+                      <ScoreStepper size="sm" label="Score" value={l.score} scale={scale} onChange={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); setLogRating(l, { score: st }).then(onChanged); }} /></div></>
                     <div className="score-row"><label htmlFor={'vd-' + l.id} className="small strong">Finished on</label>
                       <input id={'vd-' + l.id} type="date" className="date-input" value={localDay(l.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></div>
                   </div>
@@ -565,6 +541,18 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
       )}
       {quick && <QuickNumber media="tv" kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails kind="tv" item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }} onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
+      {ready && barKind === 'episode' && p.nextEp && (
+        <ActionBar>
+          <span className="bar-ep"><span className="muted">Next · {epLabel(p.nextEp)}</span><strong>{p.nextEp.name}{p.nextEp.runtime ? ' · ' + epRuntime(p.nextEp.runtime) : ''}</strong></span>
+          <button className="bar-done" onClick={() => applyMarks([{ season: p.nextEp!.season, episode: p.nextEp!.episode }], true)}>{Ico.check}Watched</button>
+        </ActionBar>
+      )}
+      {ready && barKind === 'start' && (
+        <ActionBar>
+          <button className="bar-main" onClick={() => act(() => startWatching(item, stSeasons))}>{Ico.play}Start watching</button>
+          {isBack && <button className={'bar-side' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} aria-label={item.up_next ? 'Up next — on' : 'Pin as Up next'} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next' : ''}</button>}
+        </ActionBar>
+      )}
     </div>
   );
 }
@@ -589,8 +577,8 @@ function PastSheet({ t, seasons, eps, scale, now, onCancel, onSave }: { t: Retur
         <div className="stack-sm"><strong className="sheet-title">{scopeLabel(seasons, t).split(' · ')[0]}</strong><span className="muted small">{t.title} · watched before you started tracking</span></div>
         <div className="score-row"><label htmlFor="past-day" className="strong">Finished on</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => { if (e.target.value) { touched.current = true; setDay(e.target.value); } }} /></div>
         <span className="muted small">Don’t remember? Keep the date the season finished airing — it sorts the entry into the right place in Watched.</span>
-        <div className="chips">{TIERS.map((x) => { const on = tier === x.id; return <button key={x.id} aria-pressed={on} className="chip sm" style={on ? { background: x.color, borderColor: x.color, color: '#17161A' } : undefined} onClick={() => setTier(on ? null : x.id)}><span className="dot" style={{ background: on ? '#17161A' : x.color }} />{x.label}</button>; })}</div>
-        <div className="score-row"><span className="small strong">Score</span><ScoreSlider compact id="past-score" label="Score" value={score} scale={scale} onCommit={setScore} /></div>
+        <RatingTiles value={tier} onPick={setTier} />
+        <ScoreStepper size="sm" label="Score" value={score} scale={scale} onChange={setScore} />
         <div className="row nowrap"><button className="btn grow" onClick={onCancel}>Cancel</button><button className="btn primary grow" onClick={() => onSave(new Date(day + 'T20:00:00').toISOString(), tier, score)}>Add to Watched</button></div>
       </div>
     </div>
