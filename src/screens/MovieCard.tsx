@@ -10,7 +10,7 @@ import {
 import ScoreRing from '../components/ScoreRing';
 import Overview from '../components/Overview';
 import { MOVIE_STATE_LABEL, movieState } from '../lib/movie';
-import { ActionBar, Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
+import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 import { usePress } from '../lib/press';
@@ -35,7 +35,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const [logs, setLogs] = useState<ItemLog[]>(initialLogs ?? []);
   const [chat, setChat] = useState<ChatMsg[]>([]);
   const [owned, setOwned] = useState<Record<string, Owned>>(initialOwned ?? {});
-  const [takeOpen, setTakeOpen] = useState(!!openTake || initial?.status === 'backlog');
+  const [takeOpen, setTakeOpen] = useState(!!openTake);
   const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress(), statusPress = usePress(), collPress = usePress();
   const [statusOpen, setStatusOpen] = useState(false);
   const [confirmDrop, setConfirmDrop] = useState(false);
@@ -215,8 +215,20 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
         </div>
       </div>
 
-      <div className={'card-body' + (inBacklog ? ' has-bar' : '')}>
+      <div className="card-body">
         {error && <p className="error" role="alert">{error}</p>}
+        {/* "Now" card: where the movie is + the main thing to do */}
+        <section className="card now-card">
+          <span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span>
+          <span className="now-title small-title">{mSub}{inBacklog && t.runtime ? ' · ' + runtimeText(t.runtime) : ''}</span>
+          {inBacklog && (
+            <div className="now-actions">
+              {canWatchNow && <button className="now-main" onClick={watchedIt}>{Ico.check}Watched</button>}
+              <button className={'now-side' + (item.up_next ? ' on' : '') + (canWatchNow ? '' : ' wide')} aria-pressed={item.up_next} aria-label={item.up_next ? 'Up next — on' : 'Pin as Up next'} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next' : canWatchNow ? '' : 'Pin as Up next'}</button>
+            </div>
+          )}
+        </section>
+
         {ov && <Overview text={ov} />}
 
         <div className="tiles3">
@@ -228,10 +240,6 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           </button>
         </div>
 
-        {/* Status = information. The main action is in the bar at the bottom; Drop / Bring back are in My take. */}
-        <section className="card status-card">
-          <span className="status-info"><span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span><span className="small">{mSub}</span></span>
-        </section>
 
         {(logs.length > 0 || canWatchNow || mState === 'dropped') && <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (
@@ -346,16 +354,8 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                 </div>
                 {editLog === l.id && (
                   <div className="view-edit">
-                    <div className="chips">
-                      {PICK_TIERS.map((tt) => {
-                        const on = l.tier === tt.id;
-                        return <button key={tt.id} aria-pressed={on} className="chip sm" style={on ? { background: tt.color, borderColor: tt.color, color: '#17161A' } : undefined}
-                          onClick={guard(async () => { await updateLog(l.id, { tier: tt.id }); if (i === 0 && !planned) await updateItem(item.id, { status: 'done' }); })}>
-                          <span className="dot" style={{ background: on ? '#17161A' : tt.color }} />{tt.label}</button>;
-                      })}
-                    </div>
+                    <RatingTiles value={l.tier} onPick={(v) => guard(async () => { await updateLog(l.id, { tier: v }); })()} />
                     <div className="score-row">
-                      <label htmlFor={'vs-' + l.id} className="small strong">Score</label>
                       <ScoreStepper size="sm" label="Score" value={l.score} scale={scale} onChange={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); updateLog(l.id, { score: st }).then(onChanged); }} />
                     </div>
                     <div className="score-row">
@@ -420,14 +420,6 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
       {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }}
         onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
-      {inBacklog && logsReady && (
-        <ActionBar>
-          {canWatchNow
-            ? <><button className="bar-main" onClick={watchedIt}>{Ico.check}Watched</button>
-                <button className={'bar-side' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} aria-label={item.up_next ? 'Up next — on' : 'Pin as Up next'} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next' : ''}</button></>
-            : <button className={'bar-side wide' + (item.up_next ? ' on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Pin as Up next'}</button>}
-        </ActionBar>
-      )}
     </div>
   );
 }

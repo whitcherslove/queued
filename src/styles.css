@@ -658,3 +658,19 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .just-finished { font-size: 11px; font-weight: 800; letter-spacing: .8px; text-transform: uppercase; color: var(--accent); }
 
 .score-row > .stepper { flex: 1; }
+
+/* rating chips: 6-column grid → 3 chips (2 cols each) on top, 2 chips (3 cols each) below; edges line up */
+.rate-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; }
+.rate-chip { grid-column: span 2; justify-content: center; min-height: 40px; padding: 0 6px; white-space: normal; text-align: center; line-height: 1.15; }
+.rate-chip.wide { grid-column: span 3; }
+
+/* "Now" card at the top of a card: state, a clear line of what's next, the main action */
+.now-card { gap: 8px; padding: 16px; }
+.now-title { font-size: 17px; font-weight: 800; line-height: 1.25; }
+.now-title.small-title { font-size: 15px; font-weight: 700; }
+.now-actions { display: flex; gap: 8px; margin-top: 4px; }
+.now-main { flex: 1; height: 48px; border: 0; border-radius: 13px; background: var(--accent); color: var(--on-accent); font-weight: 800; font-size: 15px; display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 4px; }
+.now-actions .now-main { margin-top: 0; }
+.now-side { flex: none; height: 48px; min-width: 48px; padding: 0 14px; border-radius: 13px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 7px; }
+.now-side.on { color: #39C316; border-color: color-mix(in srgb, #39C316 45%, transparent); background: color-mix(in srgb, #39C316 14%, var(--surface2)); }
+.now-side.wide { flex: 1; }

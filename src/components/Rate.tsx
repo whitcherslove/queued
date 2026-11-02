@@ -2,17 +2,17 @@ import type { ReactNode } from 'react';
 import { PICK_TIERS, displayScore, myScoreColor } from '../lib/scores';
 import ScoreRing from './ScoreRing';
 
-/** Five rating tiles in one row, full names (wrapping inside the tile), the picked one filled with its color. */
+/** Rating chips (same look as in Viewings), worst → best, two even rows: 3 on top, 2 below, both rows full width. */
 export function RatingTiles({ value, onPick, label = 'Rating' }: { value: string | null; onPick: (id: string | null) => void; label?: string }) {
+  const order = [...PICK_TIERS].reverse();
   return (
-    <div className="rate-tiles" role="radiogroup" aria-label={label}>
-      {PICK_TIERS.map((t) => {
+    <div className="rate-grid" role="radiogroup" aria-label={label}>
+      {order.map((t, i) => {
         const on = value === t.id;
         return (
-          <button key={t.id} role="radio" aria-checked={on} className={'rate-tile' + (on ? ' on' : '')}
-            style={on ? { background: t.color, borderColor: t.color } : undefined} onClick={() => onPick(on ? null : t.id)}>
-            {!on && <span className="rate-dot" style={{ background: t.color }} aria-hidden="true" />}
-            <span>{t.label}</span>
+          <button key={t.id} role="radio" aria-checked={on} className={'chip rate-chip' + (i >= 3 ? ' wide' : '')}
+            style={on ? { background: t.color, borderColor: t.color, color: '#17161A' } : undefined} onClick={() => onPick(on ? null : t.id)}>
+            <span className="dot" style={{ background: on ? '#17161A' : t.color }} />{t.label}
           </button>
         );
       })}
