@@ -746,3 +746,17 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .take-body { display: flex; flex-direction: column; gap: 12px; }
 .take-line > * { align-self: center; }
 .take-line .pill { align-self: center; margin: 0; }
+
+/* game add sheet */
+.plat-grid { display: flex; flex-wrap: wrap; gap: 6px; max-height: 40vh; overflow-y: auto; }
+.plat-chip { min-height: 36px; }
+.plat-chip.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.list-row.bordered { border: 1px solid var(--line); border-radius: 12px; }
+.type-pill { font-size: 10px; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: var(--surface2); color: var(--muted); vertical-align: middle; }
+.coop-icon { display: inline-flex; margin-left: 6px; color: var(--muted); vertical-align: middle; }
+
+.notice { margin: 0; padding: 10px 14px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 16%, var(--surface)); color: var(--ink); font-weight: 700; font-size: 14px; }
+
+.state-card[data-state="playing"] { --st: #4C9BEA; }
+.state-pill[data-state="playing"] { background: color-mix(in srgb, #4C9BEA 22%, transparent); color: #4C9BEA; }
+.ttb-big { font-size: 22px; font-weight: 800; line-height: 48px; }

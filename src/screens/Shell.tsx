@@ -71,12 +71,18 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         <button className={'drawer-item with-icon' + (section === 'retro' ? ' on' : '')} style={{ ['--sec' as string]: '#E0A43A' }} onClick={() => { setDrawer(false); go('retro'); }}>
           <span className="duo-icon drawer-duo"><DuoRetro /></span>Retro games
         </button>
-        <span className="muted small drawer-foot">Queued · v0.8</span>
+        <span className="muted small drawer-foot">Queued · v0.9</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
   );
 
+  if (section === 'console' || section === 'pc' || section === 'retro') return (
+    <div className="screen">
+      <Movies key={section} kind="game" gameSection={section} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} />
+      {nav}{drawerEl}
+    </div>
+  );
   if (section === 'movies' || section === 'tv') return (
     <div className="screen">
       <Movies key={section} kind={section === 'tv' ? 'tv' : 'movie'} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} />

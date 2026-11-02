@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
+import type { Section, LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { localDay, topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
-import { addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
+import { ensureGame, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
 import { epLabel, epRuntime, isEnded, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, showState, todayIso, type ShowState } from '../lib/tv';
@@ -16,6 +16,12 @@ import { GripIcon, Metascore, Poster } from '../components/Rows';
 import { ChevBtn, IconMenu, IconSearch } from '../components/Icons';
 import { DROPPED_COLOR, TIERS } from '../lib/scores';
 import { movieState } from '../lib/movie';
+import GameAddSheet, { type GameAddMode } from '../components/GameAddSheet';
+import { DEFAULT_RETRO, platformLabel, sectionOf, type GameSection } from '../lib/platforms';
+
+type GameItem = LibItem & { platform?: string | null; coop?: boolean };
+type GameLog = LogRow & { platform?: string | null; coop?: boolean };
+const CoopIcon = () => <span className="coop-icon" role="img" aria-label="Co-op"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><circle cx="17" cy="9" r="2.6" /><path d="M15.5 14.2A4.6 4.6 0 0 1 21 18.5" /></svg></span>;
 
 type Row = { it: LibItem; p: ReturnType<typeof progress>; state: ShowState; seasons: number[]; when: string | null; last: string | null };
 const WATCHING: { key: ShowState; title: string; hint: string }[] = [
@@ -33,7 +39,7 @@ const readCollapsed = (): Record<string, boolean> => { try { return JSON.parse(l
  */
 const listCache = new Map<string, { items: LibItem[]; logs: LogRow[]; eps: SeasonEps[]; marks: Mark[]; tab: Tab }>();
 
-interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void; kind?: 'movie' | 'tv' }
+interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void; kind?: 'movie' | 'tv' | 'game'; gameSection?: GameSection }
 type Tab = 'watched' | 'playing' | 'backlog';
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
@@ -42,16 +48,20 @@ const EyePlus = ({ size = 15 }: { size?: number }) => (
 );
 
 
-export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }: Props) {
+export default function Movies({ settings, onSettings, onMenu, kind = 'movie', gameSection = 'console' }: Props) {
   const isTv = kind === 'tv';
-  const section = isTv ? 'tv' : 'movies';
-  const noun = isTv ? 'show' : 'movie';
-  const cached = listCache.get(isTv ? 'tv' : 'movies');
+  const isGame = kind === 'game';
+  // games: one list per section (Console / PC / Retro); finished playthroughs show in the section of the platform you played on
+  const section: Section = isGame ? gameSection : isTv ? 'tv' : 'movies';
+  const noun = isTv ? 'show' : isGame ? 'game' : 'movie';
+  const retro = settings.retroPlatforms ?? DEFAULT_RETRO;
+  const cached = listCache.get(section);
   const [tab, setTab] = useState<Tab>(cached?.tab ?? 'watched');
   const [tvEps, setTvEps] = useState<SeasonEps[]>(cached?.eps ?? []);
   const [tvMarks, setTvMarks] = useState<Mark[]>(cached?.marks ?? []);
   const [scopeAdd, setScopeAdd] = useState<Title | null>(null);
   const [addChoice, setAddChoice] = useState<Title | null>(null);
+  const [gameAdd, setGameAdd] = useState<Title | null>(null);
   const [cardPast, setCardPast] = useState(false);
   const warmed = useRef(false);
   const [items, setItems] = useState<LibItem[]>(cached?.items ?? []);
@@ -59,6 +69,8 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const [loading, setLoading] = useState(!cached);
   useEffect(() => { listCache.set(section, { items, logs, eps: tvEps, marks: tvMarks, tab }); }, [section, items, logs, tvEps, tvMarks, tab]);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  useEffect(() => { if (!notice) return; const tm = setTimeout(() => setNotice(''), 3500); return () => clearTimeout(tm); }, [notice]);
   const [q, setQ] = useState('');
   const [hits, setHits] = useState<SearchHit[]>([]);
   const [searching, setSearching] = useState(false);
@@ -79,15 +91,19 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
 
   const refresh = useCallback(async () => {
     try {
-      const libP = loadLibrary(section);
+      const libP = isGame ? Promise.all((['console', 'pc', 'retro'] as const).map((sct) => loadLibrary(sct))).then((x) => x.flat()) : loadLibrary(section);
       // shows: episodes and marks of the ones you're watching load in parallel with the journal
       const tvP = isTv ? libP.then((raw) => { const pl = raw.filter((i) => i.status === 'playing'); return Promise.all([loadEpisodes(pl.map((i) => i.title_id)), loadMarks(pl.map((i) => i.id))] as const); }) : null;
-      const [raw, lite] = await Promise.all([libP, loadLogs(section)]);
+      const logP = isGame ? Promise.all((['console', 'pc', 'retro'] as const).map((sct) => loadLogs(sct))).then((x) => x.flat()) : loadLogs(section);
+      const [raw, lite] = await Promise.all([libP, logP]);
       const a = raw.map((i) => ({ ...i, title: merged(i.title, i.overrides) }));
       const byId = new Map(a.map((i) => [i.id, i]));
       // journal rows come without a copy of the title — attach the library item we already have
       const b = lite.filter((l) => byId.has(l.library_id)).map((l) => ({ ...l, library: byId.get(l.library_id)! })) as LogRow[];
-      setItems(a); setLogs(b); setError('');
+      if (isGame) {
+        const mine = b.filter((l) => sectionOf((l as LogRow & { platform?: string | null }).platform ?? (l.library as LibItem & { platform?: string | null }).platform ?? '', retro) === gameSection);
+        setItems(a.filter((i) => i.section === gameSection)); setLogs(mine); setError('');
+      } else { setItems(a); setLogs(b); setError(''); }
       if (isTv) {
         // episodes and marks are only needed for shows you're actually watching
         const [e, m] = await tvP!;
@@ -132,7 +148,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
     if (s.length < 1) { setHits([]); setSearching(false); return; }
     const my = ++seq.current; setSearching(true);
     const t = setTimeout(async () => {
-      try { const r = await searchTitles(s, kind); if (my === seq.current) setHits(r); }
+      try { const r = isGame ? await searchGames(s) : await searchTitles(s, kind as 'movie' | 'tv'); if (my === seq.current) setHits(r); }
       catch { if (my === seq.current) setHits([]); }
       if (my === seq.current) setSearching(false);
     }, 350);
@@ -178,13 +194,16 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   const addByImdb = async () => {
     if (!imdbInQuery) return;
     setAdding(imdbInQuery);
-    try { const t = await ensureTitleByImdb(imdbInQuery, false, kind); if (items.some((i) => i.title_id === t.id)) { setQ(''); } else await offerAdd(t); }
+    try { const t = await ensureTitleByImdb(imdbInQuery, false, kind as 'movie' | 'tv'); if (items.some((i) => i.title_id === t.id)) { setQ(''); } else await offerAdd(t); }
     catch { setError('Nothing found for ' + imdbInQuery + '.'); }
     setAdding(null);
   };
   const add = async (h: SearchHit) => {
     setAdding(h.sourceId);
-    try { const t = await ensureTitle(kind, h.sourceId); await offerAdd(t); }
+    try {
+      if (isGame) { const t = await ensureGame(h.sourceId); if (items.some((i) => i.title_id === t.id)) setQ(''); else setGameAdd(t); }
+      else { const t = await ensureTitle(kind as 'movie' | 'tv', h.sourceId); await offerAdd(t); }
+    }
     catch { setError('Couldn’t add “' + h.title + '”. Try again in a moment.'); }
     setAdding(null);
   };
@@ -226,7 +245,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
         <Poster t={it.title} w={56} h={84}></Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
-          <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{it.rewatch && <EyePlus />}</span>
+          <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? [platformLabel((it as GameItem).platform), releaseText(it.title.release_date, it.title.year)].filter(Boolean).join(' · ') : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
           <span className="row-meta"><Metascore v={it.title.metascore} size="sm" /></span>
         </span>
       </button>
@@ -315,12 +334,12 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={lScore} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
-            <span className="row-meta">{isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{settings.listMetascore && <Metascore v={t.metascore} size="sm" />}</span>
+            <span className="row-meta">{isGame ? [platformLabel((l as GameLog).platform ?? (l.library as GameItem).platform), releaseText(t.release_date, t.year)].filter(Boolean).join(' · ') : isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{isGame && (l as GameLog).coop && <CoopIcon />}{settings.listMetascore && <Metascore v={t.metascore} size="sm" />}</span>
             {l.dropped ? <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped{tr ? ' · ' + tr.label : ''}</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : isTv && <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
           </span>
         </button>
         {edit ? grip('w', l.id, t.title) : (
-          <span className="date-col"><span className="date-cap">{isTv ? 'Finished on' : 'Watched on'}</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}{l.rewatch && <EyePlus size={13} />}</span></span>
+          <span className="date-col"><span className="date-cap">{isTv || isGame ? 'Finished on' : 'Watched on'}</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}{l.rewatch && <EyePlus size={13} />}</span></span>
         )}
       </div>
     );
@@ -340,7 +359,8 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
   ); };
 
   const searchingMode = q.trim().length >= 1;
-  const TABS: Tab[] = isTv ? ['watched', 'playing', 'backlog'] : ['watched', 'backlog'];
+  const TABS: Tab[] = isTv || isGame ? ['watched', 'playing', 'backlog'] : ['watched', 'backlog'];
+  const gamePlaying = useMemo(() => (isGame ? items.filter((i) => i.status === 'playing').sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')) : []), [items, isGame]);
   const tabIndex = TABS.indexOf(tab);
   // Swipe between tabs. While the finger moves we write transforms straight to the DOM (no React re-render) so it stays smooth.
   const [anim, setAnim] = useState<'' | 'enter-right' | 'enter-left'>('');
@@ -424,8 +444,8 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
         <div className="title-row">
           <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>
           <div className="title-block">
-            <h1 className="section-title">{isTv ? 'TV Shows' : 'Movies'}</h1>
-            <span className="muted small">{isTv ? `${watched.length} logged · ${playingCount} watching · ${next.length + rest.length} in backlog` : `${watched.length} watched · ${next.length + rest.length} in backlog`}</span>
+            <h1 className="section-title">{isGame ? { console: 'Console games', pc: 'PC games', retro: 'Retro games' }[gameSection] : isTv ? 'TV Shows' : 'Movies'}</h1>
+            <span className="muted small">{isGame ? `${watched.length} finished · ${gamePlaying.length} playing · ${next.length + rest.length} in backlog` : isTv ? `${watched.length} logged · ${playingCount} watching · ${next.length + rest.length} in backlog` : `${watched.length} watched · ${next.length + rest.length} in backlog`}</span>
           </div>
           <button className="icon-btn boxed" aria-label={view === 'list' ? 'Show as grid' : 'Show as list'} onClick={() => onSettings({ ...settings, view: view === 'list' ? 'grid' : 'list' })}>
             {view === 'list'
@@ -447,7 +467,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
             <span className="seg-pill" ref={pillRef} aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: pillAt(tabIndex) }} />
             {TABS.map((tb, i) => (
               <button key={tb} role="tab" aria-selected={tab === tb} onClick={() => tab !== tb && goTab(i, i > tabIndex ? 'from-right' : 'from-left')}>
-                {tb === 'watched' ? 'Watched' : tb === 'playing' ? 'Watching' : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? playingCount : next.length + rest.length}</span>
+                {tb === 'watched' ? (isGame ? 'Finished' : 'Watched') : tb === 'playing' ? (isGame ? 'Playing' : 'Watching') : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? (isGame ? gamePlaying.length : playingCount) : next.length + rest.length}</span>
               </button>
             ))}
           </div>
@@ -460,6 +480,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
       <main className="content swipe-area" {...swipeHandlers}>
         <div ref={paneRef} className={'swipe-pane' + (anim ? ' ' + anim : '')}>
         {error && <p className="error" role="alert">{error}</p>}
+        {notice && <p className="notice" role="status">{notice}</p>}
         {loading ? <p className="muted">Loading…</p> : searchingMode ? (
           <div className="stack">
             <div className="sec-head"><span className="h2">In your lists</span><span className="muted small">{libMatches.length || ''}</span></div>
@@ -482,10 +503,31 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
             {fresh.map((h) => (
               <div className="hit" key={h.sourceId}>
                 <Poster t={{ poster_url: h.posterUrl, title: h.title }} w={46} h={68} />
-                <span className="row-text"><span className="row-title">{h.title}</span><span className="row-meta">{releaseText(h.releaseDate, h.year)}</span></span>
+                <span className="row-text"><span className="row-title">{h.title}{h.type && h.type !== 'game' && <> <span className="type-pill">{h.type === 'dlc' ? 'DLC' : h.type === 'standalone' ? 'Standalone' : h.type[0].toUpperCase() + h.type.slice(1)}</span></>}</span>
+                  <span className="row-meta">{releaseText(h.releaseDate, h.year)}{h.parent ? ' · for ' + h.parent : ''}</span>
+                  {h.platforms && h.platforms.length > 0 && <span className="row-meta tiny muted">{h.platforms.slice(0, 6).join(' · ')}{h.platforms.length > 6 ? ' …' : ''}</span>}</span>
                 <button className="add-btn" aria-label={'Add ' + h.title + ' to backlog'} disabled={adding === h.sourceId} onClick={() => add(h)}>{adding === h.sourceId ? '…' : '+'}</button>
               </div>
             ))}
+          </div>
+        ) : tab === 'playing' && isGame ? (
+          <div className="stack">
+            {gamePlaying.length === 0 && <div className="empty small-pad">Start a game from your Backlog — it shows up here.</div>}
+            {view === 'list' ? gamePlaying.map((it) => {
+              const d = it.started_on ? dateParts(it.started_on) : null;
+              return (
+                <div key={it.id} className="row-card" data-rowid={it.id} data-list="p">
+                  <button className="row-main" {...longPress(it.id)} onClick={() => setSheet(it)}>
+                    <Poster t={it.title} w={56} h={84} />
+                    <span className="row-text">
+                      <span className="row-title">{it.title.title}</span>
+                      <span className="row-meta">{platformLabel((it as GameItem).platform)}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
+                    </span>
+                  </button>
+                  <span className="date-col"><span className="date-cap">Started on</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">—</span>}</span>
+                </div>
+              );
+            }) : <div className="grid">{gamePlaying.map((it) => tile(it, 'p', () => setSheet(it), it.id))}</div>}
           </div>
         ) : tab === 'playing' ? (
           <div className="stack">
@@ -560,7 +602,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
                   {isBack && !isTv && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Mark as watched…</button>}
                   {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, topPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
                   {!isBack && item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Change rating…</button>}
-                  {!isBack && !isTv && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>Log a rewatch → Backlog</button>}
+                  {!isBack && !isTv && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>{isGame ? 'Replay → Backlog' : 'Log a rewatch → Backlog'}</button>}
                   {isTv && (() => {
                     const mine = logs.filter((l) => l.library.id === item.id);
                     const st = showState(item, item.title, mine, item.status === 'playing' ? progress(item, item.title, tvEps.filter((e) => e.title_id === item.title_id), tvMarks.filter((m) => m.library_id === item.id), today) : null, today);
@@ -598,6 +640,16 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
           </div>
         </div>
       )}
+      {gameAdd && <GameAddSheet t={gameAdd} retro={retro} today={today} onCancel={() => setGameAdd(null)} onDone={async ({ platform, coop, mode }) => {
+        const t = gameAdd; setGameAdd(null);
+        const dest = sectionOf(platform, retro);
+        try {
+          const id = await addToBacklog(t.id, dest, topPosition(items), { platform, coop, ...(mode === 'playing' ? { status: 'playing', started_on: today, run_started_at: new Date().toISOString() } : {}) });
+          setQ(''); await refresh();
+          if (dest !== gameSection) setNotice('Added to ' + { console: 'Console games', pc: 'PC games', retro: 'Retro games' }[dest] + '.');
+          if (mode === 'past') { setCardSeq([id]); setCardTake(false); setCardEnter(null); setCardPast(true); setCardId(id); }
+        } catch { setError('Couldn’t add “' + t.title + '”.'); }
+      }} />}
       {scopeAdd && <ScopeSheet t={scopeAdd} title="What will you watch?" confirm="Add to Backlog" onCancel={() => setScopeAdd(null)}
         onDone={async (list) => { const t = scopeAdd; setScopeAdd(null); try { await addToBacklog(t.id, 'tv', topPosition(items), { plan_seasons: list, plan_from: list ? list[0] : null, plan_to: list ? list[list.length - 1] : null, run_started_at: new Date().toISOString() }); refreshEpisodes([t.source_id]); await refresh(); } catch { setError('Couldn’t add “' + t.title + '”.'); } }} />}
       {cardId && isTv && <ShowCard key={cardId} openPast={cardPast} itemId={cardId} openTake={cardTake} enterFrom={cardEnter} settings={settings} topPos={topPosition(items)}
@@ -606,7 +658,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie' }:
         onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
         onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null}
         onClose={() => { setCardId(null); setCardTake(false); setCardPast(false); }} onChanged={refresh} />}
-      {cardId && !isTv && <MovieCard key={cardId} openPast={cardPast} itemId={cardId} openTake={cardTake} enterFrom={cardEnter}
+      {cardId && !isTv && <MovieCard key={cardId} game={isGame} openPast={cardPast} itemId={cardId} openTake={cardTake} enterFrom={cardEnter}
         onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
         onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
         initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}

@@ -10,12 +10,13 @@ import {
 import ScoreRing from '../components/ScoreRing';
 import Overview from '../components/Overview';
 import { MOVIE_STATE_LABEL, movieState } from '../lib/movie';
+import { platformChoices, platformLabel, sectionOf, type IgdbPlatform } from '../lib/platforms';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 import { usePress } from '../lib/press';
 
-interface Props { openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, Owned>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string, past?: boolean) => void; backlogCount: number }
+interface Props { game?: boolean; openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, Owned>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string, past?: boolean) => void; backlogCount: number }
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const EXT = <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /></svg>;
@@ -28,7 +29,7 @@ export const EXT_ICON = EXT;
 
 const PIN = <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4.5l4.5 4.5-3 1.5-3.5 3.5.5 4-1.5 1.5-3.5-3.5L4 20M8.5 11.5L12.5 15.5M15 4.5L12 7.5 8.5 7 7 8.5l3.5 3.5" /></svg>;
 
-export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
+export default function MovieCard({ game, openPast, itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
   const [full, setFull] = useState(!!initial?.title?.data);
@@ -138,7 +139,13 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, position: backlogCount }); };
   const cancelRewatch = async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false }); };
   const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else await planRewatch(); });
-  const mState = movieState(item, t, planned ? null : last);
+  // games use the same card with their own words: Finished / Playing / Replay / Playthroughs / Played before
+  const W = game
+    ? { done: 'Finished', doneOn: 'Finished on', rewatch: 'Replay', viewings: 'Playthroughs', before: 'Played before' }
+    : { done: 'Watched', doneOn: 'Watched on', rewatch: 'Rewatch', viewings: 'Viewings', before: 'Watched before' };
+  const gItem = item as typeof item & { platform?: string | null; coop?: boolean };
+  const isPlaying = game && item.status === 'playing';
+  const mState = isPlaying ? ('playing' as const) : movieState(item, t, planned ? null : last);
   const inBacklog = item.status === 'backlog';
   const canWatchNow = inBacklog && movieState(item, t, null) !== 'comingSoon';
   const rel = t.release_date;
@@ -148,15 +155,36 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
       case 'comingSoon': return 'Out on ' + (rel ? longDate(rel) : 'a date TBA');
       case 'outNow': return 'Released on ' + (rel ? longDate(rel) : 'this year');
       case 'backlog': return item.rewatch ? 'Rewatch planned' : 'In your Backlog';
-      case 'watched': return 'Watched on ' + (last ? longDate(last.watched_at) : '');
+      case 'watched': return W.doneOn + ' ' + (last ? longDate(last.watched_at) : '');
+      case 'playing': return [platformLabel(gItem.platform), item.started_on ? 'started on ' + longDate(item.started_on) : ''].filter(Boolean).join(' · ');
       case 'didntFinish': return 'Didn’t finish · stopped on ' + (last ? longDate(last.watched_at) : '');
       default: return 'Hidden from your lists · search still finds it';
     }
   })();
+  /** games: platform + co-op rows — on the latest playthrough, or (not played yet) on the game itself; a new platform can move it to another section */
+  const platOptions = platformChoices(((t.data as { platforms?: IgdbPlatform[] } | null)?.platforms ?? []), settings.retroPlatforms ?? undefined);
+  const gameRows = (l: (typeof logs)[number] | null) => {
+    const lp = l as (typeof logs)[number] & { platform?: string | null; coop?: boolean } | null;
+    const cur = (lp ? lp.platform : null) ?? gItem.platform ?? '';
+    const coopOn = lp ? !!lp.coop : !!gItem.coop;
+    const opts = platOptions.some((o) => o.key === cur) || !cur ? platOptions : [{ key: cur, label: platformLabel(cur), section: 'console' as const, group: '' }, ...platOptions];
+    return <>
+      <ListRow icon={Ico.seasons} label="Platform">
+        <select className="date-input" aria-label="Platform" value={cur} onChange={(e) => { const v = e.target.value; guard(async () => {
+          if (lp) await updateLog(lp.id, { platform: v } as never);
+          else await updateItem(item.id, { platform: v, section: sectionOfKey(v) } as never);
+        })(); }}>{opts.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}</select>
+      </ListRow>
+      <ListRow icon={Ico.coop} label="Co-op" onClick={guard(async () => { if (lp) await updateLog(lp.id, { coop: !coopOn } as never); else await updateItem(item.id, { coop: !coopOn } as never); })}><span className={'switch' + (coopOn ? ' on-green' : '')}><span /></span></ListRow>
+    </>;
+  };
+  const sectionOfKey = (k: string) => sectionOf(k, settings.retroPlatforms ?? undefined);
+  /** games: Backlog → Playing on the chosen platform */
+  const startPlaying = guard(async () => { await updateItem(item.id, { status: 'playing', started_on: localDay(new Date().toISOString()), run_started_at: new Date().toISOString(), up_next: false } as never); });
   /** "Watched": logs the viewing with today's date (it shows up in Watched) and opens My take to rate it */
   const watchedIt = guard(async () => {
     // a rewatch starts from what you thought last time — adjust it if your opinion changed
-    await insertLog(item.id, { watched_at: new Date().toISOString(), tier: item.rewatch ? last?.tier ?? null : null, score: item.rewatch ? last?.score ?? null : null, rewatch: !!item.rewatch });
+    await insertLog(item.id, { watched_at: new Date().toISOString(), tier: item.rewatch ? last?.tier ?? null : null, score: item.rewatch ? last?.score ?? null : null, rewatch: !!item.rewatch, ...(game ? { platform: gItem.platform ?? null, coop: !!gItem.coop } : {}) } as never);
     await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
     setJustWatched(true); setTakeOpen(true);
     window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
@@ -182,11 +210,19 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
   const data = (item.title.data ?? {}) as any;
   const coll = data.collection as { name: string; parts: CollectionPart[] } | null;
   const cast = ((data.cast ?? []) as { name: string }[]).slice(0, 4).map((c) => c.name);
-  const facts = ([
+  const ttb = (data.ttb ?? null) as { quick: number | null; main: number | null; full: number | null } | null;
+  const hrs = (h: number | null | undefined) => (h ? (h >= 10 ? Math.round(h) : h) + ' h' : '');
+  const facts = (game ? [
+    ['Developer', (data.developers ?? []).join(', ')], ['Publisher', (data.publishers ?? []).join(', ')],
+    ['Platforms', ((data.platforms ?? []) as IgdbPlatform[]).map((p) => p.abbr || p.name).join(' · ')],
+    ['Modes', (data.modes ?? []).join(', ')], ['Franchise', data.franchise ?? ''],
+    ['Story', hrs(ttb?.main)], ['Quick', hrs(ttb?.quick)], ['100%', hrs(ttb?.full)]
+  ] : [
     ['Country', shortCountries(data.countries)], ['Language', (data.language ?? '').toUpperCase()],
     ['Budget', money(data.budget)], ['Box office', money(data.revenue)]
-  ] as [string, string][]).filter(([, v]) => v);
-  const mcUrl = metacriticSearch(t.title, 'movie');
+  ]) as [string, string][];
+  const factsShown = facts.filter(([, v]) => v);
+  const mcUrl = metacriticSearch(t.title, game ? 'game' : 'movie');
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
   const tr = tierOf(last?.tier ?? null);
   const origTr = tierOf(last?.tier ?? null);
@@ -225,8 +261,12 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
         {ov && <Overview text={ov} />}
 
         <div className="tiles3">
-          {tile('metascore')}
-          {tile('imdb_rating')}
+          {game && t.metascore == null && typeof data.critics === 'number'
+            ? <a className="tile3" href={mcUrl} target="_blank" rel="noopener"><span className="sq" style={{ background: metascoreColor(data.critics) ?? 'var(--surface2)', color: '#17161A' }}>{data.critics}</span><span className="muted small">Critics ↗</span></a>
+            : tile('metascore')}
+          {game
+            ? <div className="tile3"><span className="ttb-big">{ttb?.main ? hrs(ttb.main) : '—'}</span><span className="muted small">Time to beat</span></div>
+            : tile('imdb_rating')}
           <button className="tile3" onClick={() => setTakeOpen(true)} aria-label="Change my take">
             <ScoreRing value={shownScore} scale={scale} size={48} fontSize={17} />
             <span className="muted small">My score</span>
@@ -238,16 +278,23 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
         <section id="my-take" className={'card state-card' + (statusPress.pressed ? ' pressed' : '')} data-state={mState}>
           {(() => {
             const head = <>
-              <span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span>
+              <span className="state-pill" data-state={mState}>{game && mState === 'watched' ? 'Finished' : MOVIE_STATE_LABEL[mState]}</span>
               <span className="state-title">{mState === 'dropped' ? 'Not in your lists' : mSub}</span>
               {inBacklog && t.runtime ? <span className="small muted">{runtimeText(t.runtime)}{item.rewatch ? ' · rewatch' : ''}</span> : null}
             </>;
             // the whole card folds/unfolds from here (also when there's nothing but My take to open)
             return <button className="state-head" aria-expanded={takeOpen} {...statusPress.bind} onClick={() => { setTakeOpen(!takeOpen); setConfirmDrop(false); }}><span className="state-head-text">{head}</span><ChevBtn open={takeOpen} /></button>;
           })()}
+          {isPlaying && (
+            <div className="state-actions">
+              <button className="btn primary" onClick={watchedIt}>{Ico.check}Finished</button>
+            </div>
+          )}
           {inBacklog && (
             <div className="state-actions">
-              {canWatchNow && <button className="btn primary" onClick={watchedIt}>{Ico.check}Watched</button>}
+              {canWatchNow && (game
+                ? <button className="btn primary" onClick={startPlaying}>{Ico.play}Start playing</button>
+                : <button className="btn primary" onClick={watchedIt}>{Ico.check}Watched</button>)}
               <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>
             </div>
           )}
@@ -270,8 +317,9 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                 <RatingTiles value={last.tier} onPick={(v) => pickTier(v ?? last.tier ?? '')} />
                 <ScoreStepper value={score} scale={scale} onChange={(v) => setScore(v)} />
                 <div className="list-group">
-                  <ListRow icon={Ico.date} label="Watched on"><input type="date" className="date-input" aria-label="Watched on" value={localDay(last.watched_at)} onChange={(e) => setDate(e.target.value)} /></ListRow>
-                  <ListRow icon={Ico.rewatch} label="Rewatch" onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
+                  <ListRow icon={Ico.date} label={W.doneOn}><input type="date" className="date-input" aria-label={W.doneOn} value={localDay(last.watched_at)} onChange={(e) => setDate(e.target.value)} /></ListRow>
+                  <ListRow icon={Ico.rewatch} label={W.rewatch} onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
+                  {game && gameRows(last)}
                 </div>
               </> : <>
                 {/* Not watched yet: everything is here; rating it logs a viewing with today's date (change it after) */}
@@ -279,7 +327,8 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                 <RatingTiles value={null} onPick={(v) => { if (v) rateFirst({ tier: v }); }} />
                 <ScoreStepper value={null} scale={scale} onChange={(v) => { if (v !== null) rateFirst({ score: v }); }} />
                 <div className="list-group">
-                  <ListRow icon={Ico.rewatch} label="Rewatch" onClick={() => { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }}><span className={'switch' + (item.rewatch ? ' on-green' : '')}><span /></span></ListRow>
+                  {game && gameRows(null)}
+                  <ListRow icon={Ico.rewatch} label={W.rewatch} onClick={() => { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }}><span className={'switch' + (item.rewatch ? ' on-green' : '')}><span /></span></ListRow>
                 </div>
               </>}
             </div>
@@ -289,7 +338,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
               <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
           ) : (
             <div className="quiet-row">
-              {canWatchNow && <button className="link" onClick={() => setPastOpen(true)}>Watched before</button>}
+              {canWatchNow && <button className="link" onClick={() => setPastOpen(true)}>{W.before}</button>}
               {mState === 'dropped' && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
               {canWatchNow && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
             </div>
@@ -303,11 +352,11 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
         <section className="card stack">
           <span className="h2">Details</span>
           {t.genres.length > 0 && <div className="stack-sm"><span className="muted small">Genres</span><div className="row">{t.genres.map((g) => <span key={g} className="pill" style={{ background: 'var(--surface2)' }}>{g}</span>)}</div></div>}
-          <div className="facts">{facts.map(([k, v]) => <div key={k}><span className="muted small">{k}</span><strong>{v}</strong></div>)}</div>
-          {cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
+          <div className="facts">{factsShown.map(([k, v]) => <div key={k}><span className="muted small">{k}</span><strong>{v}</strong></div>)}</div>
+          {!game && cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
         </section>
 
-        {coll && coll.parts?.length > 1 && (
+        {!game && coll && coll.parts?.length > 1 && (
           <section className={'card stack-sm' + (collPress.pressed ? ' pressed' : '')}>
             <button className="take-head" aria-expanded={collOpen} {...collPress.bind} onClick={() => setCollOpen(!collOpen)}><span className="h2 grow">{coll.name}</span><span className="muted small">{coll.parts.findIndex((p) => p.sourceId === item.title.source_id) + 1} of {coll.parts.length}</span><ChevBtn open={collOpen} /></button>
             {collOpen && <div className="stack-sm">{coll.parts.map((p, i) => {
@@ -338,9 +387,9 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
 
         {(logs.length > 0 || item.status === 'backlog') && (
           <section className="card stack-sm">
-            <div className="sec-head wrap"><span className="h2">Viewings <span className="muted small normal">{logs.length}</span></span>
+            <div className="sec-head wrap"><span className="h2">{W.viewings} <span className="muted small normal">{logs.length}</span></span>
             <div className="act-chips">
-              {!(t.release_date && t.release_date > localDay(new Date().toISOString())) && <button className="act-chip" onClick={() => setPastOpen(true)}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>Watched before</button>}
+              {!(t.release_date && t.release_date > localDay(new Date().toISOString())) && <button className="act-chip" onClick={() => setPastOpen(true)}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5" /><path d="M12 7v5l3 2" /></svg>{W.before}</button>}
               {logs.length > 0 && <button className={'act-chip' + (planned ? ' on' : '')} aria-pressed={planned} onClick={logRewatch}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12V9a3 3 0 0 1 3-3h13l-3-3M20 12v3a3 3 0 0 1-3 3H4l3 3" /></svg>{planned ? 'Rewatch planned' : 'Rewatch'}</button>}
             </div></div>
             {/* Top row = where the movie is now, like on shows: a first viewing or a rewatch waiting in Backlog */}
@@ -348,7 +397,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
               <div className="view-row">
                 <span className="grow small strong">{logs.length ? 'Planned: rewatch' : 'Planned: first viewing'}</span>
                 {logs.length > 0 && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
-                <span className="state-pill" data-state={mState}>{MOVIE_STATE_LABEL[mState]}</span>
+                <span className="state-pill" data-state={mState}>{game && mState === 'watched' ? 'Finished' : MOVIE_STATE_LABEL[mState]}</span>
                 {logs.length > 0 && <button className="del-x" aria-label="Cancel the planned rewatch" onClick={logRewatch}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>}
               </div>
             )}

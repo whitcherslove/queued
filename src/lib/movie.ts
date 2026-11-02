@@ -1,7 +1,7 @@
 import type { ItemLog, LibItem, Title } from './types';
 import { localDay } from './logic';
 
-export type MovieState = 'upNext' | 'outNow' | 'comingSoon' | 'backlog' | 'watched' | 'didntFinish' | 'dropped';
+export type MovieState = 'upNext' | 'outNow' | 'comingSoon' | 'backlog' | 'watched' | 'didntFinish' | 'dropped' | 'playing';
 
 const today = () => localDay(new Date().toISOString());
 
@@ -25,5 +25,5 @@ export function movieState(item: Pick<LibItem, 'status' | 'up_next'>, t: Pick<Ti
 }
 
 export const MOVIE_STATE_LABEL: Record<MovieState, string> = {
-  upNext: 'Up next', outNow: 'Out now', comingSoon: 'Coming soon', backlog: 'Backlog', watched: 'Watched', didntFinish: 'Didn’t finish', dropped: 'Not interested'
+  upNext: 'Up next', outNow: 'Out now', comingSoon: 'Coming soon', backlog: 'Backlog', watched: 'Watched', didntFinish: 'Didn’t finish', dropped: 'Not interested', playing: 'Playing'
 };
