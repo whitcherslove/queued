@@ -162,6 +162,12 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
     setJustWatched(true); setTakeOpen(true);
     window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
   });
+  /** Rating a movie you haven't logged yet = "I watched it today" with that rating */
+  const rateFirst = (patch: { tier?: string; score?: number }) => guard(async () => {
+    await insertLog(item.id, { watched_at: new Date().toISOString(), tier: patch.tier ?? null, score: patch.score ?? null, rewatch: !!item.rewatch });
+    await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
+    setJustWatched(true);
+  })();
   const markDidntFinish = guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: null, rewatch: !!item.rewatch, watched_at: new Date().toISOString() }); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); });
   const toggleDidntFinish = () => { if (!last) return; const l = last, v = !l.dropped; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: !v } : x))), () => updateLog(l.id, { dropped: v })); };
   const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: backlogCount })); };
@@ -251,7 +257,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
           ))}
         </section>
 
-        {(logs.length > 0) && <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
+        <section id="my-take" className={'card take' + (takePress.pressed ? ' pressed' : '')}>
           {!takeOpen ? (
             <button className="take-summary" {...takePress.bind} onClick={() => setTakeOpen(true)} aria-expanded="false">
               <span className="h2">My take</span>
@@ -272,10 +278,18 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
                   <ListRow icon={Ico.date} label="Watched on"><input type="date" className="date-input" aria-label="Watched on" value={localDay(last.watched_at)} onChange={(e) => setDate(e.target.value)} /></ListRow>
                   <ListRow icon={Ico.rewatch} label="It was a rewatch" onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
                 </div>
-              </> : null}
+              </> : <>
+                {/* Not watched yet: everything is here; rating it logs a viewing with today's date (change it after) */}
+                <span className="muted small">Not watched yet — rating it marks it as watched today.</span>
+                <RatingTiles value={null} onPick={(v) => { if (v) rateFirst({ tier: v }); }} />
+                <ScoreStepper value={null} scale={scale} onChange={(v) => { if (v !== null) rateFirst({ score: v }); }} />
+                <div className="list-group">
+                  <ListRow icon={Ico.rewatch} label="It will be a rewatch" onClick={() => { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }}><span className={'switch' + (item.rewatch ? ' on-green' : '')}><span /></span></ListRow>
+                </div>
+              </>}
             </div>
           )}
-        </section>}
+        </section>
 
         {/* Lower part (details, collection, viewings, AI) appears in one piece once the full card is loaded */}
         {!full ? <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div> : (
