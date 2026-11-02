@@ -258,6 +258,7 @@ export default function MovieCard({ openPast, itemId, onPrev, onNext, enterFrom,
               <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
           ) : (
             <div className="quiet-row">
+              {canWatchNow && <button className="link" onClick={() => setPastOpen(true)}>Watched earlier…</button>}
               {mState === 'dropped' && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
               {canWatchNow && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
             </div>
