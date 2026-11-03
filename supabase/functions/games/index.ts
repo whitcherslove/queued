@@ -139,7 +139,22 @@ const HLTB_ROUTES: [string, string][] = [
   ['https://howlongtobeat.com/api/bleed/init', 'https://howlongtobeat.com/api/bleed']
 ];
 let hltbNote = '';
-async function hltb(name: string, year: number | null): Promise<{ main: number | null; plus: number | null; full: number | null; id: number } | null> {
+/**
+ * HLTB is picky about punctuation ("Tom Clancy's Ghost Recon: Breakpoint" vs "Tom Clancy's Ghost Recon Breakpoint"),
+ * so try a few spellings: as is → without punctuation → without the "Tom Clancy's"-style prefix / the part after a colon.
+ */
+async function hltb(name: string, year: number | null) {
+  const plain = name.replace(/[:\-–—]/g, ' ').replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
+  const tries = [name, plain, plain.replace(/^(tom clancy'?s|sid meier'?s|marvel'?s|disney'?s|lego)\s+/i, ''), name.includes(':') ? name.split(':').slice(1).join(':').trim() : ''];
+  const seen = new Set<string>();
+  for (const t of tries) {
+    if (!t || seen.has(t.toLowerCase())) continue; seen.add(t.toLowerCase());
+    const r = await hltbOnce(t, year, name);
+    if (r) return r;
+  }
+  return null;
+}
+async function hltbOnce(name: string, year: number | null, original: string): Promise<{ main: number | null; plus: number | null; full: number | null; id: number } | null> {
   const clean = name.replace(/[™®©]/g, '').replace(/\s*[:\-–]\s*(game of the year|goty|definitive|complete|deluxe|director'?s cut|remastered|enhanced)( edition)?\s*$/i, '').trim();
   for (const [initUrl, searchUrl] of HLTB_ROUTES) {
     const init = await fetchT(initUrl + '?t=' + Date.now(), { headers: { 'User-Agent': HLTB_UA, Accept: '*/*', Referer: 'https://howlongtobeat.com/' } }, 7000);
@@ -147,7 +162,7 @@ async function hltb(name: string, year: number | null): Promise<{ main: number |
     const api = await init.json().catch(() => null);
     if (!api?.token) { hltbNote = 'HLTB: no token'; continue; }
     const payload: Record<string, unknown> = {
-      searchType: 'games', searchTerms: clean.split(/\s+/), searchPage: 1, size: 20,
+      searchType: 'games', searchTerms: clean.replace(/[:\-–—,.!?()]/g, ' ').split(/\s+/).filter(Boolean), searchPage: 1, size: 20,
       searchOptions: {
         games: { userId: 0, platform: '', sortCategory: 'popular', rangeCategory: 'main', rangeTime: { min: 0, max: 0 },
           gameplay: { perspective: '', flow: '', genre: '', difficulty: '' }, rangeYear: { min: '', max: '' }, year: '', modifier: '' },
@@ -162,7 +177,7 @@ async function hltb(name: string, year: number | null): Promise<{ main: number |
     const list: any[] = (await r.json().catch(() => null))?.data ?? [];
     if (!list.length) { hltbNote = 'HLTB: no match for "' + clean + '"'; return null; }
     const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
-    const same = list.filter((g) => norm(g.game_name ?? '') === norm(clean) || norm(g.game_name ?? '') === norm(name));
+    const same = list.filter((g) => [clean, name, original].some((x) => norm(g.game_name ?? '') === norm(x)));
     const pick = same.find((g) => !year || Number(g.release_world) === year || Math.abs(Number(g.release_world) - year) <= 1) ?? same[0];
     // no exact name: take a close one (same start, e.g. "Control" → "Control: Ultimate Edition") if the year fits
     const close = pick ? null : list.find((g) => norm(g.game_name ?? '').startsWith(norm(clean)) && (!year || Math.abs(Number(g.release_world) - year) <= 1));
