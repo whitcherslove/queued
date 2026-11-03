@@ -273,7 +273,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         <Poster t={it.title} w={56} h={84}></Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
-          <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? <><PlatformIcon k={(it as GameItem).platform} />{gameMeta(it)}</> : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
+          <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? <><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}</> : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
           <span className="row-meta"><Metascore v={it.title.metascore} size="sm" game={isGame} /></span>
         </span>
       </button>
@@ -362,7 +362,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={lScore} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
-            <span className="row-meta">{isGame ? <><PlatformIcon k={(l as GameLog).platform ?? (l.library as GameItem).platform} />{gameMeta(l.library)}</> : isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{isGame && (l as GameLog).coop && <CoopIcon />}{settings.listMetascore && <Metascore v={t.metascore} size="sm" game={isGame} />}</span>
+            <span className="row-meta">{isGame ? <><PlatformIcon k={(l as GameLog).platform ?? (l.library as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(l.library)}</> : isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{isGame && (l as GameLog).coop && <CoopIcon />}{settings.listMetascore && <Metascore v={t.metascore} size="sm" game={isGame} />}</span>
             {l.dropped ? <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped{tr ? ' · ' + tr.label : ''}</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : isTv && <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
           </span>
         </button>
@@ -551,7 +551,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                     <Poster t={it.title} w={56} h={84} />
                     <span className="row-text">
                       <span className="row-title">{it.title.title}</span>
-                      <span className="row-meta"><PlatformIcon k={(it as GameItem).platform} />{gameMeta(it)}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
+                      <span className="row-meta"><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
                       <span className="row-meta"><span className="mini-bar w72"><span style={{ width: ((it as GameItem & { progress?: number | null }).progress ?? 0) + '%' }} /></span><strong className="tiny">{(it as GameItem & { progress?: number | null }).progress ?? 0}%</strong></span>
                     </span>
                   </button>

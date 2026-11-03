@@ -19,7 +19,8 @@ const LIB_FIELDS = LIB_BASE + ', title:titles(*)';
 // Lists only need what the rows show. Movies skip the heavy "data" (cast, collection, budget…) — the card loads it when opened.
 // Shows keep "data": seasons and status drive Watching / Caught up.
 const TITLE_LIST = 'id, kind, source, source_id, imdb_id, title, release_date, year, runtime, directors, genres, overview, poster_url, backdrop_url, metascore, imdb_rating';
-const listFields = (section: Section) => LIB_BASE + ', title:titles(' + TITLE_LIST + (section === 'tv' ? ', data' : '') + ')';
+// shows and games need their "data" in lists too (seasons / time to beat, platforms)
+const listFields = (section: Section) => LIB_BASE + ', title:titles(' + TITLE_LIST + (section === 'movies' ? '' : ', data') + ')';
 
 /** The server returns at most 1000 rows per request, so long lists are read page by page. */
 async function allPages<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>): Promise<T[]> {

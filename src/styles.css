@@ -782,3 +782,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .plat-logo { width: auto; max-width: 92px; object-fit: contain; flex: none; vertical-align: middle; margin-right: 8px; opacity: .9; }
 .row-meta .plat-logo { margin-top: -2px; }
 :root[data-theme="light"] .plat-logo { filter: invert(1); }
+
+.dot-sep { margin: 0 6px 0 -2px; color: var(--muted); }
