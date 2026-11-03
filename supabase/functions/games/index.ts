@@ -79,6 +79,23 @@ async function rawgGame(slug: string, name: string, year: number | null) {
 }
 
 
+
+/** Loose title key for matching across sites: no punctuation, no filler words ("VR", "Edition", "The"…). */
+const NOISE = new Set(['the', 'vr', 'edition', 'goty', 'game', 'of', 'year', 'definitive', 'complete', 'deluxe', 'directors', 'cut', 'enhanced', 'standard', 'digital', 'ultimate']);
+function looseKey(s: string): string {
+  return s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[’']/g, '').replace(/&/g, ' and ').split(/[^a-z0-9]+/).filter((w) => w && !NOISE.has(w)).join(' ');
+}
+/** Same title? Exact loose key, or one is the other plus a little (with a matching year). */
+function sameTitle(a: string, b: string, yearOk = true): boolean {
+  const x = looseKey(a), y = looseKey(b);
+  if (!x || !y) return false;
+  if (x === y) return true;
+  const [short, long] = x.length < y.length ? [x, y] : [y, x];
+  if (!yearOk || !long.startsWith(short + ' ') || long.length - short.length > 14) return false;
+  // a sequel number in the extra words means a different game ("Hades" ≠ "Hades II")
+  return !/\b(\d+|ii|iii|iv|v|vi|vii|viii|ix|x)\b/.test(long.slice(short.length));
+}
+
 // ---------- Metacritic (unofficial: the same backend the metacritic.com site uses) ----------
 // 1) search Metacritic by title (type + year must fit) → its score and page slug;
 // 2) no score in the search result → read the score from the title's page (JSON-LD aggregateRating).
@@ -120,8 +137,10 @@ async function metacritic(db: any, kind: 'game' | 'movie' | 'tv', title: string,
   if (r.ok) items = (await r.json().catch(() => null))?.data?.items ?? [];
   else { mcNote = 'Metacritic search ' + r.status; if (r.status === 401 || r.status === 403) await db.from('app_cache').delete().eq('key', 'mc_key'); }
   const yearOf = (it: any) => Number(it.premiereYear ?? String(it.releaseDate ?? '').slice(0, 4)) || null;
+  const yearFits = (it: any) => !year || !yearOf(it) || Math.abs((yearOf(it) as number) - year) <= 1;
   const same = items.filter((it) => mcNorm(it.title ?? '') === mcNorm(title));
-  const hit = same.find((it) => !year || !yearOf(it) || Math.abs((yearOf(it) as number) - year) <= 1) ?? (same.length === 1 && !year ? same[0] : null);
+  // exact name first; then a loose one ("Arizona Sunshine VR Remake" ≈ "Arizona Sunshine Remake") with a fitting year
+  const hit = same.find(yearFits) ?? (same.length === 1 && !year ? same[0] : null) ?? items.find((it) => yearFits(it) && sameTitle(it.title ?? '', title, true));
   let slug: string | null = hit?.slug ?? null;
   let score: number | null = typeof hit?.criticScoreSummary?.score === 'number' ? hit.criticScoreSummary.score : null;
   // nothing from the search: try the page Metacritic would have for that name
@@ -145,7 +164,7 @@ let hltbNote = '';
  */
 async function hltb(name: string, year: number | null) {
   const plain = name.replace(/[:\-–—]/g, ' ').replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
-  const tries = [name, plain, plain.replace(/^(tom clancy'?s|sid meier'?s|marvel'?s|disney'?s|lego)\s+/i, ''), name.includes(':') ? name.split(':').slice(1).join(':').trim() : ''];
+  const tries = [name, plain, plain.replace(/\bVR\b/gi, ' ').replace(/\s+/g, ' ').trim(), plain.replace(/^(tom clancy'?s|sid meier'?s|marvel'?s|disney'?s|lego)\s+/i, ''), name.includes(':') ? name.split(':').slice(1).join(':').trim() : ''];
   const seen = new Set<string>();
   for (const t of tries) {
     if (!t || seen.has(t.toLowerCase())) continue; seen.add(t.toLowerCase());
@@ -177,7 +196,9 @@ async function hltbOnce(name: string, year: number | null, original: string): Pr
     const list: any[] = (await r.json().catch(() => null))?.data ?? [];
     if (!list.length) { hltbNote = 'HLTB: no match for "' + clean + '"'; return null; }
     const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const yr = (g: any) => !year || !Number(g.release_world) || Math.abs(Number(g.release_world) - year) <= 1;
     const same = list.filter((g) => [clean, name, original].some((x) => norm(g.game_name ?? '') === norm(x)));
+    if (!same.length) same.push(...list.filter((g) => yr(g) && [clean, original].some((x) => sameTitle(g.game_name ?? '', x))));
     const pick = same.find((g) => !year || Number(g.release_world) === year || Math.abs(Number(g.release_world) - year) <= 1) ?? same[0];
     // no exact name: take a close one (same start, e.g. "Control" → "Control: Ultimate Edition") if the year fits
     const close = pick ? null : list.find((g) => norm(g.game_name ?? '').startsWith(norm(clean)) && (!year || Math.abs(Number(g.release_world) - year) <= 1));
