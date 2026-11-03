@@ -51,3 +51,34 @@ export default function GameAddSheet({ t, retro, today, onCancel, onDone }: {
     </div>
   );
 }
+
+/** Pick / confirm the platform (and co-op) — used by "Start playing" and "Replay". */
+export function PlatformSheet({ t, retro, title, confirm, initial, initialCoop, onCancel, onDone }: {
+  t: Title; retro: string[]; title: string; confirm: string; initial?: string | null; initialCoop?: boolean;
+  onCancel: () => void; onDone: (r: { platform: string; coop: boolean }) => void;
+}) {
+  const igdb = ((t.data as { platforms?: IgdbPlatform[] } | null)?.platforms ?? []);
+  const choices = useMemo(() => platformChoices(igdb, retro), [igdb, retro]);
+  const [platform, setPlatform] = useState<string>(initial || choices[0]?.key || 'pc');
+  const [other, setOther] = useState(!!initial && !choices.some((c) => c.key === initial));
+  const [coop, setCoop] = useState(!!initialCoop);
+  const list = other ? ALL_PLATFORMS.map((p) => ({ ...p, section: sectionOf(p.key, retro) })) : choices;
+  return (
+    <div className="sheet-wrap">
+      <button className="sheet-scrim" aria-label="Close" onClick={onCancel} />
+      <div className="sheet" role="dialog" aria-label={title}>
+        <div className="stack-sm"><strong className="sheet-title">{title}</strong><span className="muted small">{t.title}</span></div>
+        <span className="list-group-title">Platform</span>
+        <div className="plat-grid" role="radiogroup" aria-label="Platform">
+          {list.map((p) => <button key={p.key} role="radio" aria-checked={platform === p.key} className={'chip plat-chip' + (platform === p.key ? ' on' : '')} onClick={() => setPlatform(p.key)}>{p.label}</button>)}
+        </div>
+        {!other && <button className="link left" onClick={() => setOther(true)}>Other platform…</button>}
+        <span className="muted small">Goes to <strong>{SECTION_NAME[sectionOf(platform, retro)]}</strong></span>
+        <button className="list-row bordered" role="switch" aria-checked={coop} onClick={() => setCoop(!coop)}>
+          <span className="li-label">Co-op</span><span className="muted small">played together with someone</span><span className={'switch' + (coop ? ' on-green' : '')}><span /></span>
+        </button>
+        <div className="row nowrap"><button className="btn grow" onClick={onCancel}>Cancel</button><button className="btn primary grow" onClick={() => onDone({ platform, coop })}>{confirm}</button></div>
+      </div>
+    </div>
+  );
+}

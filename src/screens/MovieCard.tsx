@@ -5,12 +5,14 @@ import { DROPPED_COLOR, PICK_TIERS, TIERS, displayScore, imdbColor, metascoreCol
 import { diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import { shortCountries } from '../lib/logic';
 import {
-  type Owned, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
+  type Owned, estimateProgress, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import Overview from '../components/Overview';
 import { MOVIE_STATE_LABEL, movieState } from '../lib/movie';
 import { platformChoices, platformLabel, sectionOf, type IgdbPlatform } from '../lib/platforms';
+import { PlatformSheet } from '../components/GameAddSheet';
+import ProgressRing from '../components/ProgressRing';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
@@ -44,6 +46,13 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const [collOpen, setCollOpen] = useState(true);
   const [ownedGames, setOwnedGames] = useState<Record<string, Owned>>({});
   const [addingDlc, setAddingDlc] = useState<string | null>(null);
+  const [platAsk, setPlatAsk] = useState<'' | 'start' | 'replay'>('');
+  const [progAsk, setProgAsk] = useState(false);
+  const [progText, setProgText] = useState('');
+  const [progBusy, setProgBusy] = useState(false);
+  const [progNote, setProgNote] = useState('');
+  const [dlcEdit, setDlcEdit] = useState(false);
+  const [showHidden, setShowHidden] = useState(false);
   // which DLCs / main game you already have (games only), once the full game data is here
   const dlcKey = game && item?.title?.data ? JSON.stringify([((item.title.data as { dlcs?: { id: string }[] }).dlcs ?? []).map((d) => d.id), (item.title.data as { parent?: { id: string } | null }).parent?.id ?? null]) : '';
   useEffect(() => {
@@ -149,12 +158,12 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const toggleRew = () => { if (!last) return; const l = last, v = !l.rewatch; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, rewatch: !v } : x))), () => updateLog(l.id, { rewatch: v })); };
   const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, position: backlogCount }); };
   const cancelRewatch = async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false }); };
-  const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else await planRewatch(); });
+  const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else if (game) setPlatAsk('replay'); else await planRewatch(); });
   // games use the same card with their own words: Finished / Playing / Replay / Playthroughs / Played before
   const W = game
     ? { done: 'Finished', doneOn: 'Finished on', rewatch: 'Replay', viewings: 'Playthroughs', before: 'Played before', viewing: 'playthrough', notYet: 'Not played yet', just: 'Just finished · rate it', list: 'Finished' }
     : { done: 'Watched', doneOn: 'Watched on', rewatch: 'Rewatch', viewings: 'Viewings', before: 'Watched before', viewing: 'viewing', notYet: 'Not watched yet', just: 'Just watched · rate it', list: 'Watched' };
-  const gItem = item as typeof item & { platform?: string | null; coop?: boolean };
+  const gItem = item as typeof item & { platform?: string | null; coop?: boolean; progress?: number | null };
   const isPlaying = game && item.status === 'playing';
   const mState = isPlaying ? ('playing' as const) : movieState(item, t, planned ? null : last);
   const inBacklog = item.status === 'backlog';
@@ -204,8 +213,17 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
     } catch { setError('Couldn’t add it. Try again in a moment.'); }
     setAddingDlc(null);
   };
+  // DLC entries you've hidden (IGDB sometimes lists odd things) — kept in your own edits, not in the shared data
+  const dlcHidden: string[] = ((item.overrides as { dlc_hidden?: string[] } | null)?.dlc_hidden ?? []);
+  const setDlcHidden = (list: string[]) => { const ov = { ...(item.overrides ?? {}), dlc_hidden: list }; setItem({ ...item, overrides: ov } as never); updateItem(item.id, { overrides: ov } as never).catch(() => setError('Couldn’t save. Try again.')); };
   /** games: Backlog → Playing on the chosen platform */
-  const startPlaying = guard(async () => { await updateItem(item.id, { status: 'playing', started_on: localDay(new Date().toISOString()), run_started_at: new Date().toISOString(), up_next: false } as never); });
+  const startPlaying = () => setPlatAsk('start');
+  /** after the platform sheet: start playing now, or plan a replay in Backlog — the platform decides the section */
+  const confirmPlatform = (mode: 'start' | 'replay', platform: string, coop: boolean) => guard(async () => {
+    const section = sectionOf(platform, settings.retroPlatforms ?? undefined);
+    if (mode === 'start') await updateItem(item.id, { status: 'playing', platform, coop, section, progress: 0, started_on: localDay(new Date().toISOString()), run_started_at: new Date().toISOString(), up_next: false } as never);
+    else await updateItem(item.id, { status: 'backlog', rewatch: true, platform, coop, section, progress: null, position: backlogCount } as never);
+  })();
   /** "Watched": logs the viewing with today's date (it shows up in Watched) and opens My take to rate it */
   const watchedIt = guard(async () => {
     // a rewatch starts from what you thought last time — adjust it if your opinion changed
@@ -235,7 +253,9 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const data = (item.title.data ?? {}) as any;
   const coll = data.collection as { name: string; parts: CollectionPart[] } | null;
   const cast = ((data.cast ?? []) as { name: string }[]).slice(0, 4).map((c) => c.name);
-  const ttb = (data.ttb ?? null) as { quick: number | null; main: number | null; full: number | null } | null;
+  const ttbRaw = (data.ttb ?? null) as { quick: number | null; main: number | null; full: number | null } | null;
+  const ttbMine = (item.overrides as { ttb_main?: number } | null)?.ttb_main;
+  const ttb = ttbMine ? { quick: ttbRaw?.quick ?? null, main: ttbMine, full: ttbRaw?.full ?? null } : ttbRaw;
   const hrs = (h: number | null | undefined) => (h ? (h >= 10 ? Math.round(h) : h) + ' h' : '');
   const facts = (game ? [
     ['Developer', (data.developers ?? []).join(', ')], ['Publisher', (data.publishers ?? []).join(', ')],
@@ -292,10 +312,12 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           {game
             ? <div className="tile3"><span className="ttb-big">{ttb?.main ? hrs(ttb.main) : '—'}</span><span className="muted small">Time to beat</span></div>
             : tile('imdb_rating')}
-          <button className="tile3" onClick={() => setTakeOpen(true)} aria-label="Change my take">
-            <ScoreRing value={shownScore} scale={scale} size={48} fontSize={17} />
-            <span className="muted small">My score</span>
-          </button>
+          {isPlaying
+            ? <div className="tile3"><ProgressRing pct={gItem.progress ?? 0} text={(gItem.progress ?? 0) + '%'} /><span className="muted small">Progress</span></div>
+            : <button className="tile3" onClick={() => setTakeOpen(true)} aria-label="Change my take">
+                <ScoreRing value={shownScore} scale={scale} size={48} fontSize={17} />
+                <span className="muted small">My score</span>
+              </button>}
         </div>
 
 
@@ -305,11 +327,36 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
             const head = <>
               <span className="state-pill" data-state={mState}>{game && mState === 'watched' ? 'Finished' : MOVIE_STATE_LABEL[mState]}</span>
               <span className="state-title">{mState === 'dropped' ? 'Not in your lists' : mSub}</span>
+              {game && (() => { const lp = (last as (typeof last) & { platform?: string | null; coop?: boolean } | null); const pl = (inBacklog || isPlaying ? gItem.platform : lp?.platform ?? gItem.platform); const co = inBacklog || isPlaying ? gItem.coop : lp?.coop;
+                return pl ? <span className="plat-line">{Ico.seasons}<span>{(inBacklog ? 'On ' : isPlaying ? 'Playing on ' : 'Played on ') + platformLabel(pl)}{co ? ' · co-op' : ''}</span></span> : null; })()}
               {inBacklog && t.runtime ? <span className="small muted">{runtimeText(t.runtime)}{item.rewatch ? ' · ' + W.rewatch.toLowerCase() : ''}</span> : null}
             </>;
             // the whole card folds/unfolds from here (also when there's nothing but My take to open)
             return <button className="state-head" aria-expanded={takeOpen} {...statusPress.bind} onClick={() => { setTakeOpen(!takeOpen); setConfirmDrop(false); }}><span className="state-head-text">{head}</span><ChevBtn open={takeOpen} /></button>;
           })()}
+          {isPlaying && (
+            <div className="prog-row">
+              <input type="range" min={0} max={100} step={5} aria-label="Progress" value={gItem.progress ?? 0} className="range"
+                onChange={(e) => { const v = Number(e.target.value); setItem({ ...item, progress: v } as never); }}
+                onPointerUp={(e) => { const v = Number((e.target as HTMLInputElement).value); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}
+                onKeyUp={(e) => { const v = Number((e.target as HTMLInputElement).value); updateItem(item.id, { progress: v } as never).catch(() => undefined); }} />
+              <strong className="prog-num">{gItem.progress ?? 0}%</strong>
+              <button className="link" onClick={() => { setProgAsk(!progAsk); setProgNote(''); }}>{progAsk ? 'Close' : 'Ask AI'}</button>
+            </div>
+          )}
+          {isPlaying && progAsk && (
+            <div className="prog-ask">
+              <input className="text-input" placeholder="Where are you? e.g. “just beat the second boss”" value={progText} onChange={(e) => setProgText(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget.nextElementSibling as HTMLButtonElement | null)?.click(); }} />
+              <button className="btn primary sm" disabled={!progText.trim() || progBusy} onClick={async () => {
+                setProgBusy(true); setProgNote('');
+                try { const r = await estimateProgress(item.id, progText.trim()); setItem({ ...item, progress: r.progress } as never); setProgNote(r.progress + '% — ' + r.note); setProgText(''); onChanged(); }
+                catch (e) { setProgNote((e as Error).message || 'Couldn’t estimate. Try again.'); }
+                setProgBusy(false);
+              }}>{progBusy ? '…' : 'Set'}</button>
+              {progNote && <span className="muted small wide">{progNote}</span>}
+            </div>
+          )}
           {isPlaying && (
             <div className="state-actions">
               <button className="btn primary" onClick={watchedIt}>{Ico.check}Finished</button>
@@ -385,13 +432,24 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           <section className={'card stack-sm' + (collPress.pressed ? ' pressed' : '')}>
             <button className="take-head" aria-expanded={collOpen} {...collPress.bind} onClick={() => setCollOpen(!collOpen)}>
               <span className="h2 grow">{gameParent ? 'Main game' : 'DLC & expansions'}</span>
-              <span className="muted small">{gameParent ? '' : gameDlcs.length}</span><ChevBtn open={collOpen} />
+              <span className="muted small">{gameParent ? '' : gameDlcs.length - dlcHidden.length}</span><ChevBtn open={collOpen} />
             </button>
             {collOpen && <div className="stack-sm">
-              {(gameParent ? [{ id: gameParent.id, name: gameParent.name, kind: 'game', cover: null, release_date: null }] : gameDlcs).map((d) => {
+              {!gameParent && <div className="row nowrap">
+                <button className="link" onClick={() => setDlcEdit(!dlcEdit)}>{dlcEdit ? 'Done' : 'Edit list'}</button>
+                {dlcHidden.length > 0 && <button className="link" onClick={() => setShowHidden(!showHidden)}>{showHidden ? 'Hide hidden' : 'Show hidden (' + dlcHidden.length + ')'}</button>}
+              </div>}
+              {(gameParent ? [{ id: gameParent.id, name: gameParent.name, kind: 'game', cover: null, release_date: null }] : gameDlcs.filter((d) => showHidden || !dlcHidden.includes(d.id))).map((d) => {
                 const o = ownedGames[d.id];
+                const hidden = dlcHidden.includes(d.id);
+                if (dlcEdit && !gameParent) return (
+                  <div key={d.id} className={'coll-row' + (hidden ? ' faded' : '')}>
+                    <span className="coll-title">{d.name}</span>
+                    <button className="link" onClick={() => setDlcHidden(hidden ? dlcHidden.filter((x) => x !== d.id) : [...dlcHidden, d.id])}>{hidden ? 'Show' : 'Hide'}</button>
+                  </div>
+                );
                 return (
-                  <div key={d.id} className="coll-row">
+                  <div key={d.id} className={'coll-row' + (hidden ? ' faded' : '')}>
                     <button className="coll-title" disabled={!o} onClick={() => o && onOpenOther(o.id)}>{d.name}{d.kind !== 'game' && <> <span className="type-pill">{d.kind === 'dlc' ? 'DLC' : d.kind === 'expansion' ? 'Expansion' : 'Standalone'}</span></>} <span className="muted">{d.release_date ? d.release_date.slice(0, 4) : ''}</span></button>
                     {o ? <span className={'pill status' + (o.status === 'backlog' ? '' : ' accent')}>{o.status === 'backlog' ? (o.up_next ? 'Up next' : 'Backlog') : o.status === 'playing' ? 'Playing' : o.status === 'dropped' ? 'Dropped' : 'Finished'}</span>
                       : <button className="add-btn" aria-label={'Add ' + d.name} disabled={addingDlc === d.id} onClick={() => addDlc(d.id)}>{addingDlc === d.id ? '…' : '+'}</button>}
@@ -525,6 +583,9 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           </div>
         </div>
       )}
+      {platAsk && item && <PlatformSheet t={t} retro={settings.retroPlatforms ?? []} title={platAsk === 'start' ? 'Start playing' : 'Replay'} confirm={platAsk === 'start' ? 'Start playing' : 'Add to Backlog'}
+        initial={gItem.platform} initialCoop={platAsk === 'start' ? !!gItem.coop : false} onCancel={() => setPlatAsk('')}
+        onDone={({ platform, coop }) => { const m = platAsk as 'start' | 'replay'; setPlatAsk(''); confirmPlatform(m, platform, coop); }} />}
       {pastOpen && <PastMovieSheet t={t} scale={scale} game={game} onCancel={() => setPastOpen(false)}
         onSave={(at, tier, sc) => { setPastOpen(false); guard(async () => {
           await insertLog(item.id, { watched_at: at, tier, score: sc, rewatch: false });
@@ -564,7 +625,8 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
   const m = merged(item.title, item.overrides);
   const [f, setF] = useState({
     title: m.title, release_date: m.release_date ?? '', runtime: m.runtime ? String(m.runtime) : '', directors: m.directors.join(', '),
-    genres: m.genres.join(', '), metascore: m.metascore === null ? '' : String(m.metascore), imdb_rating: m.imdb_rating === null ? '' : String(m.imdb_rating)
+    genres: m.genres.join(', '), metascore: m.metascore === null ? '' : String(m.metascore), imdb_rating: m.imdb_rating === null ? '' : String(m.imdb_rating),
+    ttb_main: String((item.overrides as { ttb_main?: number } | null)?.ttb_main ?? '')
   });
   const [backdrop, setBackdrop] = useState<string | null>(m.backdrop_url);
   const [poster, setPoster] = useState<string | null>(m.poster_url);
@@ -622,7 +684,10 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
     const ms = numOrNull(f.metascore, 100), im = numOrNull(f.imdb_rating, 10), rt = f.runtime.trim() ? parseInt(f.runtime, 10) : null;
     if (ms === undefined || im === undefined || (f.release_date && !/^\d{4}-\d{2}-\d{2}$/.test(f.release_date))) { setNote('Check the highlighted values: dates as YYYY-MM-DD, Metascore 0–100, IMDb 0–10.'); return; }
     const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im, backdrop_url: backdrop, poster_url: poster, ...(kind === 'tv' && showStatus ? { status: showStatus } : {}) };
-    setBusy(true); await updateItem(item.id, { overrides: { ...diffOverrides(item.title, edited), ...(kind === 'tv' && showStatus && showStatus !== tmdbStatus ? { status: showStatus } : {}) } }); setBusy(false); onSaved();
+    const keep = (item.overrides ?? {}) as { dlc_hidden?: string[] };
+    const ttbN = Number(String(f.ttb_main).replace(',', '.'));
+    setBusy(true); await updateItem(item.id, { overrides: { ...diffOverrides(item.title, edited), ...(kind === 'tv' && showStatus && showStatus !== tmdbStatus ? { status: showStatus } : {}),
+      ...(kind === 'game' && keep.dlc_hidden ? { dlc_hidden: keep.dlc_hidden } : {}), ...(kind === 'game' && f.ttb_main && ttbN > 0 ? { ttb_main: Math.round(ttbN * 10) / 10 } : {}) } as never }); setBusy(false); onSaved();
   };
   const refresh = async () => { setBusy(true); try { if (kind === 'game') await ensureGame(item.title.source_id, true); else if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle(kind, item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
   const clearEdits = async () => { await updateItem(item.id, { overrides: {} }); onSaved(); };
@@ -652,6 +717,7 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
         {field('genres', 'Genres', 'text', 'Drama, Comedy')}
         {field('metascore', 'Metascore (0–100)', 'numeric', '64')}
         {kind !== 'game' && field('imdb_rating', 'IMDb (0–10)', 'decimal', '6.8')}
+        {kind === 'game' && field('ttb_main' as never, 'Time to beat, hours (your own — leave empty for IGDB)', 'decimal', '35')}
         {Object.keys(item.overrides ?? {}).length > 0 && <button className="link left" onClick={clearEdits}>Clear my edits</button>}
         {confirm
           ? <div className="row"><span className="small">Delete “{m.title}” and its viewings?</span><button className="btn sm" onClick={() => setConfirm(false)}>Cancel</button><button className="btn sm danger-fill" onClick={onDeleted}>Delete</button></div>

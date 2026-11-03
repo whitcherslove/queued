@@ -11,6 +11,7 @@ import {
 import { STATE_LABEL, coveredSeasons, shownState, epLabel, epRuntime, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showState, showYears, todayIso } from '../lib/tv';
 import { applyEpisodeMarks, bringBack, dropShow, moveToBacklog, startWatching } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
+import ProgressRing from '../components/ProgressRing';
 import Overview from '../components/Overview';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import ScopeSheet from '../components/ScopeSheet';
@@ -29,18 +30,6 @@ interface Props {
 const CHIPS = ['Similar shows', 'Is it worth continuing?', 'Recap the last season', 'Fun facts'];
 const scopeShort = (l: { scope?: string; season_from?: number | null; season_to?: number | null; seasons?: number[] | null }) => seasonsName(logSeasons(l));
 
-function ProgressRing({ pct, text, size = 48 }: { pct: number; text: string; size?: number }) {
-  const C = 138.23;
-  return (
-    <span className="ring" role="img" aria-label={'Progress ' + text} style={{ width: size, height: size }}>
-      <svg aria-hidden="true" width={size} height={size} viewBox="0 0 52 52">
-        <circle cx="26" cy="26" r="22" fill="none" stroke="var(--line)" strokeWidth="5" />
-        <circle cx="26" cy="26" r="22" fill="none" stroke="var(--accent)" strokeWidth="5" strokeLinecap="round" strokeDasharray={`${(pct / 100) * C} ${C}`} transform="rotate(-90 26 26)" />
-        <text x="26" y="26.5" textAnchor="middle" dominantBaseline="central" fill="currentColor" fontFamily="Arial, sans-serif" fontWeight="800" fontSize="13">{pct}%</text>
-      </svg>
-    </span>
-  );
-}
 
 const PIN = <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4.5l4.5 4.5-3 1.5-3.5 3.5.5 4-1.5 1.5-3.5-3.5L4 20M8.5 11.5L12.5 15.5M15 4.5L12 7.5 8.5 7 7 8.5l3.5 3.5" /></svg>;
 

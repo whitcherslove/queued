@@ -62,6 +62,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie', g
   const [scopeAdd, setScopeAdd] = useState<Title | null>(null);
   const [addChoice, setAddChoice] = useState<Title | null>(null);
   const [gameAdd, setGameAdd] = useState<Title | null>(null);
+  const [allGames, setAllGames] = useState<LibItem[]>([]);
   const [cardPast, setCardPast] = useState(false);
   const warmed = useRef(false);
   const [items, setItems] = useState<LibItem[]>(cached?.items ?? []);
@@ -83,7 +84,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie', g
   const [menu, setMenu] = useState<null | { item: LibItem; log: LogRow | null }>(null);
   const [menuConfirm, setMenuConfirm] = useState<null | 'remove' | 'viewing'>(null);
   const currentSeq = () => {
-    const ids = q.trim().length >= 1 ? matchLibrary(items, q).map((i) => i.id) : tab === 'watched' ? watched.map((l) => l.library.id) : tab === 'playing' ? (['progress', 'newSeason', 'lastChance', 'caughtUp', 'upToDate'] as ShowState[]).flatMap((k) => watchingRows[k].map((r) => r.it.id)) : splitBacklog(items).next.concat(splitBacklog(items).rest).map((i) => i.id);
+    const ids = q.trim().length >= 1 ? matchLibrary(isGame ? allGames : items, q).map((i) => i.id) : tab === 'watched' ? watched.map((l) => l.library.id) : tab === 'playing' ? (['progress', 'newSeason', 'lastChance', 'caughtUp', 'upToDate'] as ShowState[]).flatMap((k) => watchingRows[k].map((r) => r.it.id)) : splitBacklog(items).next.concat(splitBacklog(items).rest).map((i) => i.id);
     return ids.filter((id, i) => ids.indexOf(id) === i);
   };
   const setSheet = (it: LibItem) => { setCardSeq(currentSeq()); setCardEnter(null); setCardPast(false); setCardId(it.id); };
@@ -102,7 +103,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie', g
       const b = lite.filter((l) => byId.has(l.library_id)).map((l) => ({ ...l, library: byId.get(l.library_id)! })) as LogRow[];
       if (isGame) {
         const mine = b.filter((l) => sectionOf((l as LogRow & { platform?: string | null }).platform ?? (l.library as LibItem & { platform?: string | null }).platform ?? '', retro) === gameSection);
-        setItems(a.filter((i) => i.section === gameSection)); setLogs(mine); setError('');
+        setItems(a.filter((i) => i.section === gameSection)); setAllGames(a); setLogs(mine); setError('');
       } else { setItems(a); setLogs(b); setError(''); }
       if (isTv) {
         // episodes and marks are only needed for shows you're actually watching
@@ -157,7 +158,8 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie', g
 
   const { next, rest } = useMemo(() => splitBacklog(items), [items]);
   const watched = useMemo(() => sortLogs(logs), [logs]);
-  const libMatches = useMemo(() => matchLibrary(items, q), [items, q]);
+  // games: search all your games (Console, PC and Retro), not only this section
+  const libMatches = useMemo(() => matchLibrary(isGame ? allGames : items, q), [items, allGames, isGame, q]);
   const fresh = useMemo(() => newHits(hits, items), [hits, items]);
   const customOrder = logs.some((l) => l.position !== null);
   const today = todayIso();
@@ -541,6 +543,7 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie', g
                     <span className="row-text">
                       <span className="row-title">{it.title.title}</span>
                       <span className="row-meta">{platformLabel((it as GameItem).platform)}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
+                      <span className="row-meta"><span className="mini-bar w72"><span style={{ width: ((it as GameItem & { progress?: number | null }).progress ?? 0) + '%' }} /></span><strong className="tiny">{(it as GameItem & { progress?: number | null }).progress ?? 0}%</strong></span>
                     </span>
                   </button>
                   <span className="date-col"><span className="date-cap">Started on</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">—</span>}</span>
@@ -618,8 +621,9 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie', g
               ) : (
                 <div className="action-list">
                   <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Open</button>
-                  {isBack && !isTv && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Mark as watched…</button>}
+                  {isBack && !isTv && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>{isGame ? 'Start playing…' : 'Mark as watched…'}</button>}
                   {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, topPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
+                  {isGame && item.status === 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Finished…</button>}
                   {!isBack && item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Change rating…</button>}
                   {!isBack && !isTv && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>{isGame ? 'Replay → Backlog' : 'Log a rewatch → Backlog'}</button>}
                   {isTv && (() => {

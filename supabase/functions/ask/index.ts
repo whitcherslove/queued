@@ -23,7 +23,7 @@ async function gemini(model: string, body: unknown) {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
-    const { libraryId, question } = await req.json();
+    const { libraryId, question, mode } = await req.json();
     const q = String(question ?? '').trim();
     if (!libraryId || !q) return Response.json({ error: 'libraryId and question are required' }, { status: 400, headers: CORS });
 
@@ -59,6 +59,27 @@ Deno.serve(async (req) => {
 
     const primary = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash';
     const fallback = Deno.env.get('GEMINI_FALLBACK_MODEL');
+
+    // mode "progress": estimate how far into the game the player is (0–100 %) from their description; saves it on the item
+    if (mode === 'progress') {
+      const pBody = {
+        systemInstruction: { parts: [{ text:
+          'You estimate a player\'s progress through a video game\'s main story. Use web search to check the game\'s structure (chapters, missions, bosses). ' +
+          'Reply ONLY with JSON: {"progress": <integer 0-100>, "note": "<one short sentence: where that point is in the game>"}. No markdown.\n\n' + context } ] },
+        contents: [{ role: 'user', parts: [{ text: 'Where I am: ' + q }] }],
+        tools: [{ google_search: {} }]
+      };
+      let raw: string;
+      try { raw = await gemini(primary, pBody); } catch (e) { if (!fallback) throw e; raw = await gemini(fallback, pBody); }
+      const m = raw.match(/\{[\s\S]*\}/);
+      let progress = NaN, note = '';
+      try { const j = JSON.parse(m ? m[0] : raw); progress = Number(j.progress); note = String(j.note ?? ''); } catch { const n = raw.match(/(\d{1,3})\s*%?/); progress = n ? Number(n[1]) : NaN; }
+      if (!Number.isFinite(progress)) return Response.json({ error: 'Couldn’t work out the progress — try describing it differently.' }, { status: 422, headers: CORS });
+      progress = Math.max(0, Math.min(100, Math.round(progress)));
+      const { error: upErr } = await userDb.from('library').update({ progress }).eq('id', libraryId);
+      if (upErr) return Response.json({ error: upErr.message }, { status: 500, headers: CORS });
+      return Response.json({ progress, note }, { headers: CORS });
+    }
     let answer: string;
     try { answer = await gemini(primary, body); }
     catch (e) { if (!fallback) throw e; answer = await gemini(fallback, body); }

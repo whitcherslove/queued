@@ -762,3 +762,13 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .ttb-big { font-size: 22px; font-weight: 800; line-height: 48px; }
 
 .credits a { color: inherit; text-decoration: underline; }
+
+/* games: platform line in the state card, progress while playing */
+.plat-line { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; color: var(--ink); }
+.plat-line svg { width: 15px; height: 15px; color: var(--muted); }
+.prog-row { display: flex; align-items: center; gap: 10px; }
+.prog-row .range { flex: 1; accent-color: #4C9BEA; touch-action: pan-y; }
+.prog-num { min-width: 42px; text-align: right; }
+.prog-ask { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.prog-ask .text-input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font: inherit; }
+.coll-row.faded { opacity: .5; }

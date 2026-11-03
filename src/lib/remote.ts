@@ -14,7 +14,7 @@ export async function ensureTitle(kind: 'movie' | 'tv', sourceId: string, force 
   return data.title as Title;
 }
 
-const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop';
+const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop, progress';
 const LIB_FIELDS = LIB_BASE + ', title:titles(*)';
 // Lists only need what the rows show. Movies skip the heavy "data" (cast, collection, budget…) — the card loads it when opened.
 // Shows keep "data": seasons and status drive Watching / Caught up.
@@ -248,4 +248,12 @@ export async function resyncGameSections(sectionFor: (platform: string) => strin
   const moves = (data ?? []).filter((r: any) => sectionFor(r.platform) !== r.section);
   await Promise.all(moves.map((r: any) => supabase.from('library').update({ section: sectionFor(r.platform) }).eq('id', r.id)));
   return moves.length;
+}
+
+/** Ask the AI to estimate how far you are (0–100 %) from what you describe ("just beat the second boss"). */
+export async function estimateProgress(libraryId: string, text: string): Promise<{ progress: number; note: string }> {
+  const { data, error } = await supabase.functions.invoke('ask', { body: { libraryId, question: text, mode: 'progress' } });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return { progress: Number(data.progress), note: String(data.note ?? '') };
 }
