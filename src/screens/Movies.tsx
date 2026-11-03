@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Section, LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
-import { localDay, topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
+import { localDay, needsRefresh, topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
 import { ensureGame, gameIdBySlug, gameImages, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
@@ -125,6 +125,23 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     setLoading(false);
   }, [section]);
   useEffect(() => { refresh(); }, [refresh]);
+
+  /** Once a day per device and section: refresh up to 15 movies / games whose data is due (upcoming and new ones first). */
+  const dailyRefresh = useRef(false);
+  useEffect(() => {
+    if (isTv || dailyRefresh.current || !items.length) return;
+    dailyRefresh.current = true;
+    const KEY = 'queued.refreshedAt.' + section;
+    let last = 0; try { last = Number(localStorage.getItem(KEY) || 0); } catch { /* private mode */ }
+    if (Date.now() - last < 20 * 3600e3) return;
+    const due = items.filter((i) => needsRefresh(i.title as { release_date?: string | null; fetched_at?: string | null }) && (isGame || i.title.source === 'tmdb'))
+      .sort((a, b) => (b.title.release_date ?? '9999').localeCompare(a.title.release_date ?? '9999')).slice(0, 15);
+    (async () => {
+      for (const i of due) await (isGame ? ensureGame(i.title.source_id) : ensureTitle('movie', i.title.source_id)).catch(() => undefined);
+      try { localStorage.setItem(KEY, String(Date.now())); } catch { /* ignore */ }
+      if (due.length) refresh();
+    })();
+  }, [items, isTv, isGame, section]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /**
    * Once a day per device: ask TMDB about running shows (new seasons, new episodes) in the background,
@@ -693,12 +710,12 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           </div>
         </div>
       )}
-      {gameAdd && <GameAddSheet t={gameAdd} retro={retro} today={today} onCancel={() => setGameAdd(null)} onDone={async ({ platform, coop, mode }) => {
+      {gameAdd && <GameAddSheet t={gameAdd} retro={retro} today={today} prefer={gameSection} onCancel={() => setGameAdd(null)} onDone={async ({ platform, coop, mode }) => {
         const t = gameAdd; setGameAdd(null);
         const dest = sectionOf(platform, retro);
         try {
           const id = await addToBacklog(t.id, dest, topPosition(items), { platform, coop, ...(mode === 'playing' ? { status: 'playing', started_on: today, run_started_at: new Date().toISOString() } : {}) });
-          setQ(''); await refresh();
+          await refresh();
           // time to beat (HLTB), Metascore and background arrive a few seconds later — no waiting on the add
           if ((t.data as { needs_enrich?: boolean } | null)?.needs_enrich) ensureGame(t.source_id, true).then(() => refresh()).catch(() => undefined);
           if (dest !== gameSection) setNotice('Added to ' + { console: 'Console games', pc: 'PC games', retro: 'Retro games' }[dest] + '.');

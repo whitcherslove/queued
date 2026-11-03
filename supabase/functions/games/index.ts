@@ -91,7 +91,7 @@ async function rawgGame(slug: string, name: string, year: number | null) {
 /** Loose title key for matching across sites: no punctuation, no filler words ("VR", "Edition", "The"…). */
 const NOISE = new Set(['the', 'vr', 'edition', 'goty', 'game', 'of', 'year', 'definitive', 'complete', 'deluxe', 'directors', 'cut', 'enhanced', 'standard', 'digital', 'ultimate']);
 function looseKey(s: string): string {
-  return s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[’']/g, '').replace(/&/g, ' and ').split(/[^a-z0-9]+/).filter((w) => w && !NOISE.has(w)).join(' ');
+  return s.toLowerCase().replace(/[δΔ]/g, ' delta ').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[’']/g, '').replace(/&/g, ' and ').split(/[^a-z0-9]+/).filter((w) => w && !NOISE.has(w)).join(' ');
 }
 /** Same title? Exact loose key, or one is the other plus a little (with a matching year). */
 function sameTitle(a: string, b: string, yearOk = true): boolean {
@@ -172,7 +172,7 @@ let hltbNote = '';
  */
 async function hltb(name: string, year: number | null) {
   const plain = name.replace(/[:\-–—]/g, ' ').replace(/[^\p{L}\p{N}' ]+/gu, ' ').replace(/\s+/g, ' ').trim();
-  const tries = [name, plain, plain.replace(/\bVR\b/gi, ' ').replace(/\s+/g, ' ').trim(), plain.replace(/^(tom clancy'?s|sid meier'?s|marvel'?s|disney'?s|lego)\s+/i, ''), name.includes(':') ? name.split(':').slice(1).join(':').trim() : ''];
+  const tries = [name, plain, name.replace(/\bDelta\b/i, 'Δ'), plain.replace(/\bVR\b/gi, ' ').replace(/\s+/g, ' ').trim(), plain.replace(/^(tom clancy'?s|sid meier'?s|marvel'?s|disney'?s|lego)\s+/i, ''), name.includes(':') ? name.split(':').slice(1).join(':').trim() : ''];
   const seen = new Set<string>();
   for (const t of tries) {
     if (!t || seen.has(t.toLowerCase())) continue; seen.add(t.toLowerCase());
@@ -203,7 +203,7 @@ async function hltbOnce(name: string, year: number | null, original: string): Pr
     if (!r.ok) { hltbNote = 'HLTB search ' + r.status; continue; }
     const list: any[] = (await r.json().catch(() => null))?.data ?? [];
     if (!list.length) { hltbNote = 'HLTB: no match for "' + clean + '"'; return null; }
-    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const norm = (x: string) => x.toLowerCase().replace(/[δΔ]/g, 'delta').replace(/[^a-z0-9]+/g, '');
     const yr = (g: any) => !year || !Number(g.release_world) || Math.abs(Number(g.release_world) - year) <= 1;
     const same = list.filter((g) => [clean, name, original].some((x) => norm(g.game_name ?? '') === norm(x)));
     if (!same.length) same.push(...list.filter((g) => yr(g) && [clean, original].some((x) => sameTitle(g.game_name ?? '', x))));
@@ -226,7 +226,10 @@ async function details(db: any, igdbId: string, force = false, light = false) {
   // fresh for a week — but if RAWG was down last time, try again after a day
   // if RAWG or HowLongToBeat didn't answer last time, try again after a day instead of a week
   const missed = !!cached?.data?.rawg_note || !!cached?.data?.hltb_note || cached?.data?.ttb?.source !== 'hltb' || cached?.metascore == null;
-  if (cached && !force && (light || age < (missed ? 864e5 : FRESH_DAYS * 864e5))) return cached;
+  const rel = cached?.release_date ? new Date(cached.release_date).getTime() : null;
+  const recent = !rel || rel > Date.now() - 180 * 864e5;           // not out yet, or out within ~6 months
+  const maxAge = missed || recent ? 864e5 : 30 * 864e5;
+  if (cached && !force && (light || age < maxAge)) return cached;
   const [g] = await igdb(db, 'games', `fields name,slug,summary,first_release_date,game_type,cover.image_id,artworks.image_id,screenshots.image_id,genres.name,themes.name,
     platforms.id,platforms.name,platforms.slug,platforms.abbreviation,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
     aggregated_rating,aggregated_rating_count,total_rating,parent_game.id,parent_game.name,dlcs.id,dlcs.name,dlcs.cover.image_id,dlcs.first_release_date,

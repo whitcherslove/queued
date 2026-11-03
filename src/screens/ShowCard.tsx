@@ -383,6 +383,13 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         })()}
 
 
+        <section className="card stack">
+          <span className="h2">Details</span>
+          {t.genres.length > 0 && <div className="stack-sm"><span className="muted small">Genres</span><div className="row">{t.genres.map((g) => <span key={g} className="pill" style={{ background: 'var(--surface2)' }}>{g}</span>)}</div></div>}
+          <div className="facts">{facts.map(([k, v]) => <div key={k}><span className="muted small">{k}</span><strong>{v}</strong></div>)}</div>
+          {cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
+        </section>
+
         <section className="stack-sm">
           {/* Looks like the other tappable cards (My take): a card with a summary and a round chevron */}
           <button className={'card seasons-summary' + (seasonsPress.pressed ? ' pressed' : '')} aria-expanded={seasonsOpen} {...seasonsPress.bind} onClick={() => setSeasonsOpen(!seasonsOpen)}>
@@ -512,12 +519,6 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           })}
         </section>
 
-        <section className="card stack">
-          <span className="h2">Details</span>
-          {t.genres.length > 0 && <div className="stack-sm"><span className="muted small">Genres</span><div className="row">{t.genres.map((g) => <span key={g} className="pill" style={{ background: 'var(--surface2)' }}>{g}</span>)}</div></div>}
-          <div className="facts">{facts.map(([k, v]) => <div key={k}><span className="muted small">{k}</span><strong>{v}</strong></div>)}</div>
-          {cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
-        </section>
 
         <section className={'card ai' + (aiPress.pressed ? ' pressed' : '')}>
           <button className="ai-head" {...aiPress.bind} onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>

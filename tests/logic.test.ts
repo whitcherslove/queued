@@ -135,3 +135,15 @@ describe('metascore colours', () => {
     expect([90, 75, 74, 50, 49, 0].map((v) => metascoreColor(v, true))).toEqual([C_GOOD, C_GOOD, C_MID, C_MID, C_BAD, C_BAD]);
   });
 });
+
+import { needsRefresh } from '../src/lib/logic';
+describe('refresh policy', () => {
+  const now = new Date('2026-11-05T12:00:00Z').getTime();
+  it('recent or unreleased: daily; old: monthly', () => {
+    expect(needsRefresh({ release_date: '2026-11-19', fetched_at: '2026-11-04T10:00:00Z' }, now)).toBe(true);
+    expect(needsRefresh({ release_date: '2026-11-19', fetched_at: '2026-11-05T10:00:00Z' }, now)).toBe(false);
+    expect(needsRefresh({ release_date: null, fetched_at: '2026-11-03T10:00:00Z' }, now)).toBe(true);
+    expect(needsRefresh({ release_date: '2010-05-01', fetched_at: '2026-10-20T10:00:00Z' }, now)).toBe(false);
+    expect(needsRefresh({ release_date: '2010-05-01', fetched_at: '2026-09-20T10:00:00Z' }, now)).toBe(true);
+  });
+});

@@ -140,3 +140,15 @@ const COUNTRY: Record<string, string> = {
 export function shortCountries(list: string[] | null | undefined): string {
   return (list ?? []).map((c) => COUNTRY[String(c).trim().toLowerCase()] ?? c).join(', ');
 }
+
+/**
+ * Does a movie / game need fresh data? Unreleased or out within ~6 months: once a day (dates, Metascore, times change);
+ * older: once a month. Shows have their own, episode-based refresh.
+ */
+export function needsRefresh(t: { release_date?: string | null; fetched_at?: string | null }, now = Date.now()): boolean {
+  if (!t.fetched_at) return true;
+  const age = now - new Date(t.fetched_at).getTime();
+  const rel = t.release_date ? new Date(t.release_date).getTime() : null;
+  const recent = !rel || rel > now - 180 * 864e5;
+  return age > (recent ? 864e5 : 30 * 864e5);
+}

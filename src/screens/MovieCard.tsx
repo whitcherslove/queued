@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMsg, CollectionPart, ItemLog, LibItem, Overrides, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { DROPPED_COLOR, PICK_TIERS, TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
-import { diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
+import { needsRefresh, diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import { shortCountries } from '../lib/logic';
 import {
   type Owned, estimateProgress, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import DateField from '../components/DateField';
+import SafeRange from '../components/SafeRange';
 import Overview from '../components/Overview';
 import { MOVIE_STATE_LABEL, movieState } from '../lib/movie';
 import { platformChoices, platformLabel, sectionOf, type IgdbPlatform } from '../lib/platforms';
@@ -53,8 +54,9 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const franPress = usePress();
   const [addingDlc, setAddingDlc] = useState<string | null>(null);
   // an imported game only has IGDB data — the first time you open it, fetch HLTB / Metacritic / RAWG in the background
-  const needsEnrich = !!(game && (item?.title?.data as { needs_enrich?: boolean } | null)?.needs_enrich);
-  useEffect(() => { if (needsEnrich && item) ensureGame(item.title.source_id, true).then(() => reload()).catch(() => undefined); }, [needsEnrich]); // eslint-disable-line react-hooks/exhaustive-deps
+  // fresh data on open when it's due (games: also right after a fast add) — in the background, the card doesn't wait
+  const needsEnrich = !!item && (!!(game && (item.title.data as { needs_enrich?: boolean } | null)?.needs_enrich) || needsRefresh(item.title as { release_date?: string | null; fetched_at?: string | null }));
+  useEffect(() => { if (!needsEnrich || !item) return; (game ? ensureGame(item.title.source_id, !!(item.title.data as { needs_enrich?: boolean } | null)?.needs_enrich) : item.title.source === 'tmdb' ? ensureTitle('movie', item.title.source_id) : Promise.resolve(null)).then(() => reload()).catch(() => undefined); }, [needsEnrich]); // eslint-disable-line react-hooks/exhaustive-deps
   const [platAsk, setPlatAsk] = useState<'' | 'start' | 'replay'>('');
   const [platPick, setPlatPick] = useState<string | null>(null);   // log id, or 'item'
   const [progAsk, setProgAsk] = useState(false);
@@ -135,7 +137,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
     const parts = ((it.title.data as any)?.collection?.parts ?? []) as CollectionPart[];
     setOwned(await findOwnedBySource(parts.map((p) => p.sourceId), 'movies'));
   }, [itemId]);
-  useEffect(() => { reload().catch(() => setError('Couldn’t load this movie.')); }, [reload]);
+  useEffect(() => { reload().catch(() => setError(game ? 'Couldn’t load this game.' : 'Couldn’t load this movie.')); }, [reload]);
 
   const t = useMemo(() => (item ? merged(item.title, item.overrides) : null), [item]);
   const last = latestLog(logs);
@@ -353,10 +355,9 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           })()}
           {isPlaying && (
             <div className="prog-row">
-              <input type="range" min={0} max={100} step={1} aria-label="Progress" value={gItem.progress ?? 0} className="range"
-                onChange={(e) => { const v = Number(e.target.value); setItem({ ...item, progress: v } as never); }}
-                onPointerUp={(e) => { const v = Number((e.target as HTMLInputElement).value); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}
-                onKeyUp={(e) => { const v = Number((e.target as HTMLInputElement).value); updateItem(item.id, { progress: v } as never).catch(() => undefined); }} />
+              <SafeRange className="range" label="Progress" value={gItem.progress ?? 0}
+                onInput={(v) => setItem({ ...item, progress: v } as never)}
+                onCommit={(v) => { updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }} />
               {/* fine-tune by 1% — easier than hitting an exact spot on the slider with a finger */}
               <button className="step-btn sm" aria-label="Progress minus 1%" disabled={(gItem.progress ?? 0) <= 0} onClick={() => { const v = Math.max(0, (gItem.progress ?? 0) - 1); setItem({ ...item, progress: v } as never); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}>−</button>
               <strong className="prog-num">{gItem.progress ?? 0}%</strong>
@@ -563,7 +564,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           </section>
         )}
 
-        {(logs.length > 0 || item.status === 'backlog') && (
+        {(logs.length > 0 || item.status === 'backlog' || isPlaying) && (
           <section className="card stack-sm">
             <div className="sec-head wrap"><span className="h2">{W.viewings} <span className="muted small normal">{logs.length}</span></span>
             <div className="act-chips">
@@ -571,6 +572,12 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
               {logs.length > 0 && <button className={'act-chip' + (planned ? ' on' : '')} aria-pressed={planned} onClick={logRewatch}><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 12V9a3 3 0 0 1 3-3h13l-3-3M20 12v3a3 3 0 0 1-3 3H4l3 3" /></svg>{planned ? W.rewatch + ' planned' : W.rewatch}</button>}
             </div></div>
             {/* Top row = where the movie is now, like on shows: a first viewing or a rewatch waiting in Backlog */}
+            {isPlaying && (
+              <div className="view-row">
+                <span className="grow small strong view-line">Now: playing{gItem.platform && <PlatformIcon k={gItem.platform} size={13} />}{gItem.coop && <span className="coop-icon" role="img" aria-label="Co-op">{Ico.coop}</span>}{item.started_on ? <span className="muted normal">since {longDate(item.started_on)}</span> : null}</span>
+                <span className="state-pill" data-state="playing">Playing</span>
+              </div>
+            )}
             {planned && (
               <div className="view-row">
                 <span className="grow small strong">{logs.length ? 'Planned: ' + W.rewatch.toLowerCase() : 'Planned: first ' + W.viewing}</span>
@@ -619,7 +626,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
         <section className={'card ai' + (aiPress.pressed ? ' pressed' : '')}>
           <button className="ai-head" {...aiPress.bind} onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>
             <span className="accent-text" aria-hidden="true">✦</span><span className="h2">Ask AI</span>
-            <span className="muted small ellipsis grow">{chat.length ? `${chat.filter((m) => m.role === 'user').length} questions · ${chat[chat.length - 1].content}` : 'Trivia, endings, what to watch next'}</span>
+            <span className="muted small ellipsis grow">{chat.length ? `${chat.filter((m) => m.role === 'user').length} questions · ${chat[chat.length - 1].content}` : (game ? 'Trivia, secrets, what to play next' : 'Trivia, endings, what to watch next')}</span>
             <ChevBtn open={aiOpen} />
           </button>
           {aiOpen && (
@@ -630,8 +637,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
               </div>
               <div className="chips scroll">{(game ? GAME_CHIPS : CHIPS).map((c) => <button key={c} className="chip" onClick={() => send(c)}>{c}</button>)}</div>
               <div className="row nowrap">
-                <label htmlFor="ai" className="sr">Ask about this movie</label>
-                <input id="ai" className="chat-input" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send(draft); } }} placeholder="Ask about this movie…" />
+                <label htmlFor="ai" className="sr">{game ? 'Ask about this game' : 'Ask about this movie'}</label>
+                <input id="ai" className="chat-input" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send(draft); } }} placeholder={game ? 'Ask about this game…' : 'Ask about this movie…'} />
                 <button className="send" aria-label="Send" onClick={() => send(draft)}>→</button>
               </div>
             </div>

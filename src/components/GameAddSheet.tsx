@@ -11,12 +11,16 @@ const SECTION_NAME = { console: 'Console games', pc: 'PC games', retro: 'Retro g
  * Adding a game: pick the platform (decides Console / PC / Retro), Co-op, and where it goes —
  * Backlog, Playing now, or "I've played it" (a past playthrough). Unreleased games can only go to Backlog.
  */
-export default function GameAddSheet({ t, retro, today, onCancel, onDone }: {
-  t: Title; retro: string[]; today: string; onCancel: () => void; onDone: (r: { platform: string; coop: boolean; mode: GameAddMode }) => void;
+export default function GameAddSheet({ t, retro, today, prefer, onCancel, onDone }: {
+  t: Title; retro: string[]; today: string; prefer?: 'console' | 'pc' | 'retro'; onCancel: () => void; onDone: (r: { platform: string; coop: boolean; mode: GameAddMode }) => void;
 }) {
   const igdb = ((t.data as { platforms?: IgdbPlatform[] } | null)?.platforms ?? []);
   const choices = useMemo(() => platformChoices(igdb, retro), [igdb, retro]);
-  const [platform, setPlatform] = useState<string>(choices[0]?.key ?? 'pc');
+  // default: PS5 when adding from Console games, Steam Deck from PC games, the first retro platform from Retro — if the game is on it
+  const preferred = prefer === 'console' ? choices.find((c) => c.key === 'ps5') ?? choices.find((c) => c.section === 'console')
+    : prefer === 'pc' ? choices.find((c) => c.key === 'steam-deck') ?? choices.find((c) => c.section === 'pc')
+    : prefer === 'retro' ? choices.find((c) => c.section === 'retro') : undefined;
+  const [platform, setPlatform] = useState<string>(preferred?.key ?? choices[0]?.key ?? 'pc');
   const [other, setOther] = useState(choices.length === 0);
   const [coop, setCoop] = useState(false);
   const unreleased = !!t.release_date && t.release_date > today;

@@ -112,7 +112,7 @@ async function tvFromOmdb(db: any, imdbId: string) {
 /** Loose title key for matching across sites: no punctuation, no filler words ("VR", "Edition", "The"…). */
 const NOISE = new Set(['the', 'vr', 'edition', 'goty', 'game', 'of', 'year', 'definitive', 'complete', 'deluxe', 'directors', 'cut', 'enhanced', 'standard', 'digital', 'ultimate']);
 function looseKey(s: string): string {
-  return s.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[’']/g, '').replace(/&/g, ' and ').split(/[^a-z0-9]+/).filter((w) => w && !NOISE.has(w)).join(' ');
+  return s.toLowerCase().replace(/[δΔ]/g, ' delta ').normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[’']/g, '').replace(/&/g, ' and ').split(/[^a-z0-9]+/).filter((w) => w && !NOISE.has(w)).join(' ');
 }
 /** Same title? Exact loose key, or one is the other plus a little (with a matching year). */
 function sameTitle(a: string, b: string, yearOk = true): boolean {
@@ -294,7 +294,10 @@ Deno.serve(async (req) => {
     }
 
     const { data: cached } = await db.from('titles').select('*').eq('kind', 'movie').eq('source', 'tmdb').eq('source_id', String(sourceId)).maybeSingle();
-    if (cached && !force && Date.now() - new Date(cached.fetched_at).getTime() < FRESH_DAYS * 864e5) return Response.json({ title: cached }, { headers: CORS });
+    // unreleased / recent movies change (dates, Metascore, ratings) → refresh daily; older ones monthly
+    const relM = cached?.release_date ? new Date(cached.release_date).getTime() : null;
+    const recentM = !relM || relM > Date.now() - 180 * 864e5;
+    if (cached && !force && Date.now() - new Date(cached.fetched_at).getTime() < (recentM ? 864e5 : 30 * 864e5)) return Response.json({ title: cached }, { headers: CORS });
 
     const r = await tmdbFetch('/movie/' + sourceId, { language: 'en-US', append_to_response: 'credits,external_ids' });
     if (!r.ok) return Response.json({ error: 'TMDB ' + r.status }, { status: 502, headers: CORS });
