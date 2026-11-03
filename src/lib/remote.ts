@@ -222,8 +222,9 @@ export async function searchGames(q: string): Promise<GameHit[]> {
   if (error) throw error;
   return (data?.results ?? []) as GameHit[];
 }
-export async function ensureGame(igdbId: string, force = false): Promise<Title> {
-  const { data, error } = await supabase.functions.invoke('games', { body: { action: 'details', igdbId, force } });
+/** light = IGDB only (fast, for adding from search); the slow sources are filled in afterwards with force. */
+export async function ensureGame(igdbId: string, force = false, light = false): Promise<Title> {
+  const { data, error } = await supabase.functions.invoke('games', { body: { action: 'details', igdbId, force, light } });
   if (error) throw error;
   if (data?.error) throw new Error(data.error);
   return data.title as Title;

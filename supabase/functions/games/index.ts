@@ -16,6 +16,14 @@ const GAME_TYPES = '(0,1,2,4,8,9,10,11)';
 const TYPE_NAME: Record<number, string> = { 0: 'game', 1: 'dlc', 2: 'expansion', 4: 'standalone', 8: 'remake', 9: 'remaster', 10: 'expanded', 11: 'port' };
 
 const env = (k: string) => Deno.env.get(k) ?? '';
+/** remember that a service is down for a while, so nobody waits for it in the meantime */
+async function isDown(db: any, name: string): Promise<boolean> {
+  const { data } = await db.from('app_cache').select('expires_at').eq('key', 'down_' + name).maybeSingle();
+  return !!data?.expires_at && new Date(data.expires_at).getTime() > Date.now();
+}
+async function markDown(db: any, name: string, hours: number) {
+  await db.from('app_cache').upsert({ key: 'down_' + name, value: {}, expires_at: new Date(Date.now() + hours * 3600e3).toISOString() });
+}
 /** fetch that gives up after `ms` — a slow outside service must never make the app wait (RAWG sometimes hangs and returns 522) */
 async function fetchT(url: string, init: RequestInit = {}, ms = 6000): Promise<Response> {
   const ac = new AbortController();
@@ -212,13 +220,13 @@ async function hltbOnce(name: string, year: number | null, original: string): Pr
 }
 
 // ---------- details → titles ----------
-async function details(db: any, igdbId: string, force = false) {
+async function details(db: any, igdbId: string, force = false, light = false) {
   const { data: cached } = await db.from('titles').select('*').eq('kind', 'game').eq('source', 'igdb').eq('source_id', igdbId).maybeSingle();
   const age = cached ? Date.now() - new Date(cached.fetched_at).getTime() : Infinity;
   // fresh for a week — but if RAWG was down last time, try again after a day
   // if RAWG or HowLongToBeat didn't answer last time, try again after a day instead of a week
   const missed = !!cached?.data?.rawg_note || !!cached?.data?.hltb_note || cached?.data?.ttb?.source !== 'hltb' || cached?.metascore == null;
-  if (cached && !force && age < (missed ? 864e5 : FRESH_DAYS * 864e5)) return cached;
+  if (cached && !force && (light || age < (missed ? 864e5 : FRESH_DAYS * 864e5))) return cached;
   const [g] = await igdb(db, 'games', `fields name,slug,summary,first_release_date,game_type,cover.image_id,artworks.image_id,screenshots.image_id,genres.name,themes.name,
     platforms.id,platforms.name,platforms.slug,platforms.abbreviation,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
     aggregated_rating,aggregated_rating_count,total_rating,parent_game.id,parent_game.name,dlcs.id,dlcs.name,dlcs.cover.image_id,dlcs.first_release_date,
@@ -226,12 +234,19 @@ async function details(db: any, igdbId: string, force = false) {
     game_modes.name,franchises.name,collections.name; where id = ${Number(igdbId)};`);
   if (!g) throw new Error('IGDB game ' + igdbId + ' not found');
   const year = g.first_release_date ? new Date(g.first_release_date * 1000).getUTCFullYear() : null;
-  const [ttb] = await igdb(db, 'game_time_to_beats', `fields hastily,normally,completely,count; where game_id = ${g.id};`).catch(() => [null]);
-  hltbNote = '';
-  const hl = await hltb(g.name, year).catch((e) => { hltbNote = 'HLTB error: ' + String(e); return null; });
-  rawgNote = '';
-  const rawg = await rawgGame(g.slug, g.name, year).catch((e) => { rawgNote = 'RAWG error: ' + String(e); return null; });
-  const mc = await metacritic(db, 'game', g.name, year).catch((e) => { mcNote = 'Metacritic error: ' + String(e); return null; });
+  hltbNote = ''; rawgNote = ''; mcNote = '';
+  // the slow outside services run at the same time, not one after another; "light" (adding from search) skips them —
+  // the app fills them in right after, in the background
+  const rawgDown = await isDown(db, 'rawg');
+  const [ttbRows, hl, rawg, mc] = await Promise.all([
+    igdb(db, 'game_time_to_beats', `fields hastily,normally,completely,count; where game_id = ${g.id};`).catch(() => [null]),
+    light ? null : hltb(g.name, year).catch((e) => { hltbNote = 'HLTB error: ' + String(e); return null; }),
+    light ? null : rawgDown ? (rawgNote = 'RAWG skipped (down recently)', null) : rawgGame(g.slug, g.name, year).catch((e) => { rawgNote = 'RAWG error: ' + String(e); return null; }),
+    light ? null : metacritic(db, 'game', g.name, year).catch((e) => { mcNote = 'Metacritic error: ' + String(e); return null; })
+  ]);
+  const ttb = ttbRows?.[0] ?? null;
+  // RAWG timed out / 5xx → don't wait for it again for 6 hours
+  if (!light && !rawgDown && /timed out|is down/.test(rawgNote)) await markDown(db, 'rawg', 6);
   const companies = g.involved_companies ?? [];
   const extras = (list: any[] | undefined, kind: string) => (list ?? []).map((x) => ({ id: String(x.id), name: x.name, kind, cover: x.cover?.image_id ? IGDB_IMG(x.cover.image_id, 'cover_small') : null, release_date: isoDay(x.first_release_date) }));
   const igdbBackdrop = g.artworks?.[0]?.image_id ? IGDB_IMG(g.artworks[0].image_id, '1080p') : g.screenshots?.[0]?.image_id ? IGDB_IMG(g.screenshots[0].image_id, '1080p') : null;
@@ -261,6 +276,7 @@ async function details(db: any, igdbId: string, force = false) {
         : ttb ? { quick: ttb.hastily ? Math.round(ttb.hastily / 360) / 10 : null, main: ttb.normally ? Math.round(ttb.normally / 360) / 10 : null, full: ttb.completely ? Math.round(ttb.completely / 360) / 10 : null, source: 'igdb' } : null,
       hltb_note: hltbNote || null,
       mc_url: mc?.url ?? null, mc_note: mcNote || null,
+      needs_enrich: light ? true : undefined,
       rawg_slug: rawg?.slug ?? null,
       rawg_note: rawgNote || null   // why RAWG gave nothing (shown only in the raw data, for checking)
     },
@@ -333,7 +349,7 @@ Deno.serve(async (req) => {
       if (!q) return json({ results: [] });
       return json({ results: await search(db, q) });
     }
-    if (body.action === 'details') return json({ title: await details(db, String(body.igdbId), !!body.force) });
+    if (body.action === 'details') return json({ title: await details(db, String(body.igdbId), !!body.force, !!body.light) });
     if (body.action === 'slug') {
       const slug = String(body.slug ?? '').toLowerCase().replace(/[^a-z0-9-]/g, '');
       const [g] = slug ? await igdb(db, 'games', `fields id; where slug = "${slug}";`) : [];

@@ -229,7 +229,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   const add = async (h: SearchHit) => {
     setAdding(h.sourceId);
     try {
-      if (isGame) { const t = await ensureGame(h.sourceId); if (items.some((i) => i.title_id === t.id)) setQ(''); else setGameAdd(t); }
+      if (isGame) { const t = await ensureGame(h.sourceId, false, true); if (items.some((i) => i.title_id === t.id)) setQ(''); else setGameAdd(t); }
       else { const t = await ensureTitle(kind as 'movie' | 'tv', h.sourceId); await offerAdd(t); }
     }
     catch { setError('Couldn’t add “' + h.title + '”. Try again in a moment.'); }
@@ -678,6 +678,8 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         try {
           const id = await addToBacklog(t.id, dest, topPosition(items), { platform, coop, ...(mode === 'playing' ? { status: 'playing', started_on: today, run_started_at: new Date().toISOString() } : {}) });
           setQ(''); await refresh();
+          // time to beat (HLTB), Metascore and background arrive a few seconds later — no waiting on the add
+          if ((t.data as { needs_enrich?: boolean } | null)?.needs_enrich) ensureGame(t.source_id, true).then(() => refresh()).catch(() => undefined);
           if (dest !== gameSection) setNotice('Added to ' + { console: 'Console games', pc: 'PC games', retro: 'Retro games' }[dest] + '.');
           if (mode === 'past') { setCardSeq([id]); setCardTake(false); setCardEnter(null); setCardPast(true); setCardId(id); }
         } catch { setError('Couldn’t add “' + t.title + '”.'); }
