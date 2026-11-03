@@ -311,8 +311,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
             ? <a className="tile3" href={mcUrl} target="_blank" rel="noopener"><span className="sq" style={{ background: metascoreColor(data.critics) ?? 'var(--surface2)', color: '#17161A' }}>{data.critics}</span><span className="muted small">Critics ↗</span></a>
             : tile('metascore')}
           {game
-            ? (() => { const hid = (ttbRaw as { hltb_id?: number } | null)?.hltb_id; const inner = <><span className="ttb-big">{ttb?.main ? hrs(ttb.main) : '—'}</span><span className="muted small">Time to beat{hid && !ttbMine ? ' ↗' : ''}</span></>;
-                return hid && !ttbMine ? <a className="tile3" href={'https://howlongtobeat.com/game/' + hid} target="_blank" rel="noopener">{inner}</a> : <div className="tile3">{inner}</div>; })()
+            ? (() => { const hid = (ttbRaw as { hltb_id?: number } | null)?.hltb_id; const inner = <><span className="ttb-big">{ttb?.main ? hrs(ttb.main) : '—'}</span><span className="muted small">Time to beat ↗</span></>;
+                return <a className="tile3" href={hid ? 'https://howlongtobeat.com/game/' + hid : 'https://howlongtobeat.com/?q=' + encodeURIComponent(t.title)} target="_blank" rel="noopener">{inner}</a>; })()
             : tile('imdb_rating')}
           {isPlaying
             ? <div className="tile3"><ProgressRing pct={gItem.progress ?? 0} text={(gItem.progress ?? 0) + '%'} /><span className="muted small">Progress</span></div>
@@ -638,13 +638,13 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
   const tmdbStatus = String((item.title.data as { status?: string } | null)?.status ?? '');
   const [showStatus, setShowStatus] = useState<string>((item.overrides as { status?: string })?.status ?? '');
   const endedNow = ['Ended', 'Canceled'].includes(showStatus || tmdbStatus);
-  const isTmdb = item.title.source === 'tmdb';
+  const isTmdb = item.title.source === 'tmdb' || kind === 'game';   // games pick from IGDB / RAWG
   const openPicker = async (k: 'poster' | 'backdrop') => {
     setPicker(picker === k ? '' : k);
     if (pics) return;
     if (kind === 'game') {
       // box art for the platform you play on first (TheGamesDB / SteamGridDB), then IGDB; backgrounds RAWG first, then IGDB
-      const g = await gameImages(item.title.id, platformLabel((item as LibItem & { platform?: string | null }).platform) || undefined).catch(() => ({ posters: [], backdrops: [] }));
+      const g = await gameImages(item.title.id).catch(() => ({ posters: [], backdrops: [] }));
       setPics({ posters: g.posters.map((x) => ({ thumb: x.url, full: x.url, label: x.label })), backdrops: g.backdrops.map((x) => ({ thumb: x.url, full: x.url, label: x.label })) } as never);
     } else setPics(await loadImages(item.title.source_id, kind));
   };

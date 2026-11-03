@@ -13,7 +13,7 @@ import { useBackLayer } from '../lib/back';
 import { useLongPress } from '../lib/longpress';
 import { useDragReorder } from '../lib/drag';
 import { GripIcon, Metascore, Poster } from '../components/Rows';
-import { ChevBtn, IconMenu, IconSearch } from '../components/Icons';
+import { ChevBtn, IconBack, IconMenu, IconSearch } from '../components/Icons';
 import { DROPPED_COLOR, TIERS } from '../lib/scores';
 import { movieState } from '../lib/movie';
 import GameAddSheet, { type GameAddMode } from '../components/GameAddSheet';
@@ -39,7 +39,7 @@ const readCollapsed = (): Record<string, boolean> => { try { return JSON.parse(l
  */
 const listCache = new Map<string, { items: LibItem[]; logs: LogRow[]; eps: SeasonEps[]; marks: Mark[]; tab: Tab }>();
 
-interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void; kind?: 'movie' | 'tv' | 'game'; gameSection?: GameSection }
+interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void; kind?: 'movie' | 'tv' | 'game'; gameSection?: GameSection; onBack?: () => void }
 type Tab = 'watched' | 'playing' | 'backlog';
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
@@ -48,7 +48,7 @@ const EyePlus = ({ size = 15 }: { size?: number }) => (
 );
 
 
-export default function Movies({ settings, onSettings, onMenu, kind = 'movie', gameSection = 'console' }: Props) {
+export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'movie', gameSection = 'console' }: Props) {
   const isTv = kind === 'tv';
   const isGame = kind === 'game';
   // games: one list per section (Console / PC / Retro); finished playthroughs show in the section of the platform you played on
@@ -463,7 +463,9 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie', g
     <div className="app section-in">
       <header className="top">
         <div className="title-row">
-          <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>
+          {onBack
+            ? <button className="icon-btn" aria-label="Back" onClick={onBack}><IconBack /></button>
+            : <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>}
           <div className="title-block">
             <h1 className="section-title">{isGame ? { console: 'Console games', pc: 'PC games', retro: 'Retro games' }[gameSection] : isTv ? 'TV Shows' : 'Movies'}</h1>
             <span className="muted small">{isGame ? `${watched.length} finished · ${gamePlaying.length} playing · ${next.length + rest.length} in backlog` : isTv ? `${watched.length} logged · ${playingCount} watching · ${next.length + rest.length} in backlog` : `${watched.length} watched · ${next.length + rest.length} in backlog`}</span>
@@ -669,7 +671,6 @@ export default function Movies({ settings, onSettings, onMenu, kind = 'movie', g
         try {
           const id = await addToBacklog(t.id, dest, topPosition(items), { platform, coop, ...(mode === 'playing' ? { status: 'playing', started_on: today, run_started_at: new Date().toISOString() } : {}) });
           setQ(''); await refresh();
-          pickBoxArt(t, id, platform, dest);
           if (dest !== gameSection) setNotice('Added to ' + { console: 'Console games', pc: 'PC games', retro: 'Retro games' }[dest] + '.');
           if (mode === 'past') { setCardSeq([id]); setCardTake(false); setCardEnter(null); setCardPast(true); setCardId(id); }
         } catch { setError('Couldn’t add “' + t.title + '”.'); }

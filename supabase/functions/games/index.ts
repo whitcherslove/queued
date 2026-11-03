@@ -89,7 +89,7 @@ let hltbNote = '';
 async function hltb(name: string, year: number | null): Promise<{ main: number | null; plus: number | null; full: number | null; id: number } | null> {
   const clean = name.replace(/[™®©]/g, '').replace(/\s*[:\-–]\s*(game of the year|goty|definitive|complete|deluxe|director'?s cut|remastered|enhanced)( edition)?\s*$/i, '').trim();
   for (const [initUrl, searchUrl] of HLTB_ROUTES) {
-    const init = await fetchT(initUrl + '?t=' + Date.now(), { headers: { 'User-Agent': HLTB_UA, Accept: '*/*', Referer: 'https://howlongtobeat.com/' } }, 5000);
+    const init = await fetchT(initUrl + '?t=' + Date.now(), { headers: { 'User-Agent': HLTB_UA, Accept: '*/*', Referer: 'https://howlongtobeat.com/' } }, 7000);
     if (!init.ok) { hltbNote = 'HLTB init ' + init.status; continue; }
     const api = await init.json().catch(() => null);
     if (!api?.token) { hltbNote = 'HLTB: no token'; continue; }
@@ -104,14 +104,17 @@ async function hltb(name: string, year: number | null): Promise<{ main: number |
     };
     const headers: Record<string, string> = { 'Content-Type': 'application/json', 'User-Agent': HLTB_UA, 'x-auth-token': api.token, Referer: 'https://howlongtobeat.com/', Origin: 'https://howlongtobeat.com' };
     if (api.hpKey && api.hpVal) { payload[api.hpKey] = api.hpVal; headers['x-hp-key'] = api.hpKey; headers['x-hp-val'] = api.hpVal; }
-    const r = await fetchT(searchUrl, { method: 'POST', headers, body: JSON.stringify(payload) }, 6000);
+    const r = await fetchT(searchUrl, { method: 'POST', headers, body: JSON.stringify(payload) }, 8000);
     if (!r.ok) { hltbNote = 'HLTB search ' + r.status; continue; }
     const list: any[] = (await r.json().catch(() => null))?.data ?? [];
     if (!list.length) { hltbNote = 'HLTB: no match for "' + clean + '"'; return null; }
     const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
     const same = list.filter((g) => norm(g.game_name ?? '') === norm(clean) || norm(g.game_name ?? '') === norm(name));
     const pick = same.find((g) => !year || Number(g.release_world) === year || Math.abs(Number(g.release_world) - year) <= 1) ?? same[0];
-    if (!pick) { hltbNote = 'HLTB: nothing with that exact name'; return null; }
+    // no exact name: take a close one (same start, e.g. "Control" → "Control: Ultimate Edition") if the year fits
+    const close = pick ? null : list.find((g) => norm(g.game_name ?? '').startsWith(norm(clean)) && (!year || Math.abs(Number(g.release_world) - year) <= 1));
+    if (!pick && !close) { hltbNote = 'HLTB: nothing with that exact name'; return null; }
+    if (!pick) { const h0 = (sec: number) => (sec > 0 ? Math.round(sec / 360) / 10 : null); hltbNote = ''; return { main: h0(close.comp_main), plus: h0(close.comp_plus), full: h0(close.comp_100), id: Number(close.game_id) }; }
     const h = (sec: number) => (sec > 0 ? Math.round(sec / 360) / 10 : null);   // seconds → hours, 1 decimal
     hltbNote = '';
     return { main: h(pick.comp_main), plus: h(pick.comp_plus), full: h(pick.comp_100), id: Number(pick.game_id) };
@@ -124,8 +127,9 @@ async function details(db: any, igdbId: string, force = false) {
   const { data: cached } = await db.from('titles').select('*').eq('kind', 'game').eq('source', 'igdb').eq('source_id', igdbId).maybeSingle();
   const age = cached ? Date.now() - new Date(cached.fetched_at).getTime() : Infinity;
   // fresh for a week — but if RAWG was down last time, try again after a day
-  const rawgMissed = !!cached?.data?.rawg_note;
-  if (cached && !force && age < (rawgMissed ? 864e5 : FRESH_DAYS * 864e5)) return cached;
+  // if RAWG or HowLongToBeat didn't answer last time, try again after a day instead of a week
+  const missed = !!cached?.data?.rawg_note || !!cached?.data?.hltb_note || cached?.data?.ttb?.source !== 'hltb';
+  if (cached && !force && age < (missed ? 864e5 : FRESH_DAYS * 864e5)) return cached;
   const [g] = await igdb(db, 'games', `fields name,slug,summary,first_release_date,game_type,cover.image_id,artworks.image_id,screenshots.image_id,genres.name,themes.name,
     platforms.id,platforms.name,platforms.slug,platforms.abbreviation,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
     aggregated_rating,aggregated_rating_count,total_rating,parent_game.id,parent_game.name,dlcs.id,dlcs.name,dlcs.cover.image_id,dlcs.first_release_date,
@@ -213,10 +217,10 @@ async function images(db: any, titleId: string, platformName: string | null) {
   const rawgKey = env('RAWG_API_KEY');
   const rawg = rawgKey && t.data?.rawg_slug ? await fetchT(`https://api.rawg.io/api/games/${t.data.rawg_slug}/screenshots?key=${rawgKey}`, { headers: RAWG_HEADERS }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
   const rawgBg = rawgKey && t.data?.rawg_slug ? await fetchT(`https://api.rawg.io/api/games/${t.data.rawg_slug}?key=${rawgKey}`, { headers: RAWG_HEADERS }).then((r) => (r.ok ? r.json() : null)).catch(() => null) : null;
-  const [tgdb, sgdb] = await Promise.all([tgdbBoxart(t.title, platformName).catch(() => []), sgdbGrids(t.title).catch(() => [])]);
+  void platformName; // box art (TheGamesDB / SteamGridDB) dropped — IGDB posters look right
   const posters = [
     ...(g?.cover?.image_id ? [{ url: IGDB_IMG(g.cover.image_id, 'cover_big'), label: 'IGDB' }] : []),
-    ...tgdb, ...sgdb
+    ...((g?.artworks ?? []).slice(0, 6).map((x: any) => ({ url: IGDB_IMG(x.image_id, 'cover_big'), label: 'IGDB artwork' })))
   ];
   const backdrops = [
     ...(rawgBg?.background_image ? [{ url: rawgBg.background_image, label: 'RAWG' }] : []),

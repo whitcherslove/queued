@@ -348,8 +348,14 @@ Deno.serve(async (req) => {
     if (body.action === 'claim') {
       const { data } = await admin.from('pending_imports').select('id, payload, section').eq('email', email);
       const ids = (data ?? []).map((d: any) => d.id);
-      if (ids.length) await admin.from('pending_imports').delete().in('id', ids);
-      return Response.json({ rows: (data ?? []).filter((d: any) => d.section !== 'tv').map((d: any) => d.payload), tvRows: (data ?? []).filter((d: any) => d.section === 'tv').map((d: any) => d.payload) }, { headers: CORS });
+      // rows are NOT deleted here any more — the app confirms with "ack" once they're really imported,
+      // so an interrupted import (app closed, no network) simply continues next time
+      return Response.json({ ids, rows: (data ?? []).filter((d: any) => d.section !== 'tv').map((d: any) => d.payload), tvRows: (data ?? []).filter((d: any) => d.section === 'tv').map((d: any) => d.payload) }, { headers: CORS });
+    }
+    if (body.action === 'ack') {
+      const ids: string[] = Array.isArray(body.ids) ? body.ids : [];
+      if (ids.length) await admin.from('pending_imports').delete().in('id', ids).eq('email', email);
+      return Response.json({ ok: true }, { headers: CORS });
     }
     if (body.action === 'tv') {
       const { data: maxRow } = await user.from('library').select('position').eq('section', 'tv').order('position', { ascending: false }).limit(1).maybeSingle();

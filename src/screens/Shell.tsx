@@ -79,7 +79,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
 
   if (section === 'console' || section === 'pc' || section === 'retro') return (
     <div className="screen">
-      <Movies key={section} kind="game" gameSection={section} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} />
+      <Movies key={section} kind="game" gameSection={section} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={section === 'retro' ? () => go(lastBar) : undefined} />
       {nav}{drawerEl}
     </div>
   );

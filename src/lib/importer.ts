@@ -115,10 +115,16 @@ export async function storePending(rows: (ImportRow | TvImportRow)[], section: '
   return data?.stored ?? 0;
 }
 
-export async function claimPending(): Promise<{ movies: ImportRow[]; tv: TvImportRow[] }> {
+/** Tell the server the claimed rows are imported, so it can forget them. */
+export async function ackPending(ids: string[]): Promise<void> {
+  if (!ids.length) return;
+  await supabase.functions.invoke('import', { body: { action: 'ack', ids } });
+}
+
+export async function claimPending(): Promise<{ ids: string[]; movies: ImportRow[]; tv: TvImportRow[] }> {
   const { data, error } = await supabase.functions.invoke('import', { body: { action: 'claim' } });
-  if (error) return { movies: [], tv: [] };
-  return { movies: (data?.rows ?? []) as ImportRow[], tv: (data?.tvRows ?? []) as TvImportRow[] };
+  if (error) return { ids: [], movies: [], tv: [] };
+  return { ids: (data?.ids ?? []) as string[], movies: (data?.rows ?? []) as ImportRow[], tv: (data?.tvRows ?? []) as TvImportRow[] };
 }
 
 export interface ReviewItem { id: string; section?: string; payload: ImportGroup | TvGroup; candidates: { sourceId: string; title: string; year: number | null; posterUrl: string | null }[] }
