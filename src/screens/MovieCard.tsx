@@ -45,9 +45,11 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress(), statusPress = usePress(), collPress = usePress();
   const [confirmDrop, setConfirmDrop] = useState(false);
   const [justWatched, setJustWatched] = useState(false);
-  const [collOpen, setCollOpen] = useState(true);
+  const [collOpen, setCollOpen] = useState(false);
   const [ownedGames, setOwnedGames] = useState<Record<string, Owned>>({});
-  const [franOpen, setFranOpen] = useState(true);
+  const [franOpen, setFranOpen] = useState(false);
+  const [franEdit, setFranEdit] = useState(false);
+  const [franShowHidden, setFranShowHidden] = useState(false);
   const franPress = usePress();
   const [addingDlc, setAddingDlc] = useState<string | null>(null);
   // an imported game only has IGDB data — the first time you open it, fetch HLTB / Metacritic / RAWG in the background
@@ -209,6 +211,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const sectionOfKey = (k: string) => sectionOf(k, settings.retroPlatforms ?? undefined);
   // DLC & expansions of a game (or the main game of a DLC) — owned ones open, the rest can be added with the same platform
   const gameDlcs = (game ? ((t.data as { dlcs?: { id: string; name: string; kind: string; cover: string | null; release_date: string | null }[] } | null)?.dlcs ?? []) : []);
+  const franHidden: string[] = ((item.overrides as { franchise_hidden?: string[] } | null)?.franchise_hidden ?? []);
+  const setFranHidden = (list: string[]) => { const ov = { ...(item.overrides ?? {}), franchise_hidden: list }; setItem({ ...item, overrides: ov } as never); updateItem(item.id, { overrides: ov } as never).catch(() => setError('Couldn’t save. Try again.')); };
   const franchiseGames = (game ? ((t.data as { franchise_games?: { id: string; name: string; kind: string; release_date: string | null }[] } | null)?.franchise_games ?? []) : []);
   const gameParent = game ? ((t.data as { parent?: { id: string; name: string } | null } | null)?.parent ?? null) : null;
   const addDlc = async (igdbId: string) => {
@@ -467,13 +471,24 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           <section className={'card stack-sm' + (franPress.pressed ? ' pressed' : '')}>
             <button className="take-head" aria-expanded={franOpen} {...franPress.bind} onClick={() => setFranOpen(!franOpen)}>
               <span className="h2 grow">More {(data.franchise as string | null) ? 'in ' + data.franchise : 'in the series'}</span>
-              <span className="muted small">{franchiseGames.length}</span><ChevBtn open={franOpen} />
+              <span className="count-badge">{franchiseGames.length - franHidden.length}</span><ChevBtn open={franOpen} />
             </button>
             {franOpen && <div className="stack-sm">
-              {franchiseGames.map((d) => {
+              <div className="row nowrap">
+                <button className="link" onClick={() => setFranEdit(!franEdit)}>{franEdit ? 'Done' : 'Edit list'}</button>
+                {franHidden.length > 0 && <button className="link" onClick={() => setFranShowHidden(!franShowHidden)}>{franShowHidden ? 'Hide hidden' : 'Show hidden (' + franHidden.length + ')'}</button>}
+              </div>
+              {franchiseGames.filter((d) => franShowHidden || franEdit || !franHidden.includes(d.id)).map((d) => {
                 const o = ownedGames[d.id];
+                const hidden = franHidden.includes(d.id);
+                if (franEdit) return (
+                  <div key={d.id} className={'coll-row' + (hidden ? ' faded' : '')}>
+                    <span className="coll-title">{d.name} <span className="muted">{d.release_date ? d.release_date.slice(0, 4) : ''}</span></span>
+                    <button className="link" onClick={() => setFranHidden(hidden ? franHidden.filter((x) => x !== d.id) : [...franHidden, d.id])}>{hidden ? 'Show' : 'Hide'}</button>
+                  </div>
+                );
                 return (
-                  <div key={d.id} className="coll-row">
+                  <div key={d.id} className={'coll-row' + (hidden ? ' faded' : '')}>
                     <button className="coll-title" disabled={!o} onClick={() => o && onOpenOther(o.id)}>{d.name}{d.kind !== 'game' && <> <span className="type-pill">{d.kind[0].toUpperCase() + d.kind.slice(1)}</span></>} <span className="muted">{d.release_date ? d.release_date.slice(0, 4) : ''}</span></button>
                     {o ? <span className={'pill status' + (o.status === 'backlog' ? '' : ' accent')}>{o.status === 'backlog' ? (o.up_next ? 'Up next' : 'Backlog') : o.status === 'playing' ? 'Playing' : o.status === 'dropped' ? 'Dropped' : 'Finished'}</span>
                       : <button className="add-btn" aria-label={'Add ' + d.name} disabled={addingDlc === d.id} onClick={() => addDlc(d.id)}>{addingDlc === d.id ? '…' : '+'}</button>}
@@ -488,7 +503,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           <section className={'card stack-sm' + (collPress.pressed ? ' pressed' : '')}>
             <button className="take-head" aria-expanded={collOpen} {...collPress.bind} onClick={() => setCollOpen(!collOpen)}>
               <span className="h2 grow">{gameParent ? 'Main game' : 'DLC & expansions'}</span>
-              <span className="muted small">{gameParent ? '' : gameDlcs.length - dlcHidden.length}</span><ChevBtn open={collOpen} />
+              {!gameParent && <span className="count-badge">{gameDlcs.length - dlcHidden.length}</span>}<ChevBtn open={collOpen} />
             </button>
             {collOpen && <div className="stack-sm">
               {!gameParent && <div className="row nowrap">
@@ -518,7 +533,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
 
         {!game && coll && coll.parts?.length > 1 && (
           <section className={'card stack-sm' + (collPress.pressed ? ' pressed' : '')}>
-            <button className="take-head" aria-expanded={collOpen} {...collPress.bind} onClick={() => setCollOpen(!collOpen)}><span className="h2 grow">{coll.name}</span><span className="muted small">{coll.parts.findIndex((p) => p.sourceId === item.title.source_id) + 1} of {coll.parts.length}</span><ChevBtn open={collOpen} /></button>
+            <button className="take-head" aria-expanded={collOpen} {...collPress.bind} onClick={() => setCollOpen(!collOpen)}><span className="h2 grow">{coll.name}</span><span className="muted small">{coll.parts.findIndex((p) => p.sourceId === item.title.source_id) + 1} of</span><span className="count-badge">{coll.parts.length}</span><ChevBtn open={collOpen} /></button>
             {collOpen && <div className="stack-sm">{coll.parts.map((p, i) => {
               const o = owned[p.sourceId]; const isCur = p.sourceId === item.title.source_id;
               const st = isCur ? 'This movie' : o ? (o.status === 'backlog' ? (o.up_next ? 'Up next' : 'Backlog') : o.dropped ? 'Dropped' : 'Watched') : '';
@@ -750,7 +765,7 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
     const keep = (item.overrides ?? {}) as { dlc_hidden?: string[] };
     const ttbN = Number(String(f.ttb_main).replace(',', '.'));
     setBusy(true); await updateItem(item.id, { overrides: { ...diffOverrides(item.title, edited), ...(kind === 'tv' && showStatus && showStatus !== tmdbStatus ? { status: showStatus } : {}),
-      ...(kind === 'game' && keep.dlc_hidden ? { dlc_hidden: keep.dlc_hidden } : {}), ...(kind === 'game' && f.ttb_main && ttbN > 0 ? { ttb_main: Math.round(ttbN * 10) / 10 } : {}) } as never }); setBusy(false); onSaved();
+      ...(kind === 'game' && keep.dlc_hidden ? { dlc_hidden: keep.dlc_hidden } : {}), ...(kind === 'game' && (keep as { franchise_hidden?: string[] }).franchise_hidden ? { franchise_hidden: (keep as { franchise_hidden?: string[] }).franchise_hidden } : {}), ...(kind === 'game' && f.ttb_main && ttbN > 0 ? { ttb_main: Math.round(ttbN * 10) / 10 } : {}) } as never }); setBusy(false); onSaved();
   };
   const refresh = async () => { setBusy(true); try { if (kind === 'game') await ensureGame(item.title.source_id, true); else if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle(kind, item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
   const clearEdits = async () => { await updateItem(item.id, { overrides: {} }); onSaved(); };
