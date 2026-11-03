@@ -359,15 +359,15 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 onInput={(v) => setItem({ ...item, progress: v } as never)}
                 onCommit={(v) => { updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }} />
               {/* fine-tune by 1% — easier than hitting an exact spot on the slider with a finger */}
-              <button className="step-btn sm" aria-label="Progress minus 1%" disabled={(gItem.progress ?? 0) <= 0} onClick={() => { const v = Math.max(0, (gItem.progress ?? 0) - 1); setItem({ ...item, progress: v } as never); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}>−</button>
+              <button className="step-btn" aria-label="Progress minus 1%" disabled={(gItem.progress ?? 0) <= 0} onClick={() => { const v = Math.max(0, (gItem.progress ?? 0) - 1); setItem({ ...item, progress: v } as never); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}>−</button>
               <strong className="prog-num">{gItem.progress ?? 0}%</strong>
-              <button className="step-btn sm" aria-label="Progress plus 1%" disabled={(gItem.progress ?? 0) >= 100} onClick={() => { const v = Math.min(100, (gItem.progress ?? 0) + 1); setItem({ ...item, progress: v } as never); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}>+</button>
-              <button className="link" onClick={() => { setProgAsk(!progAsk); setProgNote(''); }}>{progAsk ? 'Close' : 'Ask AI'}</button>
+              <button className="step-btn" aria-label="Progress plus 1%" disabled={(gItem.progress ?? 0) >= 100} onClick={() => { const v = Math.min(100, (gItem.progress ?? 0) + 1); setItem({ ...item, progress: v } as never); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}>+</button>
+              <button className={'ai-round' + (progAsk ? ' on' : '')} aria-label={progAsk ? 'Close Ask AI' : 'Ask AI where you are'} aria-expanded={progAsk} onClick={() => { setProgAsk(!progAsk); setProgNote(''); }}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" opacity=".7" /></svg></button>
             </div>
           )}
           {isPlaying && progAsk && (
             <div className="prog-ask">
-              <input className="text-input" placeholder="Where are you? e.g. “just beat the second boss”" value={progText} onChange={(e) => setProgText(e.target.value)}
+              <input className="text-input" autoFocus placeholder="Where are you? e.g. “just beat the second boss”" value={progText} onChange={(e) => setProgText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') (e.currentTarget.nextElementSibling as HTMLButtonElement | null)?.click(); }} />
               <button className="btn primary sm" disabled={!progText.trim() || progBusy} onClick={async () => {
                 setProgBusy(true); setProgNote('');

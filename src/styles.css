@@ -878,3 +878,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .prog-row .step-btn.sm::after { content: ""; position: absolute; inset: -6px; }   /* invisible 44 px tap area */
 .prog-row .link { position: relative; }
 .prog-row .link::after { content: ""; position: absolute; inset: -10px -6px; }
+
+/* game progress (variant B): round − + like My score, Ask AI as a small round sparkle button in the same row */
+.prog-row { gap: 8px; }
+.prog-row .step-btn { width: 40px; height: 40px; font-size: 20px; flex: none; }
+.ai-round { flex: none; width: 40px; height: 40px; border-radius: 999px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); background: color-mix(in srgb, var(--accent) 14%, var(--surface2)); color: var(--accent); display: inline-flex; align-items: center; justify-content: center; }
+.ai-round.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+.prog-ask { animation: body-in .18s ease-out; }
