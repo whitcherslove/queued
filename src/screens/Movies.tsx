@@ -267,7 +267,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
           <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? [platformLabel((it as GameItem).platform), releaseText(it.title.release_date, it.title.year)].filter(Boolean).join(' · ') : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
-          <span className="row-meta"><Metascore v={it.title.metascore} size="sm" /></span>
+          <span className="row-meta"><Metascore v={it.title.metascore} size="sm" game={isGame} /></span>
         </span>
       </button>
       {!edit && (() => {
@@ -355,7 +355,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={lScore} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
-            <span className="row-meta">{isGame ? [platformLabel((l as GameLog).platform ?? (l.library as GameItem).platform), releaseText(t.release_date, t.year)].filter(Boolean).join(' · ') : isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{isGame && (l as GameLog).coop && <CoopIcon />}{settings.listMetascore && <Metascore v={t.metascore} size="sm" />}</span>
+            <span className="row-meta">{isGame ? [platformLabel((l as GameLog).platform ?? (l.library as GameItem).platform), releaseText(t.release_date, t.year)].filter(Boolean).join(' · ') : isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{isGame && (l as GameLog).coop && <CoopIcon />}{settings.listMetascore && <Metascore v={t.metascore} size="sm" game={isGame} />}</span>
             {l.dropped ? <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped{tr ? ' · ' + tr.label : ''}</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : isTv && <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
           </span>
         </button>
@@ -371,7 +371,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     return (
     <div key={key} {...rowState(list, key)} className={rowState(list, key).className + ' tile'}>
       <button className="tile-main" {...longPress(list === 'w' ? key : it.id)} onClick={() => !edit && onOpen()} aria-label={it.title.title}>
-        <Poster t={it.title}>{(settings.listMetascore || list !== 'w') && <span className="tile-mc"><Metascore v={it.title.metascore} size="sm" /></span>}{list === 'w' && settings.posterScore && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
+        <Poster t={it.title}>{(settings.listMetascore || list !== 'w') && <span className="tile-mc"><Metascore v={it.title.metascore} size="sm" game={isGame} /></span>}{list === 'w' && settings.posterScore && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
         {dropped ? <span className="tile-tier" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span> : tr && <span className="tile-tier" style={{ background: tr.color }}>{tr.label}</span>}
         {d && <span className="tile-date"><span className="tile-date-text">{d.day} {d.mon} <span>{d.year}</span></span>{rew && <EyePlus size={14} />}</span>}
       </button>

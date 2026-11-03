@@ -3,9 +3,14 @@ export const C_MID = '#F6B26B';
 export const C_BAD = '#DE3C49';
 export const C_TOP = '#5FD6A0';
 
-export function metascoreColor(v: number | null | undefined): string | null {
+/**
+ * Metacritic's own colour bands — different for games:
+ *  movies / TV: 61–100 green · 40–60 yellow · 0–39 red
+ *  games:       75–100 green · 50–74 yellow · 0–49 red
+ */
+export function metascoreColor(v: number | null | undefined, game = false): string | null {
   if (v === null || v === undefined) return null;
-  return v > 60 ? C_GOOD : v < 40 ? C_BAD : C_MID;
+  return game ? (v >= 75 ? C_GOOD : v >= 50 ? C_MID : C_BAD) : (v >= 61 ? C_GOOD : v >= 40 ? C_MID : C_BAD);
 }
 
 export function imdbColor(v: number | null | undefined): string | null {

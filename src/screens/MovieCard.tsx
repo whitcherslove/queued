@@ -280,7 +280,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const ov = t.overview ?? '';
 
   const tile = (kind: 'metascore' | 'imdb_rating') => {
-    const v = t[kind]; const c = kind === 'metascore' ? metascoreColor(v) : imdbColor(v);
+    const v = t[kind]; const c = kind === 'metascore' ? metascoreColor(v, !!game) : imdbColor(v);
     const label = kind === 'metascore' ? 'Metascore' : 'IMDb';
     const sq = <span className="sq" style={{ background: c ?? 'var(--surface2)', color: c ? '#17161A' : 'var(--muted)' }}>{v ?? '—'}</span>;
     return v === null || v === undefined
@@ -312,7 +312,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
 
         <div className="tiles3">
           {game && t.metascore == null && typeof data.critics === 'number'
-            ? <a className="tile3" href={mcUrl} target="_blank" rel="noopener"><span className="sq" style={{ background: metascoreColor(data.critics) ?? 'var(--surface2)', color: '#17161A' }}>{data.critics}</span><span className="muted small">Critics ↗</span></a>
+            ? <a className="tile3" href={mcUrl} target="_blank" rel="noopener"><span className="sq" style={{ background: metascoreColor(data.critics, true) ?? 'var(--surface2)', color: '#17161A' }}>{data.critics}</span><span className="muted small">Critics ↗</span></a>
             : tile('metascore')}
           {game
             ? (() => { const hid = (ttbRaw as { hltb_id?: number } | null)?.hltb_id; const inner = <><span className="ttb-big">{ttb?.main ? hrs(ttb.main) : '—'}</span><span className="muted small">Time to beat ↗</span></>;
@@ -598,18 +598,18 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           // a backlog movie you'd already seen counts as watched now (unless it's a planned rewatch)
           if (item.status === 'backlog' && !item.rewatch) await updateItem(item.id, { status: 'done', up_next: false });
         })(); }} />}
-      {quick && <QuickNumber kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
+      {quick && <QuickNumber media={game ? 'game' : 'movie'} kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
       {editOpen && <EditDetails kind={game ? 'game' : 'movie'} item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }}
         onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
     </div>
   );
 }
 
-export function QuickNumber({ media = 'movie', kind, title, item, onClose, onSaved }: { media?: 'movie' | 'tv'; kind: 'metascore' | 'imdb_rating'; title: string; titleRow: Title; item: LibItem; onClose: () => void; onSaved: () => void }) {
+export function QuickNumber({ media = 'movie', kind, title, item, onClose, onSaved }: { media?: 'movie' | 'tv' | 'game'; kind: 'metascore' | 'imdb_rating'; title: string; titleRow: Title; item: LibItem; onClose: () => void; onSaved: () => void }) {
   const [v, setV] = useState('');
   const max = kind === 'metascore' ? 100 : 10, step = kind === 'metascore' ? 1 : 0.1;
   const p = parseNum(v, max, step);
-  const c = p.ok && p.n !== null ? (kind === 'metascore' ? metascoreColor(p.n) : imdbColor(+p.n.toFixed(1))) : null;
+  const c = p.ok && p.n !== null ? (kind === 'metascore' ? metascoreColor(p.n, media === 'game') : imdbColor(+p.n.toFixed(1))) : null;
   const look = kind === 'metascore' ? metacriticSearch(title, media) : 'https://www.imdb.com/find/?q=' + encodeURIComponent(title);
   const save = async () => { if (!p.ok) return; await updateItem(item.id, { overrides: { ...item.overrides, [kind]: p.n === null ? null : kind === 'imdb_rating' ? +p.n.toFixed(1) : p.n } }); onSaved(); };
   return (

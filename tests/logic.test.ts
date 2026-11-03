@@ -125,3 +125,13 @@ describe('movie state', () => {
     expect(movieState({ status: 'dropped', up_next: false }, t('2019-03-01'), null)).toBe('dropped');
   });
 });
+
+import { metascoreColor, C_BAD, C_GOOD, C_MID } from '../src/lib/scores';
+describe('metascore colours', () => {
+  it('movies and TV', () => {
+    expect([81, 61, 60, 40, 39, 0].map((v) => metascoreColor(v))).toEqual([C_GOOD, C_GOOD, C_MID, C_MID, C_BAD, C_BAD]);
+  });
+  it('games', () => {
+    expect([90, 75, 74, 50, 49, 0].map((v) => metascoreColor(v, true))).toEqual([C_GOOD, C_GOOD, C_MID, C_MID, C_BAD, C_BAD]);
+  });
+});

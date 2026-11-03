@@ -11,8 +11,8 @@ export function Poster({ t, w, h, children }: { t: Title | { poster_url: string 
   );
 }
 
-export function Metascore({ v, size = 'md' }: { v: number | null; size?: 'sm' | 'md' }) {
-  const c = metascoreColor(v);
+export function Metascore({ v, size = 'md', game = false }: { v: number | null; size?: 'sm' | 'md'; game?: boolean }) {
+  const c = metascoreColor(v, game);
   return (
     <span className={'mc mc-' + size} style={{ background: c ?? 'var(--surface2)', color: c ? '#17161A' : 'var(--muted)' }} aria-label={'Metascore ' + (v ?? 'not available')}>
       {v ?? '—'}
