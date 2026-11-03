@@ -353,11 +353,14 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           })()}
           {isPlaying && (
             <div className="prog-row">
-              <input type="range" min={0} max={100} step={5} aria-label="Progress" value={gItem.progress ?? 0} className="range"
+              <input type="range" min={0} max={100} step={1} aria-label="Progress" value={gItem.progress ?? 0} className="range"
                 onChange={(e) => { const v = Number(e.target.value); setItem({ ...item, progress: v } as never); }}
                 onPointerUp={(e) => { const v = Number((e.target as HTMLInputElement).value); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}
                 onKeyUp={(e) => { const v = Number((e.target as HTMLInputElement).value); updateItem(item.id, { progress: v } as never).catch(() => undefined); }} />
+              {/* fine-tune by 1% — easier than hitting an exact spot on the slider with a finger */}
+              <button className="step-btn sm" aria-label="Progress minus 1%" disabled={(gItem.progress ?? 0) <= 0} onClick={() => { const v = Math.max(0, (gItem.progress ?? 0) - 1); setItem({ ...item, progress: v } as never); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}>−</button>
               <strong className="prog-num">{gItem.progress ?? 0}%</strong>
+              <button className="step-btn sm" aria-label="Progress plus 1%" disabled={(gItem.progress ?? 0) >= 100} onClick={() => { const v = Math.min(100, (gItem.progress ?? 0) + 1); setItem({ ...item, progress: v } as never); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}>+</button>
               <button className="link" onClick={() => { setProgAsk(!progAsk); setProgNote(''); }}>{progAsk ? 'Close' : 'Ask AI'}</button>
             </div>
           )}
