@@ -772,3 +772,8 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .prog-ask { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .prog-ask .text-input { flex: 1; min-width: 0; height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font: inherit; }
 .coll-row.faded { opacity: .5; }
+
+/* platform pixel icons */
+.plat-icon { image-rendering: pixelated; image-rendering: crisp-edges; flex: none; vertical-align: middle; margin-right: 6px; }
+.row-meta .plat-icon { margin-top: -2px; }
+.plat-text { font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: var(--surface2); color: var(--muted); margin-right: 6px; }

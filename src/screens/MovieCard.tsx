@@ -13,6 +13,7 @@ import { MOVIE_STATE_LABEL, movieState } from '../lib/movie';
 import { platformChoices, platformLabel, sectionOf, type IgdbPlatform } from '../lib/platforms';
 import { PlatformSheet } from '../components/GameAddSheet';
 import ProgressRing from '../components/ProgressRing';
+import PlatformIcon from '../components/PlatformIcon';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
@@ -334,7 +335,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
               <span className="state-pill" data-state={mState}>{game && mState === 'watched' ? 'Finished' : MOVIE_STATE_LABEL[mState]}</span>
               <span className="state-title">{mState === 'dropped' ? 'Not in your lists' : mSub}</span>
               {game && (() => { const lp = (last as (typeof last) & { platform?: string | null; coop?: boolean } | null); const pl = (inBacklog || isPlaying ? gItem.platform : lp?.platform ?? gItem.platform); const co = inBacklog || isPlaying ? gItem.coop : lp?.coop;
-                return pl ? <span className="plat-line">{Ico.seasons}<span>{(inBacklog ? 'On ' : isPlaying ? 'Playing on ' : 'Played on ') + platformLabel(pl)}{co ? ' · co-op' : ''}</span></span> : null; })()}
+                return pl ? <span className="plat-line"><PlatformIcon k={pl} size={22} /><span>{(inBacklog ? 'On ' : isPlaying ? 'Playing on ' : 'Played on ') + platformLabel(pl)}{co ? ' · co-op' : ''}</span></span> : null; })()}
               {inBacklog && t.runtime ? <span className="small muted">{runtimeText(t.runtime)}{item.rewatch ? ' · ' + W.rewatch.toLowerCase() : ''}</span> : null}
             </>;
             // the whole card folds/unfolds from here (also when there's nothing but My take to open)

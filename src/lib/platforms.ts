@@ -116,3 +116,6 @@ export function platformChoices(igdbPlatforms: IgdbPlatform[], retro: string[] =
 
 /** Every platform we know, for "Other platform…" and for the retro list in Settings. */
 export const ALL_PLATFORMS: Platform[] = CATALOG.map((c) => ({ key: c.key, label: c.label, section: sectionOf(c.key), group: c.group }));
+
+/** Platforms that have a pixel icon in /public/platforms (Console-Iconset by Tatohead + a few drawn to match). */
+export const PLATFORM_ICONS = new Set<string>(["3ds", "amiga", "android", "atari-2600", "atari-jaguar", "dos", "dreamcast", "ds", "game-gear", "gamecube", "gb", "gba", "gbc", "genesis", "ios", "master-system", "n64", "neo-geo", "nes", "pc", "ps1", "ps2", "ps3", "ps4", "ps5", "psp", "psvr", "psvr2-pc", "psvr2-ps5", "saturn", "sega-32x", "sega-cd", "snes", "steam-deck", "switch", "switch-2", "turbografx", "virtual-boy", "vita", "wii", "wii-u", "xbox", "xbox-360", "xbox-one", "xbox-series"]);

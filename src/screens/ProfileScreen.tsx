@@ -120,7 +120,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             catch { setMcNote('Stopped — try again later (found ' + found + ').'); } setMcBusy(false); }}>{mcBusy ? 'Checking…' : 'Fill missing Metascores'}</button>
           {mcNote && <span className="muted small">{mcNote}</span>}
         </div>
-        <p className="muted small credits">Game data from <a href="https://www.igdb.com" target="_blank" rel="noopener">IGDB</a> · <a href="https://rawg.io" target="_blank" rel="noopener">RAWG</a> · <a href="https://thegamesdb.net" target="_blank" rel="noopener">TheGamesDB</a> · <a href="https://www.steamgriddb.com" target="_blank" rel="noopener">SteamGridDB</a>. Movies and shows from TMDB.</p>
+        <p className="muted small credits">Game data from <a href="https://www.igdb.com" target="_blank" rel="noopener">IGDB</a> · <a href="https://rawg.io" target="_blank" rel="noopener">RAWG</a> · <a href="https://thegamesdb.net" target="_blank" rel="noopener">TheGamesDB</a> · <a href="https://www.steamgriddb.com" target="_blank" rel="noopener">SteamGridDB</a>, <a href="https://howlongtobeat.com" target="_blank" rel="noopener">HowLongToBeat</a>, <a href="https://www.metacritic.com" target="_blank" rel="noopener">Metacritic</a>. Movies and shows from TMDB. Console icons: <a href="https://github.com/Tatohead/Console-Iconset" target="_blank" rel="noopener">Console-Iconset by Tatohead</a>.</p>
         <ImportCard email={profile.email} />
 
         <button className="btn danger" onClick={() => supabase.auth.signOut()}>Sign out</button>

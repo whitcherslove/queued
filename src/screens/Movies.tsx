@@ -17,11 +17,18 @@ import { ChevBtn, IconBack, IconMenu, IconSearch } from '../components/Icons';
 import { DROPPED_COLOR, TIERS } from '../lib/scores';
 import { movieState } from '../lib/movie';
 import GameAddSheet, { type GameAddMode } from '../components/GameAddSheet';
+import PlatformIcon from '../components/PlatformIcon';
 import { DEFAULT_RETRO, keyOfIgdb, platformLabel, sectionOf, type GameSection, type IgdbPlatform } from '../lib/platforms';
 
 type GameItem = LibItem & { platform?: string | null; coop?: boolean };
 type GameLog = LogRow & { platform?: string | null; coop?: boolean };
 const CoopIcon = () => <span className="coop-icon" role="img" aria-label="Co-op"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="9" cy="8" r="3.2" /><path d="M3.5 19a5.5 5.5 0 0 1 11 0" /><circle cx="17" cy="9" r="2.6" /><path d="M15.5 14.2A4.6 4.6 0 0 1 21 18.5" /></svg></span>;
+
+/** games, second line in lists: release date · time to beat (yours, then HLTB / IGDB) */
+const gameMeta = (it: LibItem) => {
+  const ttb = ((it.overrides as { ttb_main?: number } | null)?.ttb_main) ?? ((it.title.data as { ttb?: { main?: number | null } } | null)?.ttb?.main ?? null);
+  return [releaseText(it.title.release_date, it.title.year), ttb ? (ttb >= 10 ? Math.round(ttb) : ttb) + ' h' : ''].filter(Boolean).join(' · ');
+};
 
 type Row = { it: LibItem; p: ReturnType<typeof progress>; state: ShowState; seasons: number[]; when: string | null; last: string | null };
 const WATCHING: { key: ShowState; title: string; hint: string }[] = [
@@ -266,7 +273,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         <Poster t={it.title} w={56} h={84}></Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
-          <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? [platformLabel((it as GameItem).platform), releaseText(it.title.release_date, it.title.year)].filter(Boolean).join(' · ') : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
+          <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? <><PlatformIcon k={(it as GameItem).platform} />{gameMeta(it)}</> : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
           <span className="row-meta"><Metascore v={it.title.metascore} size="sm" game={isGame} /></span>
         </span>
       </button>
@@ -355,7 +362,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={lScore} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
-            <span className="row-meta">{isGame ? [platformLabel((l as GameLog).platform ?? (l.library as GameItem).platform), releaseText(t.release_date, t.year)].filter(Boolean).join(' · ') : isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{isGame && (l as GameLog).coop && <CoopIcon />}{settings.listMetascore && <Metascore v={t.metascore} size="sm" game={isGame} />}</span>
+            <span className="row-meta">{isGame ? <><PlatformIcon k={(l as GameLog).platform ?? (l.library as GameItem).platform} />{gameMeta(l.library)}</> : isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{isGame && (l as GameLog).coop && <CoopIcon />}{settings.listMetascore && <Metascore v={t.metascore} size="sm" game={isGame} />}</span>
             {l.dropped ? <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped{tr ? ' · ' + tr.label : ''}</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : isTv && <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
           </span>
         </button>
@@ -544,7 +551,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                     <Poster t={it.title} w={56} h={84} />
                     <span className="row-text">
                       <span className="row-title">{it.title.title}</span>
-                      <span className="row-meta">{platformLabel((it as GameItem).platform)}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
+                      <span className="row-meta"><PlatformIcon k={(it as GameItem).platform} />{gameMeta(it)}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
                       <span className="row-meta"><span className="mini-bar w72"><span style={{ width: ((it as GameItem & { progress?: number | null }).progress ?? 0) + '%' }} /></span><strong className="tiny">{(it as GameItem & { progress?: number | null }).progress ?? 0}%</strong></span>
                     </span>
                   </button>
