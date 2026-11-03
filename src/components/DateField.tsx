@@ -35,9 +35,9 @@ function DateSheet({ value, label, onClose, onPick }: { value: string; label: st
   const yearList = Array.from({ length: 60 }, (_, i) => new Date().getFullYear() + 1 - i);
   const quick = (d: Date) => { const s = iso(d.getFullYear(), d.getMonth(), d.getDate()); setSel(s); setView({ y: d.getFullYear(), m: d.getMonth() }); };
   return (
-    <div className="sheet-wrap">
+    <div className="modal-wrap">
       <button className="sheet-scrim" aria-label="Close" onClick={onClose} />
-      <div className="sheet date-sheet" role="dialog" aria-label={label}>
+      <div className="date-modal" role="dialog" aria-modal="true" aria-label={label}>
         <div className="stack-sm"><strong className="sheet-title">{label}</strong><span className="muted small">{pretty(sel)}</span></div>
         <div className="cal-head">
           <button className="cal-nav" aria-label="Previous month" onClick={() => step(-1)}>‹</button>

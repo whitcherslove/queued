@@ -337,7 +337,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
               <span className="state-pill" data-state={mState}>{game && mState === 'watched' ? 'Finished' : MOVIE_STATE_LABEL[mState]}</span>
               <span className="state-title">{mState === 'dropped' ? 'Not in your lists' : mSub}</span>
               {game && (() => { const lp = (last as (typeof last) & { platform?: string | null; coop?: boolean } | null); const pl = (inBacklog || isPlaying ? gItem.platform : lp?.platform ?? gItem.platform); const co = inBacklog || isPlaying ? gItem.coop : lp?.coop;
-                return pl ? <span className="plat-line"><span>{inBacklog ? 'On' : isPlaying ? 'Playing on' : 'Played on'}</span><PlatformIcon k={pl} size={16} />{co && <span className="muted">· co-op</span>}</span> : null; })()}
+                return pl ? <span className="plat-line"><span>{inBacklog ? 'On' : isPlaying ? 'Playing on' : 'Played on'}</span><PlatformIcon k={pl} size={16} />{co && <span className="coop-icon" role="img" aria-label="Co-op">{Ico.coop}</span>}</span> : null; })()}
               {inBacklog && t.runtime ? <span className="small muted">{runtimeText(t.runtime)}{item.rewatch ? ' · ' + W.rewatch.toLowerCase() : ''}</span> : null}
             </>;
             // the whole card folds/unfolds from here (also when there's nothing but My take to open)
@@ -546,8 +546,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 <div key={l.id} className="view-wrap">
                 <div className="view-row">
                   <button className="view-date grow" aria-expanded={editLog === l.id} onClick={() => setEditLog(editLog === l.id ? null : l.id)}>
-                    <span className="small strong view-date">{longDate(l.watched_at)}{game && <PlatformIcon k={(l as typeof l & { platform?: string | null }).platform ?? gItem.platform} size={13} />} {i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
-                    {game && <span className="muted tiny">{(l as typeof l & { coop?: boolean }).coop ? 'co-op' : ''}</span>}
+                    <span className="small strong view-date">{longDate(l.watched_at)}{game && <PlatformIcon k={(l as typeof l & { platform?: string | null }).platform ?? gItem.platform} size={13} />}{game && (l as typeof l & { coop?: boolean }).coop && <span className="coop-icon" role="img" aria-label="Co-op">{Ico.coop}</span>}{i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
+                    
                     <span className="muted tiny">{editLog === l.id ? 'Done' : 'Edit'}</span>
                   </button>
                   <button className={'rew-toggle' + (l.rewatch ? ' on' : '')} aria-pressed={l.rewatch} aria-label={l.rewatch ? 'Marked as ' + W.rewatch.toLowerCase() + ' — tap to unmark' : 'Mark this ' + W.viewing + ' as a ' + W.rewatch.toLowerCase()} onClick={guard(async () => { await updateLog(l.id, { rewatch: !l.rewatch }); })}>{EYE_PLUS}</button>
