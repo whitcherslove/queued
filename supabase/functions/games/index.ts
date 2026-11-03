@@ -298,6 +298,11 @@ Deno.serve(async (req) => {
       return json({ results: await search(db, q) });
     }
     if (body.action === 'details') return json({ title: await details(db, String(body.igdbId), !!body.force) });
+    if (body.action === 'slug') {
+      const slug = String(body.slug ?? '').toLowerCase().replace(/[^a-z0-9-]/g, '');
+      const [g] = slug ? await igdb(db, 'games', `fields id; where slug = "${slug}";`) : [];
+      return json({ id: g ? String(g.id) : null });
+    }
     // imported games got IGDB data only; fill time to beat (HLTB), Metascore and backgrounds two at a time
     if (body.action === 'enrich') {
       const { data: list } = await db.from('titles').select('source_id').eq('kind', 'game').eq('data->>needs_enrich', 'true').limit(2);

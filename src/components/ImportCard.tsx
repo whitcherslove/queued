@@ -1,6 +1,6 @@
 import { ChangeEvent, useEffect, useState } from 'react';
 import { groupGameRows, groupRows, groupTvRows, importGroups, loadReviews, parseFileAll, parseManualId, Parsed, resolveReview, resolveReviewManual, ReviewItem, storePending } from '../lib/importer';
-import { searchGames, searchTitles } from '../lib/remote';
+import { gameIdBySlug, searchGames, searchTitles } from '../lib/remote';
 import type { SearchHit } from '../lib/types';
 
 export default function ImportCard({ email }: { email: string }) {
@@ -113,8 +113,16 @@ function ManualPick({ item, onDone }: { item: ReviewItem; onDone: () => void }) 
   const [msg, setMsg] = useState('');
   if (!open) return <button className="link left" onClick={() => setOpen(true)}>None of these — search or paste a link</button>;
   const run = async () => {
-    const ref = parseManualId(q);
+    const isGame = item.section === 'games';
+    // games: an IGDB link (igdb.com/games/hades--1) or id instead of IMDb
+    let ref = isGame ? null : parseManualId(q);
     setBusy(true); setMsg('');
+    if (isGame) {
+      const slug = q.match(/igdb\.com\/games\/([a-z0-9-]+)/i)?.[1];
+      const id = q.trim().match(/^\d{1,8}$/)?.[0];
+      if (id) ref = { sourceId: id };
+      else if (slug) { const sid = await gameIdBySlug(slug).catch(() => null); if (sid) ref = { sourceId: sid }; else { setBusy(false); setMsg('Couldn’t find that IGDB page. Check the link.'); return; } }
+    }
     if (ref) {
       const ok = await resolveReviewManual(item, ref);
       setBusy(false);
@@ -127,11 +135,13 @@ function ManualPick({ item, onDone }: { item: ReviewItem; onDone: () => void }) 
   return (
     <div className="stack-sm">
       <div className="row nowrap">
-        <label htmlFor={'mp-' + item.id} className="sr">Search for the movie or paste an IMDb link</label>
-        <input id={'mp-' + item.id} className="text-input grow" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} placeholder="Title, or an IMDb link" />
+        <label htmlFor={'mp-' + item.id} className="sr">{item.section === 'games' ? 'Search for the game or paste an IGDB link' : 'Search for the movie or paste an IMDb link'}</label>
+        <input id={'mp-' + item.id} className="text-input grow" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') run(); }} placeholder={item.section === 'games' ? 'Title, or an IGDB link' : 'Title, or an IMDb link'} />
         <button className="btn primary sm" onClick={run} disabled={busy}>{busy ? '…' : 'Find'}</button>
       </div>
-      <span className="muted small">Try another spelling or the original title, or paste an IMDb link like imdb.com/title/tt0111161.</span>
+      <span className="muted small">{item.section === 'games'
+        ? 'Try another spelling (or without “Edition”, “Remastered”…), or paste an IGDB link like igdb.com/games/hades--1.'
+        : 'Try another spelling or the original title, or paste an IMDb link like imdb.com/title/tt0111161.'}</span>
       {msg && <span className="error small">{msg}</span>}
       {hits.length > 0 && (
         <div className="cands">

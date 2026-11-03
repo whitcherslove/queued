@@ -271,3 +271,10 @@ export async function enrichGames(): Promise<{ done: number; left: number }> {
   if (error) throw error;
   return data;
 }
+
+/** IGDB page link → game id (for pasting igdb.com/games/<slug>). */
+export async function gameIdBySlug(slug: string): Promise<string | null> {
+  const { data, error } = await supabase.functions.invoke('games', { body: { action: 'slug', slug } });
+  if (error) throw error;
+  return data?.id ?? null;
+}
