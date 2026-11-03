@@ -231,7 +231,9 @@ async function details(db: any, igdbId: string, force = false, light = false) {
     platforms.id,platforms.name,platforms.slug,platforms.abbreviation,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
     aggregated_rating,aggregated_rating_count,total_rating,parent_game.id,parent_game.name,dlcs.id,dlcs.name,dlcs.cover.image_id,dlcs.first_release_date,
     expansions.id,expansions.name,expansions.cover.image_id,expansions.first_release_date,standalone_expansions.id,standalone_expansions.name,
-    game_modes.name,franchises.name,collections.name; where id = ${Number(igdbId)};`);
+    game_modes.name,franchises.name,collections.name,
+    franchises.games.name,franchises.games.first_release_date,franchises.games.game_type,franchises.games.cover.image_id,
+    collections.games.name,collections.games.first_release_date,collections.games.game_type,collections.games.cover.image_id; where id = ${Number(igdbId)};`);
   if (!g) throw new Error('IGDB game ' + igdbId + ' not found');
   const year = g.first_release_date ? new Date(g.first_release_date * 1000).getUTCFullYear() : null;
   hltbNote = ''; rawgNote = ''; mcNote = '';
@@ -268,6 +270,14 @@ async function details(db: any, igdbId: string, force = false, light = false) {
       publishers: companies.filter((c: any) => c.publisher).map((c: any) => c.company?.name).filter(Boolean),
       modes: (g.game_modes ?? []).map((x: any) => x.name), themes: (g.themes ?? []).map((x: any) => x.name),
       franchise: g.franchises?.[0]?.name ?? g.collections?.[0]?.name ?? null,
+      // other games of the same franchise / series (main games, remakes, remasters, standalone expansions), oldest first
+      franchise_games: (() => {
+        const pool = [...(g.franchises?.[0]?.games ?? []), ...(g.collections?.[0]?.games ?? [])];
+        const seen = new Set<number>([g.id]);
+        return pool.filter((x: any) => x && x.name && !seen.has(x.id) && (seen.add(x.id), [0, 4, 8, 9, 10].includes(x.game_type ?? 0)))
+          .sort((a: any, b: any) => (a.first_release_date ?? 9e9) - (b.first_release_date ?? 9e9)).slice(0, 24)
+          .map((x: any) => ({ id: String(x.id), name: x.name, kind: TYPE_NAME[x.game_type] ?? 'game', cover: x.cover?.image_id ? IGDB_IMG(x.cover.image_id, 'cover_small') : null, release_date: isoDay(x.first_release_date) }));
+      })(),
       critics: typeof g.aggregated_rating === 'number' ? Math.round(g.aggregated_rating) : null,
       // time to beat in hours (IGDB gives seconds); HLTB fallback comes in a later step
       // time to beat: HowLongToBeat first (community times), IGDB only if HLTB has nothing; your own number (Edit details) wins in the app

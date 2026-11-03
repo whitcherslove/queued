@@ -850,3 +850,7 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .view-row > button.view-date > span:first-child { flex-wrap: nowrap; white-space: nowrap; }
 /* replay mark for games: green, like the rewatch eye */
 .rew-mini { color: #39C316; }
+
+.view-line { display: inline-flex; flex-direction: row; align-items: center; gap: 8px; white-space: nowrap; }
+.view-line .plat-logo { margin: 0; }
+.view-line .coop-icon svg { width: 14px; height: 14px; }

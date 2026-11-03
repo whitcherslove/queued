@@ -47,6 +47,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const [justWatched, setJustWatched] = useState(false);
   const [collOpen, setCollOpen] = useState(true);
   const [ownedGames, setOwnedGames] = useState<Record<string, Owned>>({});
+  const [franOpen, setFranOpen] = useState(true);
+  const franPress = usePress();
   const [addingDlc, setAddingDlc] = useState<string | null>(null);
   // an imported game only has IGDB data — the first time you open it, fetch HLTB / Metacritic / RAWG in the background
   const needsEnrich = !!(game && (item?.title?.data as { needs_enrich?: boolean } | null)?.needs_enrich);
@@ -60,7 +62,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const [dlcEdit, setDlcEdit] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   // which DLCs / main game you already have (games only), once the full game data is here
-  const dlcKey = game && item?.title?.data ? JSON.stringify([((item.title.data as { dlcs?: { id: string }[] }).dlcs ?? []).map((d) => d.id), (item.title.data as { parent?: { id: string } | null }).parent?.id ?? null]) : '';
+  const dlcKey = game && item?.title?.data ? JSON.stringify([[...((item.title.data as { dlcs?: { id: string }[] }).dlcs ?? []), ...((item.title.data as { franchise_games?: { id: string }[] }).franchise_games ?? [])].map((d) => d.id), (item.title.data as { parent?: { id: string } | null }).parent?.id ?? null]) : '';
   useEffect(() => {
     if (!dlcKey) return;
     const [ids, parent] = JSON.parse(dlcKey) as [string[], string | null];
@@ -207,6 +209,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const sectionOfKey = (k: string) => sectionOf(k, settings.retroPlatforms ?? undefined);
   // DLC & expansions of a game (or the main game of a DLC) — owned ones open, the rest can be added with the same platform
   const gameDlcs = (game ? ((t.data as { dlcs?: { id: string; name: string; kind: string; cover: string | null; release_date: string | null }[] } | null)?.dlcs ?? []) : []);
+  const franchiseGames = (game ? ((t.data as { franchise_games?: { id: string; name: string; kind: string; release_date: string | null }[] } | null)?.franchise_games ?? []) : []);
   const gameParent = game ? ((t.data as { parent?: { id: string; name: string } | null } | null)?.parent ?? null) : null;
   const addDlc = async (igdbId: string) => {
     setAddingDlc(igdbId);
@@ -460,6 +463,27 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           {!game && cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
         </section>
 
+        {game && franchiseGames.length > 0 && (
+          <section className={'card stack-sm' + (franPress.pressed ? ' pressed' : '')}>
+            <button className="take-head" aria-expanded={franOpen} {...franPress.bind} onClick={() => setFranOpen(!franOpen)}>
+              <span className="h2 grow">More {(data.franchise as string | null) ? 'in ' + data.franchise : 'in the series'}</span>
+              <span className="muted small">{franchiseGames.length}</span><ChevBtn open={franOpen} />
+            </button>
+            {franOpen && <div className="stack-sm">
+              {franchiseGames.map((d) => {
+                const o = ownedGames[d.id];
+                return (
+                  <div key={d.id} className="coll-row">
+                    <button className="coll-title" disabled={!o} onClick={() => o && onOpenOther(o.id)}>{d.name}{d.kind !== 'game' && <> <span className="type-pill">{d.kind[0].toUpperCase() + d.kind.slice(1)}</span></>} <span className="muted">{d.release_date ? d.release_date.slice(0, 4) : ''}</span></button>
+                    {o ? <span className={'pill status' + (o.status === 'backlog' ? '' : ' accent')}>{o.status === 'backlog' ? (o.up_next ? 'Up next' : 'Backlog') : o.status === 'playing' ? 'Playing' : o.status === 'dropped' ? 'Dropped' : 'Finished'}</span>
+                      : <button className="add-btn" aria-label={'Add ' + d.name} disabled={addingDlc === d.id} onClick={() => addDlc(d.id)}>{addingDlc === d.id ? '…' : '+'}</button>}
+                  </div>
+                );
+              })}
+            </div>}
+          </section>
+        )}
+
         {game && (gameDlcs.length > 0 || gameParent) && (
           <section className={'card stack-sm' + (collPress.pressed ? ' pressed' : '')}>
             <button className="take-head" aria-expanded={collOpen} {...collPress.bind} onClick={() => setCollOpen(!collOpen)}>
@@ -547,7 +571,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 <div key={l.id} className="view-wrap">
                 <div className="view-row">
                   <button className="view-date grow" aria-expanded={editLog === l.id} onClick={() => setEditLog(editLog === l.id ? null : l.id)}>
-                    <span className="small strong view-date">{longDate(l.watched_at)}{game && <PlatformIcon k={(l as typeof l & { platform?: string | null }).platform ?? gItem.platform} size={13} />}{game && (l as typeof l & { coop?: boolean }).coop && <span className="coop-icon" role="img" aria-label="Co-op">{Ico.coop}</span>}{i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
+                    <span className="small strong view-line">{longDate(l.watched_at)}{game && <PlatformIcon k={(l as typeof l & { platform?: string | null }).platform ?? gItem.platform} size={13} />}{game && (l as typeof l & { coop?: boolean }).coop && <span className="coop-icon" role="img" aria-label="Co-op">{Ico.coop}</span>}{i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
                     
                     <span className="muted tiny">{editLog === l.id ? 'Done' : 'Edit'}</span>
                   </button>

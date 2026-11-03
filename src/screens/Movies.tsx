@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Section, LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { localDay, topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
-import { ensureGame, gameImages, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
+import { ensureGame, gameIdBySlug, gameImages, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
 import { epLabel, epRuntime, isEnded, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, showState, todayIso, type ShowState } from '../lib/tv';
@@ -220,7 +220,20 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
       refresh();
     }).catch(() => undefined);
   };
-  const imdbInQuery = (q.match(/tt\d{6,10}/) ?? [null])[0];
+  const imdbInQuery = isGame ? null : (q.match(/tt\d{6,10}/) ?? [null])[0];
+  // games: an IGDB page link (igdb.com/games/portal-revolution) adds that exact game
+  const igdbSlugInQuery = isGame ? (q.match(/igdb\.com\/games\/([a-z0-9-]+)/i)?.[1] ?? null) : null;
+  const addByIgdb = async () => {
+    if (!igdbSlugInQuery) return;
+    setAdding(igdbSlugInQuery);
+    try {
+      const id = await gameIdBySlug(igdbSlugInQuery);
+      if (!id) { setError('Couldn’t find that IGDB page. Check the link.'); return; }
+      const t = await ensureGame(id, false, true);
+      if (items.some((i) => i.title_id === t.id)) setQ(''); else setGameAdd(t);
+    } catch { setError('Couldn’t add it. Try again in a moment.'); }
+    finally { setAdding(null); }
+  };
   const addByImdb = async () => {
     if (!imdbInQuery) return;
     setAdding(imdbInQuery);
@@ -531,7 +544,13 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                 <button className="add-btn" aria-label={'Add ' + imdbInQuery} disabled={adding === imdbInQuery} onClick={addByImdb}>{adding === imdbInQuery ? '…' : '+'}</button>
               </div>
             )}
-            {!searching && !imdbInQuery && fresh.length === 0 && <p className="muted small">Nothing new found for “{q.trim()}”. Can’t find it? Paste its IMDb link here.</p>}
+            {igdbSlugInQuery && (
+              <div className="hit">
+                <span className="row-text"><span className="row-title">Add from IGDB link</span><span className="row-meta">{igdbSlugInQuery}</span></span>
+                <button className="add-btn" aria-label={'Add ' + igdbSlugInQuery} disabled={adding === igdbSlugInQuery} onClick={addByIgdb}>{adding === igdbSlugInQuery ? '…' : '+'}</button>
+              </div>
+            )}
+            {!searching && !imdbInQuery && !igdbSlugInQuery && fresh.length === 0 && <p className="muted small">Nothing new found for “{q.trim()}”. {isGame ? 'Try another spelling, or paste its IGDB link (igdb.com/games/…).' : 'Can’t find it? Paste its IMDb link here.'}</p>}
             {fresh.map((h) => (
               <div className="hit" key={h.sourceId}>
                 <Poster t={{ poster_url: h.posterUrl, title: h.title }} w={46} h={68} />
