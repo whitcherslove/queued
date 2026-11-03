@@ -46,6 +46,9 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const [collOpen, setCollOpen] = useState(true);
   const [ownedGames, setOwnedGames] = useState<Record<string, Owned>>({});
   const [addingDlc, setAddingDlc] = useState<string | null>(null);
+  // an imported game only has IGDB data — the first time you open it, fetch HLTB / Metacritic / RAWG in the background
+  const needsEnrich = !!(game && (item?.title?.data as { needs_enrich?: boolean } | null)?.needs_enrich);
+  useEffect(() => { if (needsEnrich && item) ensureGame(item.title.source_id, true).then(() => reload()).catch(() => undefined); }, [needsEnrich]); // eslint-disable-line react-hooks/exhaustive-deps
   const [platAsk, setPlatAsk] = useState<'' | 'start' | 'replay'>('');
   const [progAsk, setProgAsk] = useState(false);
   const [progText, setProgText] = useState('');

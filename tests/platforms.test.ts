@@ -21,3 +21,11 @@ describe('platforms', () => {
     expect(c.map((x) => x.key)).toEqual(['ps2', 'ps1']);
   });
 });
+
+describe('ps vr', () => {
+  it('the first PS VR is its own console platform', () => {
+    const c = platformChoices([{ id: 165, name: 'PlayStation VR' }]);
+    expect(c.map((x) => x.key)).toEqual(['psvr']);
+    expect(c[0].section).toBe('console');
+  });
+});

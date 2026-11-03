@@ -1,5 +1,5 @@
 import { ALL_PLATFORMS, DEFAULT_RETRO, sectionOf } from '../lib/platforms';
-import { metascoreBackfill, resyncGameSections } from '../lib/remote';
+import { enrichGames, metascoreBackfill, resyncGameSections } from '../lib/remote';
 import { ChevBtn } from '../components/Icons';
 import { ChangeEvent, useState } from 'react';
 import { supabase } from '../lib/supabase';
@@ -20,6 +20,8 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
   const [retroDraft, setRetroDraft] = useState<string[] | null>(null);
   const [retroNote, setRetroNote] = useState('');
   const [mcBusy, setMcBusy] = useState(false);
+  const [gBusy, setGBusy] = useState(false);
+  const [gNote, setGNote] = useState('');
   const [mcNote, setMcNote] = useState('');
 
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -102,6 +104,14 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
           </div>
         </section>
 
+        <div className="card stack-sm">
+          <strong>Fill in game details</strong>
+          <span className="muted small">Imported games get time to beat (HowLongToBeat), Metascore and backgrounds. A couple of games at a time — a few minutes for a big library.</span>
+          <button className="btn" disabled={gBusy} onClick={async () => { setGBusy(true); setGNote(''); let left = 1, done = 0;
+            try { while (left > 0) { const r = await enrichGames(); done += r.done; left = r.left; setGNote(done + ' done · ' + left + ' left'); if (!r.done) break; } setGNote('Done — ' + done + ' games updated.'); }
+            catch { setGNote('Stopped — try again later (' + done + ' done).'); } setGBusy(false); }}>{gBusy ? 'Working…' : 'Fill game details'}</button>
+          {gNote && <span className="muted small">{gNote}</span>}
+        </div>
         <div className="card stack-sm">
           <strong>Metascores from Metacritic</strong>
           <span className="muted small">Movies and shows without a Metascore get one from Metacritic (series almost never had one). Takes a few minutes; you can keep using the app.</span>

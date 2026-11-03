@@ -264,3 +264,10 @@ export async function metascoreBackfill(): Promise<{ checked: number; found: num
   if (error) throw error;
   return data;
 }
+
+/** Imported games: fill HLTB / Metacritic / RAWG, one small batch per call. */
+export async function enrichGames(): Promise<{ done: number; left: number }> {
+  const { data, error } = await supabase.functions.invoke('games', { body: { action: 'enrich' } });
+  if (error) throw error;
+  return data;
+}

@@ -17,6 +17,7 @@ const CATALOG: { key: string; label: string; pc?: boolean; group: string; match:
   { key: 'steam-deck', label: 'Steam Deck', pc: true, group: 'PC', match: [] },
   { key: 'psvr2-pc', label: 'PS VR2 · PC', pc: true, group: 'VR', match: [] },
   { key: 'psvr2-ps5', label: 'PS VR2 · PS5', group: 'VR', match: [] },
+  { key: 'psvr', label: 'PS VR · PS4', group: 'VR', match: ['playstation vr'] },
   { key: 'ps5', label: 'PS5', group: 'PlayStation', match: ['playstation 5'] },
   { key: 'ps4', label: 'PS4', group: 'PlayStation', match: ['playstation 4'] },
   { key: 'ps3', label: 'PS3', group: 'PlayStation', match: ['playstation 3'] },

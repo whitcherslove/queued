@@ -325,6 +325,138 @@ async function importTvGroup(admin: any, user: any, g: TvGroup, basePos: number)
   return { key: g.key, status: 'ok', title: t.title };
 }
 
+
+// ---------------------------------------------------------------- games (Console Games / Steam Games sheets)
+interface GameRow { email: string; title: string; year: number | null; type: 'game' | 'dlc'; platform: string; rating: string | null; score: number | null; finishAt: string | null; coop: boolean; replay: boolean; progress: number | null; metascore: number | null; ask: string | null; answer: string | null; order: number }
+interface GameGroup { key: string; kind: 'game'; sourceId?: string; title: string; year: number | null; type: 'game' | 'dlc'; rows: GameRow[]; manual?: boolean }
+
+const IGDB_IMG = (id: string, size: string) => `https://images.igdb.com/igdb/image/upload/t_${size}/${id}.jpg`;
+const GAME_TYPES = '(0,1,2,4,8,9,10,11)';
+const TYPE_NAME: Record<number, string> = { 0: 'game', 1: 'dlc', 2: 'expansion', 4: 'standalone', 8: 'remake', 9: 'remaster', 10: 'expanded', 11: 'port' };
+async function igdbToken(db: any): Promise<string> {
+  const { data } = await db.from('app_cache').select('value, expires_at').eq('key', 'igdb_token').maybeSingle();
+  if (data && data.expires_at && new Date(data.expires_at).getTime() > Date.now() + 3600e3) return data.value.token;
+  const r = await fetch(`https://id.twitch.tv/oauth2/token?client_id=${Deno.env.get('IGDB_CLIENT_ID')}&client_secret=${Deno.env.get('IGDB_CLIENT_SECRET')}&grant_type=client_credentials`, { method: 'POST' });
+  if (!r.ok) throw new Error('Twitch token ' + r.status);
+  const j = await r.json();
+  await db.from('app_cache').upsert({ key: 'igdb_token', value: { token: j.access_token }, expires_at: new Date(Date.now() + (j.expires_in ?? 3600) * 1000).toISOString() });
+  return j.access_token;
+}
+async function igdb(db: any, endpoint: string, body: string): Promise<any[]> {
+  const token = await igdbToken(db);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const r = await fetch('https://api.igdb.com/v4/' + endpoint, { method: 'POST', headers: { 'Client-ID': Deno.env.get('IGDB_CLIENT_ID') ?? '', Authorization: 'Bearer ' + token, Accept: 'application/json' }, body });
+    if (r.status === 429) { await new Promise((ok) => setTimeout(ok, 400)); continue; }   // IGDB allows ~4 requests a second
+    if (!r.ok) throw new Error('IGDB ' + endpoint + ' ' + r.status);
+    return await r.json();
+  }
+  throw new Error('IGDB busy');
+}
+const isoDay = (unix?: number | null) => (unix ? new Date(unix * 1000).toISOString().slice(0, 10) : null);
+
+async function resolveGame(db: any, g: GameGroup): Promise<{ id?: string; candidates?: unknown[] }> {
+  if (g.sourceId) return { id: g.sourceId };
+  const q = g.title.replace(/"/g, '');
+  const res = await igdb(db, 'games', `search "${q}"; fields name,first_release_date,game_type,cover.image_id,parent_game.name; where game_type = ${GAME_TYPES}; limit 15;`);
+  const yr = (x: any) => (x.first_release_date ? new Date(x.first_release_date * 1000).getUTCFullYear() : null);
+  const wantDlc = g.type === 'dlc';
+  const exact = res.filter((x) => norm(x.name) === norm(g.title));
+  const typed = exact.filter((x) => (wantDlc ? [1, 2, 4].includes(x.game_type) : ![1, 2].includes(x.game_type)));
+  const pool = typed.length ? typed : exact;
+  const byYear = pool.filter((x) => !g.year || !yr(x) || Math.abs((yr(x) as number) - g.year) <= 1);
+  if (byYear.length === 1) return { id: String(byYear[0].id) };
+  if (byYear.length > 1) { const main = byYear.find((x) => x.game_type === 0); if (main && !wantDlc) return { id: String(main.id) }; }
+  return { candidates: res.slice(0, 5).map((x) => ({ sourceId: String(x.id), title: x.name + (x.parent_game?.name ? ' — ' + x.parent_game.name : ''), year: yr(x), posterUrl: x.cover?.image_id ? IGDB_IMG(x.cover.image_id, 'cover_small') : null })) };
+}
+
+/** IGDB-only details (fast). Time to beat, Metacritic and backgrounds are filled later by the games function ("enrich"). */
+async function gameTitle(db: any, id: string, sheetMetascore: number | null) {
+  const { data: cached } = await db.from('titles').select('*').eq('kind', 'game').eq('source', 'igdb').eq('source_id', id).maybeSingle();
+  if (cached) return cached;
+  const [g] = await igdb(db, 'games', `fields name,slug,summary,first_release_date,game_type,cover.image_id,artworks.image_id,screenshots.image_id,genres.name,themes.name,
+    platforms.id,platforms.name,platforms.slug,platforms.abbreviation,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
+    aggregated_rating,parent_game.id,parent_game.name,dlcs.id,dlcs.name,dlcs.cover.image_id,dlcs.first_release_date,
+    expansions.id,expansions.name,expansions.cover.image_id,expansions.first_release_date,standalone_expansions.id,standalone_expansions.name,
+    game_modes.name,franchises.name,collections.name; where id = ${Number(id)};`);
+  if (!g) throw new Error('IGDB game ' + id + ' not found');
+  const [ttb] = await igdb(db, 'game_time_to_beats', `fields hastily,normally,completely; where game_id = ${g.id};`).catch(() => [null]);
+  const companies = g.involved_companies ?? [];
+  const extras = (list: any[] | undefined, kind: string) => (list ?? []).map((x) => ({ id: String(x.id), name: x.name, kind, cover: x.cover?.image_id ? IGDB_IMG(x.cover.image_id, 'cover_small') : null, release_date: isoDay(x.first_release_date) }));
+  const h = (sec?: number) => (sec ? Math.round(sec / 360) / 10 : null);
+  const row = {
+    kind: 'game', source: 'igdb', source_id: String(g.id), imdb_id: null, title: g.name,
+    release_date: isoDay(g.first_release_date), year: g.first_release_date ? new Date(g.first_release_date * 1000).getUTCFullYear() : null, runtime: null,
+    directors: companies.filter((c: any) => c.developer).map((c: any) => c.company?.name).filter(Boolean),
+    genres: (g.genres ?? []).map((x: any) => x.name), overview: g.summary || null,
+    poster_url: g.cover?.image_id ? IGDB_IMG(g.cover.image_id, 'cover_big') : null,
+    backdrop_url: g.artworks?.[0]?.image_id ? IGDB_IMG(g.artworks[0].image_id, '1080p') : g.screenshots?.[0]?.image_id ? IGDB_IMG(g.screenshots[0].image_id, '1080p') : null,
+    metascore: sheetMetascore, imdb_rating: null,
+    data: {
+      type: TYPE_NAME[g.game_type] ?? 'game', slug: g.slug,
+      parent: g.parent_game ? { id: String(g.parent_game.id), name: g.parent_game.name } : null,
+      dlcs: [...extras(g.dlcs, 'dlc'), ...extras(g.expansions, 'expansion'), ...extras(g.standalone_expansions, 'standalone')],
+      platforms: (g.platforms ?? []).map((p: any) => ({ id: p.id, name: p.name, slug: p.slug, abbr: p.abbreviation ?? null })),
+      developers: companies.filter((c: any) => c.developer).map((c: any) => c.company?.name).filter(Boolean),
+      publishers: companies.filter((c: any) => c.publisher).map((c: any) => c.company?.name).filter(Boolean),
+      modes: (g.game_modes ?? []).map((x: any) => x.name), themes: (g.themes ?? []).map((x: any) => x.name),
+      franchise: g.franchises?.[0]?.name ?? g.collections?.[0]?.name ?? null,
+      critics: typeof g.aggregated_rating === 'number' ? Math.round(g.aggregated_rating) : null,
+      ttb: ttb ? { quick: h(ttb.hastily), main: h(ttb.normally), full: h(ttb.completely), source: 'igdb' } : null,
+      needs_enrich: true   // the games function fills HLTB / Metacritic / RAWG later
+    },
+    fetched_at: new Date(0).toISOString()   // "old" on purpose → refreshed (with HLTB etc.) the first time it's opened
+  };
+  const { data, error } = await db.from('titles').upsert(row, { onConflict: 'kind,source,source_id' }).select('*').single();
+  if (error) throw error;
+  return data;
+}
+
+// default retro list (same as the app; the user can change it in Settings later and games move)
+const RETRO = ['ps1', 'n64', 'saturn', 'snes', 'nes', 'genesis', 'master-system', 'game-gear', 'sega-cd', 'sega-32x', 'gb', 'gbc', 'virtual-boy', 'atari-2600', 'atari-7800', 'atari-jaguar', 'atari-lynx', 'neo-geo', 'turbografx', '3do', 'arcade', 'amiga', 'c64', 'msx', 'zx-spectrum', 'dos'];
+const PC_KEYS = ['pc', 'steam-deck', 'psvr2-pc', 'dos'];
+const sectionOf = (k: string) => (PC_KEYS.includes(k) ? 'pc' : RETRO.includes(k) ? 'retro' : 'console');
+
+async function importGameGroup(admin: any, user: any, g: GameGroup, basePos: number) {
+  const r = await resolveGame(admin, g);
+  if (!r.id) { if (!g.manual) await user.from('import_reviews').insert({ section: 'games', payload: g, candidates: r.candidates ?? [] }); return { key: g.key, status: 'review' }; }
+  const ms = g.rows.find((x) => x.metascore !== null)?.metascore ?? null;
+  const t = await gameTitle(admin, r.id, ms);
+  const rows = g.rows.slice().sort((a, b) => String(a.finishAt ?? '9999').localeCompare(String(b.finishAt ?? '9999')));
+  const finished = rows.filter((x) => x.rating && TIER[x.rating.toLowerCase()] !== undefined);
+  const playing = rows.find((x) => (x.rating ?? '').toLowerCase() === 'in progress');
+  const planned = rows.find((x) => (x.rating ?? '').toLowerCase() === 'backlog');
+  const logs = finished.map((x, i) => ({
+    watched_at: new Date(x.finishAt ?? Date.now()).toISOString(), tier: TIER[x.rating!.toLowerCase()] === 'dropped' ? null : TIER[x.rating!.toLowerCase()],
+    dropped: TIER[x.rating!.toLowerCase()] === 'dropped', score: x.score === null ? null : Math.min(5, Math.max(0, x.score)),
+    rewatch: x.replay || i > 0, platform: x.platform, coop: x.coop
+  }));
+  // where the game lives now: playing > planned (a replay if you've finished it before) > finished
+  const now = playing ?? planned ?? finished[finished.length - 1] ?? rows[0];
+  const status = playing ? 'playing' : planned ? 'backlog' : 'done';
+  const base = {
+    status, platform: now.platform, coop: now.coop, section: sectionOf(now.platform),
+    rewatch: status === 'backlog' && finished.length > 0, progress: playing?.progress ?? null,
+    run_started_at: status === 'done' ? null : new Date().toISOString(), started_on: playing ? new Date().toISOString().slice(0, 10) : null
+  };
+  const { data: existing } = await user.from('library').select('id').eq('title_id', t.id).maybeSingle();
+  let libId: string;
+  if (existing) { libId = existing.id; await user.from('library').update(base).eq('id', libId); }
+  else {
+    const ins = await user.from('library').insert({ title_id: t.id, position: basePos + Math.min(...rows.map((x) => x.order)), ...base }).select('id').single();
+    if (ins.error) throw ins.error; libId = ins.data.id;
+  }
+  if (logs.length) {
+    const { data: have } = await user.from('logs').select('watched_at').eq('library_id', libId);
+    const seen = new Set((have ?? []).map((h: any) => new Date(h.watched_at).toISOString()));
+    const fresh = logs.filter((l) => !seen.has(l.watched_at)).map((l) => ({ ...l, library_id: libId, scope: 'item' }));
+    if (fresh.length) { const e = await user.from('logs').insert(fresh); if (e.error) throw e.error; }
+  }
+  const chats: any[] = [];
+  rows.forEach((x) => { if (x.ask) { chats.push({ library_id: libId, role: 'user', content: x.ask }); if (x.answer) chats.push({ library_id: libId, role: 'model', content: x.answer }); } });
+  if (chats.length) { const { count } = await user.from('chats').select('id', { count: 'exact', head: true }).eq('library_id', libId); if (!count) await user.from('chats').insert(chats); }
+  return { key: g.key, status: 'ok', title: t.title };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
@@ -340,7 +472,7 @@ Deno.serve(async (req) => {
     if (body.action === 'pending') {
       const adminEmail = (Deno.env.get('ADMIN_EMAIL') ?? '').toLowerCase();
       if (adminEmail && adminEmail !== email) return Response.json({ error: 'Only the admin can store rows for other people' }, { status: 403, headers: CORS });
-      const section = body.section === 'tv' ? 'tv' : 'movies';
+      const section = body.section === 'tv' ? 'tv' : body.section === 'games' ? 'games' : 'movies';
       const rows = (body.rows ?? []).filter((r: any) => r.email && r.email.toLowerCase() !== email).map((r: any) => ({ email: r.email.toLowerCase(), section, payload: r, created_by: uid }));
       for (let i = 0; i < rows.length; i += 200) { const e = await admin.from('pending_imports').insert(rows.slice(i, i + 200)); if (e.error) throw e.error; }
       return Response.json({ stored: rows.length }, { headers: CORS });
@@ -350,12 +482,22 @@ Deno.serve(async (req) => {
       const ids = (data ?? []).map((d: any) => d.id);
       // rows are NOT deleted here any more — the app confirms with "ack" once they're really imported,
       // so an interrupted import (app closed, no network) simply continues next time
-      return Response.json({ ids, rows: (data ?? []).filter((d: any) => d.section !== 'tv').map((d: any) => d.payload), tvRows: (data ?? []).filter((d: any) => d.section === 'tv').map((d: any) => d.payload) }, { headers: CORS });
+      return Response.json({ ids, rows: (data ?? []).filter((d: any) => d.section === 'movies').map((d: any) => d.payload), gameRows: (data ?? []).filter((d: any) => d.section === 'games').map((d: any) => d.payload), tvRows: (data ?? []).filter((d: any) => d.section === 'tv').map((d: any) => d.payload) }, { headers: CORS });
     }
     if (body.action === 'ack') {
       const ids: string[] = Array.isArray(body.ids) ? body.ids : [];
       if (ids.length) await admin.from('pending_imports').delete().in('id', ids).eq('email', email);
       return Response.json({ ok: true }, { headers: CORS });
+    }
+    if (body.action === 'games') {
+      const { data: maxRow } = await user.from('library').select('position').in('section', ['console', 'pc', 'retro']).order('position', { ascending: false }).limit(1).maybeSingle();
+      const basePos = (maxRow?.position ?? 0) + 1;
+      const results = [];
+      for (const g of (body.groups ?? []) as GameGroup[]) {
+        try { results.push(await importGameGroup(admin, user, g, basePos)); }
+        catch (e) { results.push({ key: g.key, status: 'error', message: String(e) }); }
+      }
+      return Response.json({ results }, { headers: CORS });
     }
     if (body.action === 'tv') {
       const { data: maxRow } = await user.from('library').select('position').eq('section', 'tv').order('position', { ascending: false }).limit(1).maybeSingle();

@@ -5,7 +5,7 @@ import { applyTheme, DEFAULT_SETTINGS, Settings } from './lib/theme';
 import { loadProfile, Profile, saveSettings } from './lib/profile';
 import Login from './screens/Login';
 import Shell from './screens/Shell';
-import { ackPending, claimPending, groupRows, groupTvRows, importGroups } from './lib/importer';
+import { ackPending, claimPending, groupGameRows, groupRows, groupTvRows, importGroups } from './lib/importer';
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null);
@@ -26,13 +26,14 @@ export default function App() {
         // rows saved for you from someone's AppSheet import: check at most once a day per device
         const claimKey = 'queued.claimedAt.' + p.id;
         let lastClaim = 0; try { lastClaim = Number(localStorage.getItem(claimKey) || 0); } catch { /* ignore */ }
-        if (Date.now() - lastClaim > 20 * 3600e3) claimPending().then(async ({ ids, movies, tv }) => {
-          if (!movies.length && !tv.length) { try { localStorage.setItem(claimKey, String(Date.now())); } catch { /* ignore */ } return; }
-          const mg = groupRows(movies), tg = groupTvRows(tv);
-          setClaiming(`Bringing in ${mg.length + tg.length} titles from AppSheet…`);
+        if (Date.now() - lastClaim > 20 * 3600e3) claimPending().then(async ({ ids, movies, tv, games }) => {
+          if (!movies.length && !tv.length && !games.length) { try { localStorage.setItem(claimKey, String(Date.now())); } catch { /* ignore */ } return; }
+          const mg = groupRows(movies), tg = groupTvRows(tv), gg = groupGameRows(games);
+          setClaiming(`Bringing in ${mg.length + tg.length + gg.length} titles from AppSheet…`);
           // already-imported titles are skipped, so if this gets interrupted it simply continues next time
           if (mg.length) await importGroups(mg);
           if (tg.length) await importGroups(tg);
+          if (gg.length) await importGroups(gg);
           await ackPending(ids);   // only now the server forgets these rows
           try { localStorage.setItem(claimKey, String(Date.now())); } catch { /* ignore */ }
           setClaiming(''); window.location.reload();

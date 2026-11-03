@@ -298,6 +298,13 @@ Deno.serve(async (req) => {
       return json({ results: await search(db, q) });
     }
     if (body.action === 'details') return json({ title: await details(db, String(body.igdbId), !!body.force) });
+    // imported games got IGDB data only; fill time to beat (HLTB), Metascore and backgrounds two at a time
+    if (body.action === 'enrich') {
+      const { data: list } = await db.from('titles').select('source_id').eq('kind', 'game').eq('data->>needs_enrich', 'true').limit(2);
+      for (const t of list ?? []) await details(db, t.source_id, true).catch(() => undefined);
+      const { count } = await db.from('titles').select('id', { count: 'exact', head: true }).eq('kind', 'game').eq('data->>needs_enrich', 'true');
+      return json({ done: (list ?? []).length, left: count ?? 0 });
+    }
     if (body.action === 'images') return json(await images(db, String(body.titleId), body.platform ? String(body.platform) : null));
     return json({ error: 'Unknown action' }, 400);
   } catch (e) {
