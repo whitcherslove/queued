@@ -257,3 +257,10 @@ export async function estimateProgress(libraryId: string, text: string): Promise
   if (data?.error) throw new Error(data.error);
   return { progress: Number(data.progress), note: String(data.note ?? '') };
 }
+
+/** Fill missing Metascores from Metacritic, one batch per call. */
+export async function metascoreBackfill(): Promise<{ checked: number; found: number; left: number }> {
+  const { data, error } = await supabase.functions.invoke('title', { body: { action: 'mc_backfill' } });
+  if (error) throw error;
+  return data;
+}

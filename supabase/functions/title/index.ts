@@ -44,6 +44,9 @@ async function fetchTv(db: any, id: string) {
   const sc = await omdbScores(imdbId);
   const seasons = (m.seasons ?? []).filter((x: any) => x.season_number > 0)
     .map((x: any) => ({ n: x.season_number, name: x.name, air_date: x.air_date || null, episode_count: x.episode_count || 0 }));
+  // series: OMDb almost never has a Metascore → ask Metacritic
+  const mcTv = sc.metascore === null ? await metacritic(db, 'tv', m.name, m.first_air_date ? Number(m.first_air_date.slice(0, 4)) : null).catch(() => null) : null;
+  if (mcTv) sc.metascore = mcTv.score;
   const row = {
     kind: 'tv', source: 'tmdb', source_id: String(m.id), imdb_id: imdbId, title: m.name,
     release_date: m.first_air_date || null, year: m.first_air_date ? Number(m.first_air_date.slice(0, 4)) : null,
@@ -52,6 +55,7 @@ async function fetchTv(db: any, id: string) {
     overview: m.overview || null, poster_url: m.poster_path ? IMG + 'w342' + m.poster_path : null, backdrop_url: m.backdrop_path ? IMG + 'w1280' + m.backdrop_path : null,
     metascore: sc.metascore, imdb_rating: sc.imdb,
     data: {
+      mc_url: mcTv?.url ?? null,
       status: m.status, network: (m.networks ?? [])[0]?.name ?? null, seasons, number_of_episodes: m.number_of_episodes ?? null,
       last_air_date: m.last_air_date ?? null,
       next_episode: m.next_episode_to_air ? { season: m.next_episode_to_air.season_number, episode: m.next_episode_to_air.episode_number, air_date: m.next_episode_to_air.air_date } : null,
@@ -103,6 +107,59 @@ async function tvFromOmdb(db: any, imdbId: string) {
   return t;
 }
 
+
+// ---------- Metacritic (unofficial: the same backend the metacritic.com site uses) ----------
+// 1) search Metacritic by title (type + year must fit) → its score and page slug;
+// 2) no score in the search result → read the score from the title's page (JSON-LD aggregateRating).
+// The site's public key is read from metacritic.com and cached; a known key is the fallback.
+const MC_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+const MC_FALLBACK_KEY = '1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u';
+const MC_TYPE: Record<string, { id: number; path: string }> = { game: { id: 13, path: 'game' }, movie: { id: 2, path: 'movie' }, tv: { id: 1, path: 'tv' } };
+async function mcFetch(url: string, ms = 6000): Promise<Response> {
+  const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), ms);
+  try { return await fetch(url, { headers: { 'User-Agent': MC_UA, Accept: 'application/json, text/html;q=0.9', Referer: 'https://www.metacritic.com/' }, signal: ac.signal }); }
+  catch { return new Response(null, { status: 599 }); }
+  finally { clearTimeout(tm); }
+}
+async function mcKey(db: any): Promise<string> {
+  const { data } = await db.from('app_cache').select('value, expires_at').eq('key', 'mc_key').maybeSingle();
+  if (data && data.expires_at && new Date(data.expires_at).getTime() > Date.now()) return data.value.key;
+  const r = await mcFetch('https://www.metacritic.com/', 7000);
+  const html = r.ok ? await r.text() : '';
+  const key = html.match(/apiKey=([A-Za-z0-9]{20,})/)?.[1] ?? MC_FALLBACK_KEY;
+  await db.from('app_cache').upsert({ key: 'mc_key', value: { key }, expires_at: new Date(Date.now() + 3 * 864e5).toISOString() });
+  return key;
+}
+const mcNorm = (x: string) => x.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '');
+async function mcPageScore(kind: string, slug: string): Promise<number | null> {
+  const r = await mcFetch(`https://www.metacritic.com/${MC_TYPE[kind].path}/${slug}/`, 7000);
+  if (!r.ok) return null;
+  const html = await r.text();
+  for (const m of html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)) {
+    try { const ld = JSON.parse(m[1]); const v = Number(ld?.aggregateRating?.ratingValue); if (Number.isFinite(v) && v > 0) return Math.round(v); } catch { /* next block */ }
+  }
+  return null;
+}
+let mcNote = '';
+async function metacritic(db: any, kind: 'game' | 'movie' | 'tv', title: string, year: number | null): Promise<{ score: number | null; url: string } | null> {
+  mcNote = '';
+  const key = await mcKey(db);
+  const r = await mcFetch(`https://backend.metacritic.com/finder/metacritic/search/${encodeURIComponent(title)}/web?apiKey=${key}&offset=0&limit=12&mcoTypeId=${MC_TYPE[kind].id}`);
+  let items: any[] = [];
+  if (r.ok) items = (await r.json().catch(() => null))?.data?.items ?? [];
+  else { mcNote = 'Metacritic search ' + r.status; if (r.status === 401 || r.status === 403) await db.from('app_cache').delete().eq('key', 'mc_key'); }
+  const yearOf = (it: any) => Number(it.premiereYear ?? String(it.releaseDate ?? '').slice(0, 4)) || null;
+  const same = items.filter((it) => mcNorm(it.title ?? '') === mcNorm(title));
+  const hit = same.find((it) => !year || !yearOf(it) || Math.abs((yearOf(it) as number) - year) <= 1) ?? (same.length === 1 && !year ? same[0] : null);
+  let slug: string | null = hit?.slug ?? null;
+  let score: number | null = typeof hit?.criticScoreSummary?.score === 'number' ? hit.criticScoreSummary.score : null;
+  // nothing from the search: try the page Metacritic would have for that name
+  if (!slug) slug = title.toLowerCase().replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (score === null) score = await mcPageScore(kind, slug);
+  if (score === null) { mcNote = mcNote || 'Metacritic: no score for "' + title + '"'; return null; }
+  return { score, url: `https://www.metacritic.com/${MC_TYPE[kind].path}/${slug}/` };
+}
+
 const ended = (t: any) => ['Ended', 'Canceled'].includes(t?.data?.status);
 const stale = (iso: string, hours: number) => Date.now() - new Date(iso).getTime() > hours * 3600e3;
 
@@ -130,6 +187,20 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
     const body = await req.json();
+    // one-off: fill missing Metascores (movies and shows) from Metacritic, a few titles per call
+    if (body.action === 'mc_backfill') {
+      const dbb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+      const { data: list } = await dbb.from('titles').select('id, kind, title, year, data').in('kind', ['movie', 'tv']).is('metascore', null).is('data->>mc_checked', null).limit(12);
+      let found = 0;
+      for (const t of list ?? []) {
+        const mc = await metacritic(dbb, t.kind, t.title, t.year).catch(() => null);
+        const data = { ...(t.data ?? {}), mc_checked: new Date().toISOString(), ...(mc ? { mc_url: mc.url } : {}) };
+        await dbb.from('titles').update({ ...(mc ? { metascore: mc.score } : {}), data }).eq('id', t.id);
+        if (mc) found++;
+      }
+      const { count } = await dbb.from('titles').select('id', { count: 'exact', head: true }).in('kind', ['movie', 'tv']).is('metascore', null).is('data->>mc_checked', null);
+      return Response.json({ checked: (list ?? []).length, found, left: count ?? 0 }, { headers: CORS });
+    }
     if (body.kind === 'tv' && body.action !== 'images') {
       const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
       if (body.action === 'episodes') {
@@ -229,6 +300,8 @@ Deno.serve(async (req) => {
       const o = await fetch(`https://www.omdbapi.com/?i=${imdbId}&apikey=${omdbKey}`);
       if (o.ok) { const oj = await o.json(); metascore = num(oj.Metascore); imdbRating = num(oj.imdbRating); }
     }
+    let mcUrl: string | null = null;
+    if (metascore === null) { const mc = await metacritic(db, 'movie', m.title, m.release_date ? Number(m.release_date.slice(0, 4)) : null).catch(() => null); if (mc) { metascore = mc.score; mcUrl = mc.url; } }
 
     const row = {
       kind: 'movie', source: 'tmdb', source_id: String(m.id), imdb_id: imdbId,
@@ -244,6 +317,7 @@ Deno.serve(async (req) => {
       metascore: metascore !== null ? Math.round(metascore) : null,
       imdb_rating: imdbRating,
       data: {
+        mc_url: mcUrl,
         cast: (m.credits?.cast ?? []).slice(0, 8).map((c: any) => ({ name: c.name, role: c.character })),
         collection: m.belongs_to_collection ? { id: m.belongs_to_collection.id, name: m.belongs_to_collection.name, parts } : null,
         countries: (m.production_countries ?? []).map((c: any) => c.name),

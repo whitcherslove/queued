@@ -268,7 +268,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
     ['Budget', money(data.budget)], ['Box office', money(data.revenue)]
   ]) as [string, string][];
   const factsShown = facts.filter(([, v]) => v);
-  const mcUrl = metacriticSearch(t.title, game ? 'game' : 'movie');
+  // the exact Metacritic page when we know it, otherwise a search
+  const mcUrl = ((t.data as { mc_url?: string | null } | null)?.mc_url) || metacriticSearch(t.title, game ? 'game' : 'movie');
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
   const tr = tierOf(last?.tier ?? null);
   const origTr = tierOf(last?.tier ?? null);

@@ -224,7 +224,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const imdbUrl = t.imdb_id ? 'https://www.imdb.com/title/' + t.imdb_id + '/' : 'https://www.imdb.com/find/?q=' + encodeURIComponent(t.title);
   // straight to the show's Metacritic page: /tv/<slug>/ (e.g. /tv/its-always-sunny-in-philadelphia/)
   const mcSlug = t.title.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
-  const mcUrl = metacriticSearch(t.title, 'tv');
+  const mcUrl = ((t.data as { mc_url?: string | null } | null)?.mc_url) || metacriticSearch(t.title, 'tv');
   void mcSlug;
   const tileMC = (kind: 'metascore' | 'imdb_rating') => {
     const v = t[kind]; const c = kind === 'metascore' ? metascoreColor(v) : imdbColor(v); const label = kind === 'metascore' ? 'Metascore' : 'IMDb';

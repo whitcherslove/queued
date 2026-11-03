@@ -1,5 +1,5 @@
 import { ALL_PLATFORMS, DEFAULT_RETRO, sectionOf } from '../lib/platforms';
-import { resyncGameSections } from '../lib/remote';
+import { metascoreBackfill, resyncGameSections } from '../lib/remote';
 import { ChevBtn } from '../components/Icons';
 import { ChangeEvent, useState } from 'react';
 import { supabase } from '../lib/supabase';
@@ -19,6 +19,8 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
   const [retroOpen, setRetroOpen] = useState(false);
   const [retroDraft, setRetroDraft] = useState<string[] | null>(null);
   const [retroNote, setRetroNote] = useState('');
+  const [mcBusy, setMcBusy] = useState(false);
+  const [mcNote, setMcNote] = useState('');
 
   const pick = async (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return;
@@ -100,6 +102,14 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
           </div>
         </section>
 
+        <div className="card stack-sm">
+          <strong>Metascores from Metacritic</strong>
+          <span className="muted small">Movies and shows without a Metascore get one from Metacritic (series almost never had one). Takes a few minutes; you can keep using the app.</span>
+          <button className="btn" disabled={mcBusy} onClick={async () => { setMcBusy(true); setMcNote(''); let found = 0, left = 1;
+            try { while (left > 0) { const r = await metascoreBackfill(); found += r.found; left = r.left; setMcNote('Found ' + found + ' · ' + left + ' left to check'); if (!r.checked) break; } setMcNote('Done — found ' + found + ' Metascores.'); }
+            catch { setMcNote('Stopped — try again later (found ' + found + ').'); } setMcBusy(false); }}>{mcBusy ? 'Checking…' : 'Fill missing Metascores'}</button>
+          {mcNote && <span className="muted small">{mcNote}</span>}
+        </div>
         <p className="muted small credits">Game data from <a href="https://www.igdb.com" target="_blank" rel="noopener">IGDB</a> · <a href="https://rawg.io" target="_blank" rel="noopener">RAWG</a> · <a href="https://thegamesdb.net" target="_blank" rel="noopener">TheGamesDB</a> · <a href="https://www.steamgriddb.com" target="_blank" rel="noopener">SteamGridDB</a>. Movies and shows from TMDB.</p>
         <ImportCard email={profile.email} />
 

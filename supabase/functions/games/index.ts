@@ -78,6 +78,59 @@ async function rawgGame(slug: string, name: string, year: number | null) {
   return d.ok ? await d.json() : hit;
 }
 
+
+// ---------- Metacritic (unofficial: the same backend the metacritic.com site uses) ----------
+// 1) search Metacritic by title (type + year must fit) → its score and page slug;
+// 2) no score in the search result → read the score from the title's page (JSON-LD aggregateRating).
+// The site's public key is read from metacritic.com and cached; a known key is the fallback.
+const MC_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+const MC_FALLBACK_KEY = '1MOZgmNFxvmljaQR1X9KAij9Mo4xAY3u';
+const MC_TYPE: Record<string, { id: number; path: string }> = { game: { id: 13, path: 'game' }, movie: { id: 2, path: 'movie' }, tv: { id: 1, path: 'tv' } };
+async function mcFetch(url: string, ms = 6000): Promise<Response> {
+  const ac = new AbortController(); const tm = setTimeout(() => ac.abort(), ms);
+  try { return await fetch(url, { headers: { 'User-Agent': MC_UA, Accept: 'application/json, text/html;q=0.9', Referer: 'https://www.metacritic.com/' }, signal: ac.signal }); }
+  catch { return new Response(null, { status: 599 }); }
+  finally { clearTimeout(tm); }
+}
+async function mcKey(db: any): Promise<string> {
+  const { data } = await db.from('app_cache').select('value, expires_at').eq('key', 'mc_key').maybeSingle();
+  if (data && data.expires_at && new Date(data.expires_at).getTime() > Date.now()) return data.value.key;
+  const r = await mcFetch('https://www.metacritic.com/', 7000);
+  const html = r.ok ? await r.text() : '';
+  const key = html.match(/apiKey=([A-Za-z0-9]{20,})/)?.[1] ?? MC_FALLBACK_KEY;
+  await db.from('app_cache').upsert({ key: 'mc_key', value: { key }, expires_at: new Date(Date.now() + 3 * 864e5).toISOString() });
+  return key;
+}
+const mcNorm = (x: string) => x.toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '');
+async function mcPageScore(kind: string, slug: string): Promise<number | null> {
+  const r = await mcFetch(`https://www.metacritic.com/${MC_TYPE[kind].path}/${slug}/`, 7000);
+  if (!r.ok) return null;
+  const html = await r.text();
+  for (const m of html.matchAll(/<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)) {
+    try { const ld = JSON.parse(m[1]); const v = Number(ld?.aggregateRating?.ratingValue); if (Number.isFinite(v) && v > 0) return Math.round(v); } catch { /* next block */ }
+  }
+  return null;
+}
+let mcNote = '';
+async function metacritic(db: any, kind: 'game' | 'movie' | 'tv', title: string, year: number | null): Promise<{ score: number | null; url: string } | null> {
+  mcNote = '';
+  const key = await mcKey(db);
+  const r = await mcFetch(`https://backend.metacritic.com/finder/metacritic/search/${encodeURIComponent(title)}/web?apiKey=${key}&offset=0&limit=12&mcoTypeId=${MC_TYPE[kind].id}`);
+  let items: any[] = [];
+  if (r.ok) items = (await r.json().catch(() => null))?.data?.items ?? [];
+  else { mcNote = 'Metacritic search ' + r.status; if (r.status === 401 || r.status === 403) await db.from('app_cache').delete().eq('key', 'mc_key'); }
+  const yearOf = (it: any) => Number(it.premiereYear ?? String(it.releaseDate ?? '').slice(0, 4)) || null;
+  const same = items.filter((it) => mcNorm(it.title ?? '') === mcNorm(title));
+  const hit = same.find((it) => !year || !yearOf(it) || Math.abs((yearOf(it) as number) - year) <= 1) ?? (same.length === 1 && !year ? same[0] : null);
+  let slug: string | null = hit?.slug ?? null;
+  let score: number | null = typeof hit?.criticScoreSummary?.score === 'number' ? hit.criticScoreSummary.score : null;
+  // nothing from the search: try the page Metacritic would have for that name
+  if (!slug) slug = title.toLowerCase().replace(/['’.]/g, '').replace(/&/g, 'and').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+  if (score === null) score = await mcPageScore(kind, slug);
+  if (score === null) { mcNote = mcNote || 'Metacritic: no score for "' + title + '"'; return null; }
+  return { score, url: `https://www.metacritic.com/${MC_TYPE[kind].path}/${slug}/` };
+}
+
 // ---------- HowLongToBeat (unofficial; their endpoint moves from time to time) ----------
 // Flow as of autumn 2026: GET .../init → { token, hpKey?, hpVal? }, then POST the search with x-auth-token.
 const HLTB_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
@@ -128,7 +181,7 @@ async function details(db: any, igdbId: string, force = false) {
   const age = cached ? Date.now() - new Date(cached.fetched_at).getTime() : Infinity;
   // fresh for a week — but if RAWG was down last time, try again after a day
   // if RAWG or HowLongToBeat didn't answer last time, try again after a day instead of a week
-  const missed = !!cached?.data?.rawg_note || !!cached?.data?.hltb_note || cached?.data?.ttb?.source !== 'hltb';
+  const missed = !!cached?.data?.rawg_note || !!cached?.data?.hltb_note || cached?.data?.ttb?.source !== 'hltb' || cached?.metascore == null;
   if (cached && !force && age < (missed ? 864e5 : FRESH_DAYS * 864e5)) return cached;
   const [g] = await igdb(db, 'games', `fields name,slug,summary,first_release_date,game_type,cover.image_id,artworks.image_id,screenshots.image_id,genres.name,themes.name,
     platforms.id,platforms.name,platforms.slug,platforms.abbreviation,involved_companies.company.name,involved_companies.developer,involved_companies.publisher,
@@ -142,6 +195,7 @@ async function details(db: any, igdbId: string, force = false) {
   const hl = await hltb(g.name, year).catch((e) => { hltbNote = 'HLTB error: ' + String(e); return null; });
   rawgNote = '';
   const rawg = await rawgGame(g.slug, g.name, year).catch((e) => { rawgNote = 'RAWG error: ' + String(e); return null; });
+  const mc = await metacritic(db, 'game', g.name, year).catch((e) => { mcNote = 'Metacritic error: ' + String(e); return null; });
   const companies = g.involved_companies ?? [];
   const extras = (list: any[] | undefined, kind: string) => (list ?? []).map((x) => ({ id: String(x.id), name: x.name, kind, cover: x.cover?.image_id ? IGDB_IMG(x.cover.image_id, 'cover_small') : null, release_date: isoDay(x.first_release_date) }));
   const igdbBackdrop = g.artworks?.[0]?.image_id ? IGDB_IMG(g.artworks[0].image_id, '1080p') : g.screenshots?.[0]?.image_id ? IGDB_IMG(g.screenshots[0].image_id, '1080p') : null;
@@ -152,7 +206,7 @@ async function details(db: any, igdbId: string, force = false) {
     genres: (g.genres ?? []).map((x: any) => x.name), overview: g.summary || null,
     poster_url: g.cover?.image_id ? IGDB_IMG(g.cover.image_id, 'cover_big') : null,
     backdrop_url: rawg?.background_image || igdbBackdrop,                       // RAWG first, then IGDB art
-    metascore: typeof rawg?.metacritic === 'number' ? rawg.metacritic : null,   // Metascore comes from RAWG
+    metascore: mc?.score ?? (typeof rawg?.metacritic === 'number' ? rawg.metacritic : null),   // Metacritic first, RAWG second
     imdb_rating: null,
     data: {
       type: TYPE_NAME[g.game_type] ?? 'game', slug: g.slug,
@@ -170,6 +224,7 @@ async function details(db: any, igdbId: string, force = false) {
         ? { quick: null, main: hl.main, plus: hl.plus, full: hl.full, source: 'hltb', hltb_id: hl.id }   // all three from HLTB — never mixed with IGDB
         : ttb ? { quick: ttb.hastily ? Math.round(ttb.hastily / 360) / 10 : null, main: ttb.normally ? Math.round(ttb.normally / 360) / 10 : null, full: ttb.completely ? Math.round(ttb.completely / 360) / 10 : null, source: 'igdb' } : null,
       hltb_note: hltbNote || null,
+      mc_url: mc?.url ?? null, mc_note: mcNote || null,
       rawg_slug: rawg?.slug ?? null,
       rawg_note: rawgNote || null   // why RAWG gave nothing (shown only in the raw data, for checking)
     },
