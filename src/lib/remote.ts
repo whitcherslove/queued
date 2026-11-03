@@ -127,9 +127,16 @@ export async function loadChat(libraryId: string): Promise<ChatMsg[]> {
   return (data ?? []) as ChatMsg[];
 }
 
+/** A server function's own error text (instead of "Edge Function returned a non-2xx status code"). */
+async function fnError(error: unknown): Promise<Error> {
+  let msg = (error as Error)?.message ?? 'Something went wrong';
+  try { const body = await (error as { context?: Response }).context?.json(); if (body?.error) msg = String(body.error); } catch { /* not JSON */ }
+  return new Error(msg);
+}
+
 export async function askAi(libraryId: string, question: string): Promise<string> {
   const { data, error } = await supabase.functions.invoke('ask', { body: { libraryId, question } });
-  if (error) throw error;
+  if (error) throw await fnError(error);
   if (!data?.answer) throw new Error(data?.error || 'No answer');
   return data.answer as string;
 }
@@ -255,7 +262,7 @@ export async function resyncGameSections(sectionFor: (platform: string) => strin
 /** Ask the AI to estimate how far you are (0–100 %) from what you describe ("just beat the second boss"). */
 export async function estimateProgress(libraryId: string, text: string): Promise<{ progress: number; note: string }> {
   const { data, error } = await supabase.functions.invoke('ask', { body: { libraryId, question: text, mode: 'progress' } });
-  if (error) throw error;
+  if (error) throw await fnError(error);
   if (data?.error) throw new Error(data.error);
   return { progress: Number(data.progress), note: String(data.note ?? '') };
 }

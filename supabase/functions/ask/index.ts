@@ -8,16 +8,32 @@ const CORS = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS'
 };
 
-async function gemini(model: string, body: unknown) {
+/** Gemini call with a readable error. If web search (grounding) is refused — free tier on newer models, daily limit — retry without it. */
+async function gemini(model: string, body: any): Promise<string> {
   const key = Deno.env.get('GEMINI_API_KEY') ?? '';
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
-  });
-  if (!r.ok) throw new Error(`Gemini ${model} ${r.status}`);
-  const j = await r.json();
-  const text = (j.candidates?.[0]?.content?.parts ?? []).map((p: any) => p.text ?? '').join('').trim();
-  if (!text) throw new Error('Empty answer');
-  return text;
+  if (!key) throw new Error('GEMINI_API_KEY is not set in this Supabase project (Edge Functions → Secrets).');
+  const call = async (b: any) => {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(b)
+    });
+    const raw = await r.text();
+    if (!r.ok) {
+      let msg = raw.slice(0, 300);
+      try { msg = JSON.parse(raw)?.error?.message ?? msg; } catch { /* plain text */ }
+      const e = new Error(`Gemini ${model} ${r.status}: ${msg}`) as Error & { status?: number }; e.status = r.status; throw e;
+    }
+    const j = JSON.parse(raw);
+    const text = (j.candidates?.[0]?.content?.parts ?? []).map((p: any) => p.text ?? '').join('').trim();
+    if (!text) throw new Error(`Gemini ${model}: empty answer (${j.candidates?.[0]?.finishReason ?? 'no candidates'})`);
+    return text;
+  };
+  try { return await call(body); }
+  catch (e) {
+    const status = (e as { status?: number }).status;
+    // search not available / quota for grounding → answer from the model's own knowledge instead of failing
+    if (body?.tools && (status === 400 || status === 403 || status === 429)) { const { tools: _t, ...rest } = body; return await call(rest); }
+    throw e;
+  }
 }
 
 Deno.serve(async (req) => {

@@ -215,7 +215,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const send = async (text: string) => {
     const q = text.trim(); if (!q) return; setDraft('');
     setChat((c) => c.concat([{ id: 'u' + Date.now(), role: 'user', content: q, created_at: '' }, { id: 'p' + Date.now(), role: 'model', content: 'Thinking…', created_at: '', pending: true }]));
-    try { await askAi(item.id, q); setChat(await loadChat(item.id)); } catch { setChat((c) => c.map((m) => (m.pending ? { ...m, pending: false, content: 'Couldn’t get an answer right now. Try again in a moment.' } : m))); }
+    try { await askAi(item.id, q); setChat(await loadChat(item.id)); } catch (e) { setChat((c) => c.map((m) => (m.pending ? { ...m, pending: false, content: 'Couldn’t get an answer: ' + ((e as Error).message || 'try again in a moment.') } : m))); }
   };
 
   const data = (item.title.data ?? {}) as any;
