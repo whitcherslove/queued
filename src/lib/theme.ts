@@ -33,5 +33,6 @@ export function applyTheme(s: Settings) {
   const root = document.documentElement;
   Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
   root.style.colorScheme = s.theme;
+  root.dataset.theme = s.theme;   // lets CSS adapt things like the white platform logos
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', vars['--bg']);
 }

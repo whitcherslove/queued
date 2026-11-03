@@ -777,3 +777,8 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .plat-icon { image-rendering: pixelated; image-rendering: crisp-edges; flex: none; vertical-align: middle; margin-right: 6px; }
 .row-meta .plat-icon { margin-top: -2px; }
 .plat-text { font-size: 11px; font-weight: 800; padding: 1px 6px; border-radius: 6px; background: var(--surface2); color: var(--muted); margin-right: 6px; }
+
+/* platform logos (white wordmarks) — dark in the light theme */
+.plat-logo { width: auto; max-width: 92px; object-fit: contain; flex: none; vertical-align: middle; margin-right: 8px; opacity: .9; }
+.row-meta .plat-logo { margin-top: -2px; }
+:root[data-theme="light"] .plat-logo { filter: invert(1); }
