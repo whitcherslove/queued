@@ -843,3 +843,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .view-date .coop-icon svg { width: 14px; height: 14px; }
 
 .rew-mini { display: inline-flex; align-items: center; margin-left: 6px; color: var(--muted); }
+
+/* Viewings / Playthroughs: one line — date · platform · co-op · Latest · Edit */
+.view-row > button.view-date { display: flex; flex-direction: row; align-items: center; flex-wrap: nowrap; gap: 8px; min-width: 0; }
+.view-row > button.view-date > .muted.tiny { margin-left: 2px; }
+.view-row > button.view-date > span:first-child { flex-wrap: nowrap; white-space: nowrap; }
+/* replay mark for games: green, like the rewatch eye */
+.rew-mini { color: #39C316; }

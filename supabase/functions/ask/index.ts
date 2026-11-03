@@ -73,8 +73,8 @@ Deno.serve(async (req) => {
       tools: [{ google_search: {} }]
     };
 
-    const primary = Deno.env.get('GEMINI_MODEL') || 'gemini-2.5-flash';
-    const fallback = Deno.env.get('GEMINI_FALLBACK_MODEL');
+    const primary = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash';
+    const fallback = Deno.env.get('GEMINI_FALLBACK_MODEL') || 'gemini-3.5-flash-lite';
 
     // mode "progress": estimate how far into the game the player is (0–100 %) from their description; saves it on the item
     if (mode === 'progress') {
