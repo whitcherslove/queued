@@ -621,7 +621,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
               </div>
               {menuConfirm ? (
                 <div className="stack">
-                  <span className="small">{menuConfirm === 'remove' ? 'Remove “' + t.title + '” and all its viewings?' : 'Delete this viewing?'}</span>
+                  <span className="small">{menuConfirm === 'remove' ? 'Remove “' + t.title + '” and all its ' + (isGame ? 'playthroughs' : 'viewings') + '?' : (isGame ? 'Delete this playthrough?' : 'Delete this viewing?')}</span>
                   <div className="row nowrap"><button className="btn grow" onClick={() => setMenuConfirm(null)}>Cancel</button>
                     <button className="btn danger-fill grow" onClick={menuConfirm === 'remove'
                       ? run(async () => { await removeFromLibrary(item.id); })
@@ -647,7 +647,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                     </>;
                   })()}
                   {isBack && <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>}
-                  {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>Delete this viewing</button>}
+                  {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>{isGame ? 'Delete this playthrough' : 'Delete this viewing'}</button>}
                   <button role="menuitem" className="danger" onClick={() => setMenuConfirm('remove')}>Remove from my lists</button>
                 </div>
               )}

@@ -11,6 +11,7 @@ import {
 import { STATE_LABEL, coveredSeasons, shownState, epLabel, epRuntime, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showState, showYears, todayIso } from '../lib/tv';
 import { applyEpisodeMarks, bringBack, dropShow, moveToBacklog, startWatching } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
+import DateField from '../components/DateField';
 import ProgressRing from '../components/ProgressRing';
 import Overview from '../components/Overview';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
@@ -361,7 +362,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               <RatingTiles value={item.tier} onPick={(v) => pickTier(v ?? item.tier ?? '')} />
               <ScoreStepper value={score} scale={scale} onChange={(v) => setScore(v)} />
               <div className="list-group">
-                {currentLog && <ListRow icon={Ico.date} label="Finished on"><input type="date" className="date-input" aria-label="Finished on" value={localDay(currentLog.watched_at)} onChange={(e) => { const d = e.target.value; const l = currentLog; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></ListRow>}
+                {currentLog && <ListRow icon={Ico.date} label="Finished on"><DateField label="Finished on" value={localDay(currentLog.watched_at)} onChange={(d) => { const l = currentLog; guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></ListRow>}
                 <ListRow icon={Ico.rewatch} label="Rewatch" onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
               </div>
             </div>
@@ -503,7 +504,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                     <div className="score-row">
                       <ScoreStepper size="sm" label="Score" value={l.score} scale={scale} onChange={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); setLogRating(l, { score: st }).then(onChanged); }} /></div></>
                     <div className="score-row"><label htmlFor={'vd-' + l.id} className="small strong">Finished on</label>
-                      <input id={'vd-' + l.id} type="date" className="date-input" value={localDay(l.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></div>
+                      <DateField id={'vd-' + l.id} label="Finished on" value={localDay(l.watched_at)} onChange={(d) => guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })()} /></div>
                   </div>
                 )}
               </div>
@@ -603,7 +604,7 @@ function PastSheet({ t, seasons, eps, scale, now, onCancel, onSave }: { t: Retur
       <button className="sheet-scrim" aria-label="Close" onClick={onCancel} />
       <div className="sheet" role="dialog" aria-label="Past viewing">
         <div className="stack-sm"><strong className="sheet-title">{scopeLabel(seasons, t).split(' · ')[0]}</strong><span className="muted small">{t.title} · watched before you started tracking</span></div>
-        <div className="score-row"><label htmlFor="past-day" className="strong">Finished on</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => { if (e.target.value) { touched.current = true; setDay(e.target.value); } }} /></div>
+        <div className="score-row"><label htmlFor="past-day" className="strong">Finished on</label><DateField id="past-day" label="Finished on" value={day} onChange={(d) => { touched.current = true; setDay(d); }} /></div>
         <span className="muted small">Don’t remember? Keep the date the season finished airing — it sorts the entry into the right place in Watched.</span>
         <RatingTiles value={tier} onPick={setTier} />
         <ScoreStepper size="sm" label="Score" value={score} scale={scale} onChange={setScore} />

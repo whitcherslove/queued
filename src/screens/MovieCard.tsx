@@ -8,6 +8,7 @@ import {
   type Owned, estimateProgress, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
+import DateField from '../components/DateField';
 import Overview from '../components/Overview';
 import { MOVIE_STATE_LABEL, movieState } from '../lib/movie';
 import { platformChoices, platformLabel, sectionOf, type IgdbPlatform } from '../lib/platforms';
@@ -51,6 +52,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const needsEnrich = !!(game && (item?.title?.data as { needs_enrich?: boolean } | null)?.needs_enrich);
   useEffect(() => { if (needsEnrich && item) ensureGame(item.title.source_id, true).then(() => reload()).catch(() => undefined); }, [needsEnrich]); // eslint-disable-line react-hooks/exhaustive-deps
   const [platAsk, setPlatAsk] = useState<'' | 'start' | 'replay'>('');
+  const [platPick, setPlatPick] = useState<string | null>(null);   // log id, or 'item'
   const [progAsk, setProgAsk] = useState(false);
   const [progText, setProgText] = useState('');
   const [progBusy, setProgBusy] = useState(false);
@@ -169,6 +171,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
     : { done: 'Watched', doneOn: 'Watched on', rewatch: 'Rewatch', viewings: 'Viewings', before: 'Watched before', viewing: 'viewing', notYet: 'Not watched yet', just: 'Just watched · rate it', list: 'Watched' };
   const gItem = item as typeof item & { platform?: string | null; coop?: boolean; progress?: number | null };
   const isPlaying = game && item.status === 'playing';
+  // the platform you play / played on (latest playthrough unless it's in Backlog or Playing)
+  const heroPlat: string | null = game ? ((item.status === 'backlog' || item.status === 'playing' ? gItem.platform : (last as (typeof last) & { platform?: string | null } | null)?.platform ?? gItem.platform) ?? null) : null;
   const mState = isPlaying ? ('playing' as const) : movieState(item, t, planned ? null : last);
   const inBacklog = item.status === 'backlog';
   const canWatchNow = inBacklog && movieState(item, t, null) !== 'comingSoon';
@@ -187,20 +191,17 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   })();
   /** games: platform + co-op rows — on the latest playthrough, or (not played yet) on the game itself; a new platform can move it to another section */
   const platOptions = platformChoices(((t.data as { platforms?: IgdbPlatform[] } | null)?.platforms ?? []), settings.retroPlatforms ?? undefined);
-  const gameRows = (l: (typeof logs)[number] | null) => {
+  // games: Platform and Co-op rows — on the latest playthrough, or (not played yet) on the game itself; a new platform can move it to another section
+  const gameRow = (which: 'platform' | 'coop', l: (typeof logs)[number] | null) => {
     const lp = l as (typeof logs)[number] & { platform?: string | null; coop?: boolean } | null;
     const cur = (lp ? lp.platform : null) ?? gItem.platform ?? '';
     const coopOn = lp ? !!lp.coop : !!gItem.coop;
-    const opts = platOptions.some((o) => o.key === cur) || !cur ? platOptions : [{ key: cur, label: platformLabel(cur), section: 'console' as const, group: '' }, ...platOptions];
-    return <>
-      <ListRow icon={Ico.seasons} label="Platform">
-        <select className="date-input" aria-label="Platform" value={cur} onChange={(e) => { const v = e.target.value; guard(async () => {
-          if (lp) await updateLog(lp.id, { platform: v } as never);
-          else await updateItem(item.id, { platform: v, section: sectionOfKey(v) } as never);
-        })(); }}>{opts.map((o) => <option key={o.key} value={o.key}>{o.label}</option>)}</select>
+    if (which === 'platform') return (
+      <ListRow icon={Ico.seasons} label="Platform" onClick={() => setPlatPick(lp ? lp.id : 'item')}>
+        <span className="li-value plat-value"><PlatformIcon k={cur} size={14} />{cur ? platformLabel(cur) : 'Pick'} ›</span>
       </ListRow>
-      <ListRow icon={Ico.coop} label="Co-op" onClick={guard(async () => { if (lp) await updateLog(lp.id, { coop: !coopOn } as never); else await updateItem(item.id, { coop: !coopOn } as never); })}><span className={'switch' + (coopOn ? ' on-green' : '')}><span /></span></ListRow>
-    </>;
+    );
+    return <ListRow icon={Ico.coop} label="Co-op" onClick={guard(async () => { if (lp) await updateLog(lp.id, { coop: !coopOn } as never); else await updateItem(item.id, { coop: !coopOn } as never); })}><span className={'switch' + (coopOn ? ' on-green' : '')}><span /></span></ListRow>;
   };
   const sectionOfKey = (k: string) => sectionOf(k, settings.retroPlatforms ?? undefined);
   // DLC & expansions of a game (or the main game of a DLC) — owned ones open, the rest can be added with the same platform
@@ -301,7 +302,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
         </button>
         <div className="hero-text">
           <h2>{t.title}</h2>
-          <div className="row">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).map((c) => <span key={c} className="hero-chip">{c}</span>)}</div>
+          <div className="row">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).map((c) => <span key={c} className="hero-chip">{c}</span>)}
+            {game && heroPlat && <span className="hero-chip hero-plat"><PlatformIcon k={heroPlat} size={14} /></span>}</div>
           {t.directors.length > 0 && <span className="hero-sub">{t.directors.join(', ')}</span>}
           {last?.dropped && (done || planned) && !origTr && <span className="hero-tier" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{origTr && (done || planned) && (() => { const tr = origTr; return <span className="hero-tier" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span>; })()}
         </div>
@@ -335,7 +337,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
               <span className="state-pill" data-state={mState}>{game && mState === 'watched' ? 'Finished' : MOVIE_STATE_LABEL[mState]}</span>
               <span className="state-title">{mState === 'dropped' ? 'Not in your lists' : mSub}</span>
               {game && (() => { const lp = (last as (typeof last) & { platform?: string | null; coop?: boolean } | null); const pl = (inBacklog || isPlaying ? gItem.platform : lp?.platform ?? gItem.platform); const co = inBacklog || isPlaying ? gItem.coop : lp?.coop;
-                return pl ? <span className="plat-line"><PlatformIcon k={pl} size={16} /><span>{(inBacklog ? 'On ' : isPlaying ? 'Playing on ' : 'Played on ') + platformLabel(pl)}{co ? ' · co-op' : ''}</span></span> : null; })()}
+                return pl ? <span className="plat-line"><span>{inBacklog ? 'On' : isPlaying ? 'Playing on' : 'Played on'}</span><PlatformIcon k={pl} size={16} />{co && <span className="muted">· co-op</span>}</span> : null; })()}
               {inBacklog && t.runtime ? <span className="small muted">{runtimeText(t.runtime)}{item.rewatch ? ' · ' + W.rewatch.toLowerCase() : ''}</span> : null}
             </>;
             // the whole card folds/unfolds from here (also when there's nothing but My take to open)
@@ -396,9 +398,10 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 <RatingTiles value={last.tier} onPick={(v) => pickTier(v ?? last.tier ?? '')} />
                 <ScoreStepper value={score} scale={scale} onChange={(v) => setScore(v)} />
                 <div className="list-group">
-                  <ListRow icon={Ico.date} label={W.doneOn}><input type="date" className="date-input" aria-label={W.doneOn} value={localDay(last.watched_at)} onChange={(e) => setDate(e.target.value)} /></ListRow>
+                  <ListRow icon={Ico.date} label={W.doneOn}><DateField label={W.doneOn} value={localDay(last.watched_at)} onChange={(d) => setDate(d)} /></ListRow>
+                  {game && gameRow('platform', last)}
                   <ListRow icon={Ico.rewatch} label={W.rewatch} onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
-                  {game && gameRows(last)}
+                  {game && gameRow('coop', last)}
                 </div>
               </> : <>
                 {/* Not watched yet: everything is here; rating it logs a viewing with today's date (change it after) */}
@@ -406,8 +409,9 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 <RatingTiles value={null} onPick={(v) => { if (v) rateFirst({ tier: v }); }} />
                 <ScoreStepper value={null} scale={scale} onChange={(v) => { if (v !== null) rateFirst({ score: v }); }} />
                 <div className="list-group">
-                  {game && gameRows(null)}
+                  {game && gameRow('platform', null)}
                   <ListRow icon={Ico.rewatch} label={W.rewatch} onClick={() => { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }}><span className={'switch' + (item.rewatch ? ' on-green' : '')}><span /></span></ListRow>
+                  {game && gameRow('coop', null)}
                 </div>
               </>}
             </div>
@@ -431,7 +435,27 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
         <section className="card stack">
           <span className="h2">Details</span>
           {t.genres.length > 0 && <div className="stack-sm"><span className="muted small">Genres</span><div className="row">{t.genres.map((g) => <span key={g} className="pill" style={{ background: 'var(--surface2)' }}>{g}</span>)}</div></div>}
-          <div className="facts">{factsShown.map(([k, v]) => <div key={k}><span className="muted small">{k}</span><strong>{v}</strong></div>)}</div>
+          {game ? <>
+            {/* games: tidy groups instead of a free-form grid */}
+            {ttb && (ttb.main || ttb.full) && (
+              <div className="stack-sm">
+                <span className="muted small">Time to beat{factsShown.find(([k]) => k === 'Times from') ? ' · ' + factsShown.find(([k]) => k === 'Times from')![1] : ''}</span>
+                <div className="ttb-row">
+                  {([['Story', ttb.main], ['Main + extras', (ttb as { plus?: number | null }).plus], ['Quick', ttb.quick], ['100%', ttb.full]] as [string, number | null | undefined][])
+                    .filter(([, v]) => v).map(([k, v]) => <div key={k} className="ttb-cell"><strong>{hrs(v)}</strong><span className="muted tiny">{k}</span></div>)}
+                </div>
+              </div>
+            )}
+            {((data.platforms ?? []) as IgdbPlatform[]).length > 0 && (
+              <div className="stack-sm"><span className="muted small">Platforms</span>
+                <div className="row wrap">{((data.platforms ?? []) as IgdbPlatform[]).map((p) => <span key={p.id} className="pill" style={{ background: 'var(--surface2)' }}>{p.abbr || p.name}</span>)}</div></div>
+            )}
+            <div className="facts">{factsShown.filter(([k]) => ['Developer', 'Publisher', 'Modes', 'Franchise'].includes(k)).map(([k, v], i, arr) =>
+              <div key={k} className={v.length > 26 || (i === arr.length - 1 && arr.length % 2 === 1) ? 'wide' : ''}><span className="muted small">{k}</span><strong>{v}</strong></div>)}</div>
+          </> : (
+            <div className="facts">{factsShown.map(([k, v], i, arr) =>
+              <div key={k} className={v.length > 26 || (i === arr.length - 1 && arr.length % 2 === 1) ? 'wide' : ''}><span className="muted small">{k}</span><strong>{v}</strong></div>)}</div>
+          )}
           {!game && cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
         </section>
 
@@ -522,8 +546,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 <div key={l.id} className="view-wrap">
                 <div className="view-row">
                   <button className="view-date grow" aria-expanded={editLog === l.id} onClick={() => setEditLog(editLog === l.id ? null : l.id)}>
-                    <span className="small strong">{longDate(l.watched_at)} {i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
-                    {game && <span className="muted tiny">{platformLabel((l as typeof l & { platform?: string | null }).platform ?? gItem.platform)}{(l as typeof l & { coop?: boolean }).coop ? ' · co-op' : ''}</span>}
+                    <span className="small strong view-date">{longDate(l.watched_at)}{game && <PlatformIcon k={(l as typeof l & { platform?: string | null }).platform ?? gItem.platform} size={13} />} {i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
+                    {game && <span className="muted tiny">{(l as typeof l & { coop?: boolean }).coop ? 'co-op' : ''}</span>}
                     <span className="muted tiny">{editLog === l.id ? 'Done' : 'Edit'}</span>
                   </button>
                   <button className={'rew-toggle' + (l.rewatch ? ' on' : '')} aria-pressed={l.rewatch} aria-label={l.rewatch ? 'Marked as ' + W.rewatch.toLowerCase() + ' — tap to unmark' : 'Mark this ' + W.viewing + ' as a ' + W.rewatch.toLowerCase()} onClick={guard(async () => { await updateLog(l.id, { rewatch: !l.rewatch }); })}>{EYE_PLUS}</button>
@@ -538,8 +562,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                       <ScoreStepper size="sm" label="Score" value={l.score} scale={scale} onChange={(st) => { setLogs((ls) => ls.map((y) => (y.id === l.id ? { ...y, score: st } : y))); updateLog(l.id, { score: st }).then(onChanged); }} />
                     </div>
                     <div className="score-row">
-                      <label htmlFor={'vd-' + l.id} className="small strong">Watched on</label>
-                      <input id={'vd-' + l.id} type="date" className="date-input" value={localDay(l.watched_at)} onChange={(e) => { const d = e.target.value; if (d) guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} />
+                      <label htmlFor={'vd-' + l.id} className="small strong">{W.doneOn}</label>
+                      <DateField id={'vd-' + l.id} label={W.doneOn} value={localDay(l.watched_at)} onChange={(d) => guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })()} />
                     </div>
                   </div>
                 )}
@@ -590,6 +614,13 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           </div>
         </div>
       )}
+      {platPick && item && <PlatformSheet t={t} retro={settings.retroPlatforms ?? []} title="Platform" confirm="Save" noCoop
+        initial={platPick === 'item' ? gItem.platform : ((logs.find((x) => x.id === platPick) as { platform?: string | null } | undefined)?.platform ?? gItem.platform)}
+        onCancel={() => setPlatPick(null)}
+        onDone={({ platform }) => { const id = platPick; setPlatPick(null); guard(async () => {
+          if (id === 'item') await updateItem(item.id, { platform, section: sectionOfKey(platform) } as never);
+          else await updateLog(id!, { platform } as never);
+        })(); }} />}
       {platAsk && item && <PlatformSheet t={t} retro={settings.retroPlatforms ?? []} title={platAsk === 'start' ? 'Start playing' : 'Replay'} confirm={platAsk === 'start' ? 'Start playing' : 'Add to Backlog'}
         initial={gItem.platform} initialCoop={platAsk === 'start' ? !!gItem.coop : false} onCancel={() => setPlatAsk('')}
         onDone={({ platform, coop }) => { const m = platAsk as 'start' | 'replay'; setPlatAsk(''); confirmPlatform(m, platform, coop); }} />}
@@ -747,11 +778,11 @@ function PastMovieSheet({ t, scale, game, onCancel, onSave }: { t: Title; scale:
       <button className="sheet-scrim" aria-label="Close" onClick={onCancel} />
       <div className="sheet" role="dialog" aria-label={game ? 'Past playthrough' : 'Past viewing'}>
         <div className="stack-sm"><strong className="sheet-title">{t.title}</strong><span className="muted small">{game ? 'A playthrough from before you started tracking' : 'A viewing from before you started tracking'}</span></div>
-        <div className="score-row"><label htmlFor="past-day" className="strong">{game ? 'Finished on' : 'Watched on'}</label><input id="past-day" type="date" className="date-input" value={day} onChange={(e) => { if (e.target.value) { touched.current = true; setDay(e.target.value); } }} /></div>
+        <div className="score-row"><label htmlFor="past-day" className="strong">{game ? 'Finished on' : 'Watched on'}</label><DateField id="past-day" label={game ? 'Finished on' : 'Watched on'} value={day} onChange={(d) => { touched.current = true; setDay(d); }} /></div>
         <span className="muted small">{'Don’t remember? Keep the release date — the entry still lands in the right place in ' + (game ? 'Finished' : 'Watched') + '.'}</span>
         <RatingTiles value={tier} onPick={setTier} />
         <ScoreStepper size="sm" label="Score" value={score} scale={scale} onChange={setScore} />
-        <div className="row nowrap"><button className="btn grow" onClick={onCancel}>Cancel</button><button className="btn primary grow" onClick={() => onSave(new Date(day + 'T20:00:00').toISOString(), tier, score)}>Add to Watched</button></div>
+        <div className="row nowrap"><button className="btn grow" onClick={onCancel}>Cancel</button><button className="btn primary grow" onClick={() => onSave(new Date(day + 'T20:00:00').toISOString(), tier, score)}>{game ? 'Add to Finished' : 'Add to Watched'}</button></div>
       </div>
     </div>
   );
