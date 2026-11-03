@@ -12,7 +12,8 @@ export default function SafeRange({ value, min = 0, max = 100, step = 1, label, 
   const last = useRef(value);
   const cancel = () => { if (ptr.current && !ptr.current.armed) onInput(ptr.current.start); ptr.current = null; };
   return (
-    <input type="range" min={min} max={max} step={step} value={value} aria-label={label} className={className} style={{ touchAction: 'pan-y' }}
+    <input type="range" min={min} max={max} step={step} value={value} aria-label={label} className={className}
+      style={{ touchAction: 'pan-y', ['--pct' as string]: ((value - min) / (max - min || 1)) * 100 + '%' }}
       onPointerDown={(e) => { ptr.current = { x: e.clientX, y: e.clientY, armed: e.pointerType === 'mouse', start: value }; }}
       onPointerMove={(e) => { const p = ptr.current; if (!p || p.armed) return; const dx = Math.abs(e.clientX - p.x), dy = Math.abs(e.clientY - p.y); if (dx > 6 && dx > dy) p.armed = true; else if (dy > 8) cancel(); }}
       onPointerCancel={cancel}

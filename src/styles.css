@@ -866,3 +866,15 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .view-row > button.view-date > span:first-child, .view-line { white-space: normal; flex-wrap: wrap; row-gap: 2px; }
 .view-row { min-width: 0; }
 .view-row .pill { flex: none; }
+
+/* game progress (variant A): same look, easier to hit — thicker bar, bigger thumb, wider tap area on − + */
+.prog-row .range { -webkit-appearance: none; appearance: none; height: 36px; background: transparent; --pct: 0%; }
+.prog-row .range::-webkit-slider-runnable-track { height: 8px; border-radius: 999px; background: linear-gradient(90deg, #4C9BEA var(--pct), var(--surface2) var(--pct)); }
+.prog-row .range::-moz-range-track { height: 8px; border-radius: 999px; background: var(--surface2); }
+.prog-row .range::-moz-range-progress { height: 8px; border-radius: 999px; background: #4C9BEA; }
+.prog-row .range::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; margin-top: -7px; border-radius: 999px; background: #4C9BEA; border: 3px solid var(--surface); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.prog-row .range::-moz-range-thumb { width: 22px; height: 22px; border-radius: 999px; background: #4C9BEA; border: 3px solid var(--surface); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
+.prog-row .step-btn.sm { position: relative; width: 32px; height: 32px; }
+.prog-row .step-btn.sm::after { content: ""; position: absolute; inset: -6px; }   /* invisible 44 px tap area */
+.prog-row .link { position: relative; }
+.prog-row .link::after { content: ""; position: absolute; inset: -10px -6px; }
