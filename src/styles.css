@@ -841,3 +841,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .coop-icon { color: #7FA7DB; display: inline-flex; align-items: center; }
 .coop-icon svg { width: 15px; height: 15px; }
 .view-date .coop-icon svg { width: 14px; height: 14px; }
+
+.rew-mini { display: inline-flex; align-items: center; margin-left: 6px; color: var(--muted); }

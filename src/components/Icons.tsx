@@ -29,3 +29,12 @@ export const MoreBtn = ({ size = 34 }: { size?: number }) => (
     <svg width={size * 0.5} height={size * 0.5} viewBox="0 0 24 24" fill="currentColor"><circle cx="5.5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="18.5" cy="12" r="1.9" /></svg>
   </span>
 );
+
+/** Replay (games): a gamepad inside a circular arrow — "playing it again". Movies and shows keep the eye. */
+export const ReplayIcon = ({ size = 15 }: { size?: number }) => (
+  <svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 12a9 9 0 1 1-2.9-6.6" />
+    <path d="M21 3.5v5h-5" />
+    <path d="M9.1 10.2h5.8a2 2 0 0 1 1.9 2.4l-.3 1.3a1.1 1.1 0 0 1-1.9.5l-.8-.9h-3.6l-.8.9a1.1 1.1 0 0 1-1.9-.5l-.3-1.3a2 2 0 0 1 1.9-2.4z" strokeWidth="1.6" />
+  </svg>
+);

@@ -16,7 +16,7 @@ import { PlatformSheet } from '../components/GameAddSheet';
 import ProgressRing from '../components/ProgressRing';
 import PlatformIcon from '../components/PlatformIcon';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
-import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
+import { ChevBtn, IconBack, MoreBtn, ReplayIcon } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 import { usePress } from '../lib/press';
 
@@ -24,12 +24,12 @@ interface Props { game?: boolean; openPast?: boolean; itemId: string; onPrev?: (
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const EXT = <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /></svg>;
-const EYE_PLUS = <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 18c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /><path d="M16 19h6" /><path d="M19 16v6" /></svg>;
+const EYE_PLUS_SVG = <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 18c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /><path d="M16 19h6" /><path d="M19 16v6" /></svg>;
 const CHIPS = ['Similar movies', 'Fun facts', 'Post-credits scene?', 'Explain the ending'];
 const GAME_CHIPS = ['Similar games', 'Is it worth 100%?', 'Tips for a first run', 'How long is it really?'];
 
 export const tierOfId = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
-export const EYE_PLUS_ICON = EYE_PLUS;
+export const EYE_PLUS_ICON = EYE_PLUS_SVG;
 export const EXT_ICON = EXT;
 
 const PIN = <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4.5l4.5 4.5-3 1.5-3.5 3.5.5 4-1.5 1.5-3.5-3.5L4 20M8.5 11.5L12.5 15.5M15 4.5L12 7.5 8.5 7 7 8.5l3.5 3.5" /></svg>;
@@ -165,6 +165,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, position: backlogCount }); };
   const cancelRewatch = async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false }); };
   const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else if (game) setPlatAsk('replay'); else await planRewatch(); });
+  const EYE_PLUS = game ? <ReplayIcon size={18} /> : EYE_PLUS_SVG;
   // games use the same card with their own words: Finished / Playing / Replay / Playthroughs / Played before
   const W = game
     ? { done: 'Finished', doneOn: 'Finished on', rewatch: 'Replay', viewings: 'Playthroughs', before: 'Played before', viewing: 'playthrough', notYet: 'Not played yet', just: 'Just finished · rate it', list: 'Finished' }
@@ -400,7 +401,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 <div className="list-group">
                   <ListRow icon={Ico.date} label={W.doneOn}><DateField label={W.doneOn} value={localDay(last.watched_at)} onChange={(d) => setDate(d)} /></ListRow>
                   {game && gameRow('platform', last)}
-                  <ListRow icon={Ico.rewatch} label={W.rewatch} onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
+                  <ListRow icon={game ? <ReplayIcon size={18} /> : Ico.rewatch} label={W.rewatch} onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
                   {game && gameRow('coop', last)}
                 </div>
               </> : <>
@@ -410,7 +411,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 <ScoreStepper value={null} scale={scale} onChange={(v) => { if (v !== null) rateFirst({ score: v }); }} />
                 <div className="list-group">
                   {game && gameRow('platform', null)}
-                  <ListRow icon={Ico.rewatch} label={W.rewatch} onClick={() => { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }}><span className={'switch' + (item.rewatch ? ' on-green' : '')}><span /></span></ListRow>
+                  <ListRow icon={game ? <ReplayIcon size={18} /> : Ico.rewatch} label={W.rewatch} onClick={() => { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }}><span className={'switch' + (item.rewatch ? ' on-green' : '')}><span /></span></ListRow>
                   {game && gameRow('coop', null)}
                 </div>
               </>}

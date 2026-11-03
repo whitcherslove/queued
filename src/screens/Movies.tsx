@@ -13,7 +13,7 @@ import { useBackLayer } from '../lib/back';
 import { useLongPress } from '../lib/longpress';
 import { useDragReorder } from '../lib/drag';
 import { GripIcon, Metascore, Poster } from '../components/Rows';
-import { ChevBtn, IconBack, IconMenu, IconSearch } from '../components/Icons';
+import { ChevBtn, IconBack, IconMenu, IconSearch, ReplayIcon } from '../components/Icons';
 import { DROPPED_COLOR, TIERS } from '../lib/scores';
 import { movieState } from '../lib/movie';
 import GameAddSheet, { type GameAddMode } from '../components/GameAddSheet';
@@ -58,6 +58,8 @@ const EyePlus = ({ size = 15 }: { size?: number }) => (
 export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'movie', gameSection = 'console' }: Props) {
   const isTv = kind === 'tv';
   const isGame = kind === 'game';
+  // replay mark: the eye for movies and shows, a gamepad in a circular arrow for games
+  const RewIcon = ({ size = 15 }: { size?: number }) => (isGame ? <span className="rew-mini" role="img" aria-label="Replay"><ReplayIcon size={size} /></span> : <EyePlus size={size} />);
   // games: one list per section (Console / PC / Retro); finished playthroughs show in the section of the platform you played on
   const section: Section = isGame ? gameSection : isTv ? 'tv' : 'movies';
   const noun = isTv ? 'show' : isGame ? 'game' : 'movie';
@@ -273,7 +275,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         <Poster t={it.title} w={56} h={84}></Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
-          <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? <><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}</> : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
+          <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? <><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}</> : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <RewIcon />}</span>
           <span className="row-meta"><Metascore v={it.title.metascore} size="sm" game={isGame} /></span>
         </span>
       </button>
@@ -313,7 +315,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           <Poster t={it.title} w={56} h={84} />
           <span className="row-text">
             <span className="row-title">{it.title.title}{s2.isNew && <> <span className="new-pill">NEW</span></>}</span>
-            <span className="row-meta">{s2.line}{it.rewatch && <EyePlus />}</span>
+            <span className="row-meta">{s2.line}{it.rewatch && <RewIcon />}</span>
             {s2.bar && <span className="row-meta"><span className="mini-bar w72"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>}
           </span>
         </button>
@@ -367,7 +369,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           </span>
         </button>
         {edit ? grip('w', l.id, t.title) : (
-          <span className="date-col"><span className="date-cap">{isTv || isGame ? 'Finished on' : 'Watched on'}</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}{l.rewatch && <EyePlus size={13} />}</span></span>
+          <span className="date-col"><span className="date-cap">{isTv || isGame ? 'Finished on' : 'Watched on'}</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}{l.rewatch && <RewIcon size={13} />}</span></span>
         )}
       </div>
     );
@@ -380,7 +382,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
       <button className="tile-main" {...longPress(list === 'w' ? key : it.id)} onClick={() => !edit && onOpen()} aria-label={it.title.title}>
         <Poster t={it.title}>{(settings.listMetascore || list !== 'w') && <span className="tile-mc"><Metascore v={it.title.metascore} size="sm" game={isGame} /></span>}{list === 'w' && settings.posterScore && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
         {dropped ? <span className="tile-tier" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span> : tr && <span className="tile-tier" style={{ background: tr.color }}>{tr.label}</span>}
-        {d && <span className="tile-date"><span className="tile-date-text">{d.day} {d.mon} <span>{d.year}</span></span>{rew && <EyePlus size={14} />}</span>}
+        {d && <span className="tile-date"><span className="tile-date-text">{d.day} {d.mon} <span>{d.year}</span></span>{rew && <RewIcon size={14} />}</span>}
       </button>
       {edit && <button className="grip wide" aria-label={'Drag to reorder ' + it.title.title} {...handle(list, key)} onKeyDown={keyMove(list, key)}><GripIcon /></button>}
     </div>
@@ -551,7 +553,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                     <Poster t={it.title} w={56} h={84} />
                     <span className="row-text">
                       <span className="row-title">{it.title.title}</span>
-                      <span className="row-meta"><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <EyePlus />}</span>
+                      <span className="row-meta"><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <RewIcon />}</span>
                       <span className="row-meta"><span className="mini-bar w72"><span style={{ width: ((it as GameItem & { progress?: number | null }).progress ?? 0) + '%' }} /></span><strong className="tiny">{(it as GameItem & { progress?: number | null }).progress ?? 0}%</strong></span>
                     </span>
                   </button>
