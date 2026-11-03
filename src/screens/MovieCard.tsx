@@ -255,13 +255,14 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const cast = ((data.cast ?? []) as { name: string }[]).slice(0, 4).map((c) => c.name);
   const ttbRaw = (data.ttb ?? null) as { quick: number | null; main: number | null; full: number | null } | null;
   const ttbMine = (item.overrides as { ttb_main?: number } | null)?.ttb_main;
-  const ttb = ttbMine ? { quick: ttbRaw?.quick ?? null, main: ttbMine, full: ttbRaw?.full ?? null } : ttbRaw;
+  const ttb = ttbMine ? { quick: null, main: ttbMine, full: ttbRaw?.full ?? null } : ttbRaw;
   const hrs = (h: number | null | undefined) => (h ? (h >= 10 ? Math.round(h) : h) + ' h' : '');
   const facts = (game ? [
     ['Developer', (data.developers ?? []).join(', ')], ['Publisher', (data.publishers ?? []).join(', ')],
     ['Platforms', ((data.platforms ?? []) as IgdbPlatform[]).map((p) => p.abbr || p.name).join(' · ')],
     ['Modes', (data.modes ?? []).join(', ')], ['Franchise', data.franchise ?? ''],
-    ['Story', hrs(ttb?.main)], ['Quick', hrs(ttb?.quick)], ['100%', hrs(ttb?.full)]
+    ['Story', hrs(ttb?.main)], ['Main + extras', hrs((ttb as { plus?: number | null } | null)?.plus)], ['Quick', hrs(ttb?.quick)], ['100%', hrs(ttb?.full)],
+    ['Times from', ttbMine ? 'you' : (ttbRaw as { source?: string } | null)?.source === 'hltb' ? 'HowLongToBeat' : ttbRaw ? 'IGDB' : '']
   ] : [
     ['Country', shortCountries(data.countries)], ['Language', (data.language ?? '').toUpperCase()],
     ['Budget', money(data.budget)], ['Box office', money(data.revenue)]
@@ -310,7 +311,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
             ? <a className="tile3" href={mcUrl} target="_blank" rel="noopener"><span className="sq" style={{ background: metascoreColor(data.critics) ?? 'var(--surface2)', color: '#17161A' }}>{data.critics}</span><span className="muted small">Critics ↗</span></a>
             : tile('metascore')}
           {game
-            ? <div className="tile3"><span className="ttb-big">{ttb?.main ? hrs(ttb.main) : '—'}</span><span className="muted small">Time to beat</span></div>
+            ? (() => { const hid = (ttbRaw as { hltb_id?: number } | null)?.hltb_id; const inner = <><span className="ttb-big">{ttb?.main ? hrs(ttb.main) : '—'}</span><span className="muted small">Time to beat{hid && !ttbMine ? ' ↗' : ''}</span></>;
+                return hid && !ttbMine ? <a className="tile3" href={'https://howlongtobeat.com/game/' + hid} target="_blank" rel="noopener">{inner}</a> : <div className="tile3">{inner}</div>; })()
             : tile('imdb_rating')}
           {isPlaying
             ? <div className="tile3"><ProgressRing pct={gItem.progress ?? 0} text={(gItem.progress ?? 0) + '%'} /><span className="muted small">Progress</span></div>

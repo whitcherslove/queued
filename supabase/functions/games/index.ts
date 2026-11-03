@@ -78,6 +78,47 @@ async function rawgGame(slug: string, name: string, year: number | null) {
   return d.ok ? await d.json() : hit;
 }
 
+// ---------- HowLongToBeat (unofficial; their endpoint moves from time to time) ----------
+// Flow as of autumn 2026: GET .../init → { token, hpKey?, hpVal? }, then POST the search with x-auth-token.
+const HLTB_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Safari/537.36';
+const HLTB_ROUTES: [string, string][] = [
+  ['https://howlongtobeat.com/api/search/site/init', 'https://howlongtobeat.com/api/search/site'],
+  ['https://howlongtobeat.com/api/bleed/init', 'https://howlongtobeat.com/api/bleed']
+];
+let hltbNote = '';
+async function hltb(name: string, year: number | null): Promise<{ main: number | null; plus: number | null; full: number | null; id: number } | null> {
+  const clean = name.replace(/[™®©]/g, '').replace(/\s*[:\-–]\s*(game of the year|goty|definitive|complete|deluxe|director'?s cut|remastered|enhanced)( edition)?\s*$/i, '').trim();
+  for (const [initUrl, searchUrl] of HLTB_ROUTES) {
+    const init = await fetchT(initUrl + '?t=' + Date.now(), { headers: { 'User-Agent': HLTB_UA, Accept: '*/*', Referer: 'https://howlongtobeat.com/' } }, 5000);
+    if (!init.ok) { hltbNote = 'HLTB init ' + init.status; continue; }
+    const api = await init.json().catch(() => null);
+    if (!api?.token) { hltbNote = 'HLTB: no token'; continue; }
+    const payload: Record<string, unknown> = {
+      searchType: 'games', searchTerms: clean.split(/\s+/), searchPage: 1, size: 20,
+      searchOptions: {
+        games: { userId: 0, platform: '', sortCategory: 'popular', rangeCategory: 'main', rangeTime: { min: 0, max: 0 },
+          gameplay: { perspective: '', flow: '', genre: '', difficulty: '' }, rangeYear: { min: '', max: '' }, year: '', modifier: '' },
+        users: { sortCategory: 'postcount' }, lists: { sortCategory: 'follows' }, filter: '', sort: 0, randomizer: 0
+      },
+      useCache: true
+    };
+    const headers: Record<string, string> = { 'Content-Type': 'application/json', 'User-Agent': HLTB_UA, 'x-auth-token': api.token, Referer: 'https://howlongtobeat.com/', Origin: 'https://howlongtobeat.com' };
+    if (api.hpKey && api.hpVal) { payload[api.hpKey] = api.hpVal; headers['x-hp-key'] = api.hpKey; headers['x-hp-val'] = api.hpVal; }
+    const r = await fetchT(searchUrl, { method: 'POST', headers, body: JSON.stringify(payload) }, 6000);
+    if (!r.ok) { hltbNote = 'HLTB search ' + r.status; continue; }
+    const list: any[] = (await r.json().catch(() => null))?.data ?? [];
+    if (!list.length) { hltbNote = 'HLTB: no match for "' + clean + '"'; return null; }
+    const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const same = list.filter((g) => norm(g.game_name ?? '') === norm(clean) || norm(g.game_name ?? '') === norm(name));
+    const pick = same.find((g) => !year || Number(g.release_world) === year || Math.abs(Number(g.release_world) - year) <= 1) ?? same[0];
+    if (!pick) { hltbNote = 'HLTB: nothing with that exact name'; return null; }
+    const h = (sec: number) => (sec > 0 ? Math.round(sec / 360) / 10 : null);   // seconds → hours, 1 decimal
+    hltbNote = '';
+    return { main: h(pick.comp_main), plus: h(pick.comp_plus), full: h(pick.comp_100), id: Number(pick.game_id) };
+  }
+  return null;
+}
+
 // ---------- details → titles ----------
 async function details(db: any, igdbId: string, force = false) {
   const { data: cached } = await db.from('titles').select('*').eq('kind', 'game').eq('source', 'igdb').eq('source_id', igdbId).maybeSingle();
@@ -93,6 +134,8 @@ async function details(db: any, igdbId: string, force = false) {
   if (!g) throw new Error('IGDB game ' + igdbId + ' not found');
   const year = g.first_release_date ? new Date(g.first_release_date * 1000).getUTCFullYear() : null;
   const [ttb] = await igdb(db, 'game_time_to_beats', `fields hastily,normally,completely,count; where game_id = ${g.id};`).catch(() => [null]);
+  hltbNote = '';
+  const hl = await hltb(g.name, year).catch((e) => { hltbNote = 'HLTB error: ' + String(e); return null; });
   rawgNote = '';
   const rawg = await rawgGame(g.slug, g.name, year).catch((e) => { rawgNote = 'RAWG error: ' + String(e); return null; });
   const companies = g.involved_companies ?? [];
@@ -118,7 +161,11 @@ async function details(db: any, igdbId: string, force = false) {
       franchise: g.franchises?.[0]?.name ?? g.collections?.[0]?.name ?? null,
       critics: typeof g.aggregated_rating === 'number' ? Math.round(g.aggregated_rating) : null,
       // time to beat in hours (IGDB gives seconds); HLTB fallback comes in a later step
-      ttb: ttb ? { quick: ttb.hastily ? Math.round(ttb.hastily / 360) / 10 : null, main: ttb.normally ? Math.round(ttb.normally / 360) / 10 : null, full: ttb.completely ? Math.round(ttb.completely / 360) / 10 : null, source: 'igdb' } : null,
+      // time to beat: HowLongToBeat first (community times), IGDB only if HLTB has nothing; your own number (Edit details) wins in the app
+      ttb: hl && (hl.main || hl.full)
+        ? { quick: null, main: hl.main, plus: hl.plus, full: hl.full, source: 'hltb', hltb_id: hl.id }   // all three from HLTB — never mixed with IGDB
+        : ttb ? { quick: ttb.hastily ? Math.round(ttb.hastily / 360) / 10 : null, main: ttb.normally ? Math.round(ttb.normally / 360) / 10 : null, full: ttb.completely ? Math.round(ttb.completely / 360) / 10 : null, source: 'igdb' } : null,
+      hltb_note: hltbNote || null,
       rawg_slug: rawg?.slug ?? null,
       rawg_note: rawgNote || null   // why RAWG gave nothing (shown only in the raw data, for checking)
     },
