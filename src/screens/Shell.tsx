@@ -2,7 +2,7 @@ import { useState, type CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import type { Profile } from '../lib/profile';
 import type { Settings } from '../lib/theme';
-import { DuoHome, DuoMovie, DuoPad, DuoPc, DuoRetro, DuoStats, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
+import { DuoBook, DuoHome, DuoMovie, DuoPad, DuoPc, DuoRetro, DuoStats, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
 import Home from './Home';
 import Stats from './Stats';
 import ProfileScreen from './ProfileScreen';
@@ -10,7 +10,7 @@ import Avatar from '../components/Avatar';
 import Movies from './Movies';
 import { useBackLayer } from '../lib/back';
 
-type SectionId = 'home' | 'movies' | 'tv' | 'console' | 'pc' | 'retro' | 'stats';
+type SectionId = 'home' | 'movies' | 'tv' | 'console' | 'pc' | 'retro' | 'books' | 'stats';
 // Each section has its own color: it lights up the bottom-bar icon when the section is open
 const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element; color: string; tabs: string[]; noun: string }[] = [
   { id: 'home', label: 'Home', title: 'Home', icon: <DuoHome />, color: '#E26FB0', tabs: [], noun: '' },
@@ -19,11 +19,12 @@ const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element
   { id: 'console', label: 'Console', title: 'Console games', icon: <DuoPad />, color: '#2FB98A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
   { id: 'pc', label: 'PC', title: 'PC games', icon: <DuoPc />, color: '#4C9BEA', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
   { id: 'retro', label: 'Retro', title: 'Retro games', icon: <DuoRetro />, color: '#E0A43A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
+  { id: 'books', label: 'Books', title: 'Books', icon: <DuoBook />, color: '#D98B5F', tabs: [], noun: 'a book' },
   { id: 'stats', label: 'Stats', title: 'Stats', icon: <DuoStats />, color: '#9A8CF0', tabs: [], noun: '' }
 ];
 // Home is the first tab and where the app opens; Retro and Stats live in the side menu
 const BAR: SectionId[] = ['home', 'movies', 'tv', 'console', 'pc'];
-const SIDE = (id: SectionId) => id === 'retro' || id === 'stats';
+const SIDE = (id: SectionId) => id === 'retro' || id === 'stats' || id === 'books';
 const tick = () => { try { navigator.vibrate?.(10); } catch { /* not supported (iPhone) */ } };
 
 interface Props { profile: Profile; onProfile: (p: Profile) => void; onSettings: (s: Settings) => void }
@@ -74,6 +75,9 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         </button>
         <button className="drawer-item" onClick={() => { setDrawer(false); setProfileOpen(true); }}>Profile and settings</button>
         <span className="drawer-sec muted small">More</span>
+        <button className={'drawer-item with-icon' + (section === 'books' ? ' on' : '')} style={{ ['--sec' as string]: '#D98B5F' }} onClick={() => { setDrawer(false); go('books'); }}>
+          <span className="duo-icon drawer-duo"><DuoBook /></span>Books
+        </button>
         <button className={'drawer-item with-icon' + (section === 'stats' ? ' on' : '')} style={{ ['--sec' as string]: '#9A8CF0' }} onClick={() => { setDrawer(false); go('stats'); }}>
           <span className="duo-icon drawer-duo"><DuoStats /></span>Stats
         </button>
@@ -89,6 +93,12 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   if (section === 'home') return (
     <div className="screen">
       <Home settings={profile.settings} onMenu={() => setDrawer(true)} onStats={() => go('stats')} />
+      {nav}{drawerEl}
+    </div>
+  );
+  if (section === 'books') return (
+    <div className="screen">
+      <Movies key="books" kind="book" settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={() => go(lastBar)} />
       {nav}{drawerEl}
     </div>
   );

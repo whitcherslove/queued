@@ -30,8 +30,21 @@ function key(t: string): string {
 // last name: the last word longer than an initial ("Михаил Булгаков" and "Булгаков М." → "булгаков")
 const authorKey = (a?: string | null) => (a ?? '').toLowerCase().replace(/ё/g, 'е').split(/[^\p{L}]+/u).filter((w) => w.length > 2).pop() ?? '';
 const cyr = (s: string) => /[а-яё]/i.test(s);
+// Russian → Latin, so "Булгаков" = "Bulgakov" and "Мастер и Маргарита" ≈ "The Master and Margarita"
+const TR: Record<string, string> = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'kh', ц: 'ts', ч: 'ch', ш: 'sh', щ: 'shch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya' };
+const translit = (x: string) => x.toLowerCase().replace(/[а-яё]/g, (c) => TR[c] ?? c);
+const STOP = new Set(['the', 'a', 'an', 'and', 'of', 'i', 'and', 'v', 'na', 's', 'k', 'o']);
+/** language-free key: transliterated, without little words — "мастер и маргарита" and "the master and margarita" → "master margarita" */
+const crossKey = (t: string) => translit(key(t)).replace(/kh/g, 'h').split(' ').filter((w) => w && !STOP.has(w)).join(' ');
+/** same title, or one is the other plus a single word ("Dune" ≈ "Dune Messiah"? no — that's 1 word, so years must also match) */
+const nearSame = (a: string, b: string) => {
+  if (!a || !b) return false; if (a === b) return true;
+  const [s1, s2] = a.length < b.length ? [a, b] : [b, a];
+  return s2.startsWith(s1 + ' ') && s2.slice(s1.length).trim().split(' ').length === 1 && !/^\d+$|^(ii|iii|iv|2|3)$/.test(s2.slice(s1.length).trim());
+};
+const authorX = (a?: string | null) => translit(authorKey(a)).replace(/kh/g, 'h');
 
-interface Hit { ref: string; source: 'hardcover' | 'openlibrary' | 'google'; title: string; authors: string[]; year: number | null; cover: string | null; pages: number | null; series: string | null; editions: number | null; readers?: number | null }
+interface Hit { ref: string; source: 'hardcover' | 'openlibrary' | 'google'; title: string; authors: string[]; year: number | null; cover: string | null; pages: number | null; series: string | null; editions: number | null; readers?: number | null; displayTitle?: string }
 
 // ---------- Hardcover (GraphQL) ----------
 async function hc(query: string, variables: Record<string, unknown>): Promise<any> {
@@ -95,12 +108,28 @@ async function search(q: string) {
     ru ? gbSearch(q).catch(() => [] as Hit[]) : Promise.resolve([] as Hit[])
   ]);
   const extra = !ru && h.length + o.length === 0 ? await gbSearch(q).catch(() => [] as Hit[]) : [];
-  const seen = new Set<string>(); const out: Hit[] = [];
-  for (const x of [...h, ...o, ...g, ...extra]) {
-    const k = key(x.title) + '|' + authorKey(x.authors[0]);
-    if (seen.has(k)) continue; seen.add(k); out.push(x);
+  // 1) merge the same book across sources and languages: same author (transliterated) + same title key, or a matching year
+  const all = [...h, ...o, ...g, ...extra];
+  const out: Hit[] = [];
+  for (const x of all) {
+    const ak = authorX(x.authors[0]); const tk = crossKey(x.title);
+    const twin = out.find((y) => ak && authorX(y.authors[0]) === ak && (crossKey(y.title) === tk || (nearSame(crossKey(y.title), tk) && (!x.year || !y.year || Math.abs(x.year - y.year) <= 2))));
+    if (twin) {
+      // keep the richer source (Hardcover first), but show the title in the language you searched in
+      if (ru && cyr(x.title) && !cyr(twin.displayTitle ?? twin.title)) twin.displayTitle = baseTitle(x.title);
+      twin.editions = Math.max(twin.editions ?? 0, x.editions ?? 0) || twin.editions;
+      twin.cover = twin.cover ?? x.cover; twin.pages = twin.pages ?? x.pages;
+      if (x.year && (!twin.year || x.year < twin.year)) twin.year = x.year;
+      continue;
+    }
+    out.push({ ...x });
   }
-  return out.slice(0, 20);
+  // 2) the books you most likely mean first: an exact title, popular (readers / editions), with a cover; essays "about" a book and empty records last
+  const qk = crossKey(q);
+  const score = (x: Hit) => (crossKey(x.displayTitle ?? x.title) === qk ? 6 : crossKey(x.displayTitle ?? x.title).startsWith(qk) ? 3 : 0)
+    + Math.log10(1 + (x.readers ?? 0)) * 1.5 + Math.log10(1 + (x.editions ?? 0)) * 1.5 + (x.cover ? 1 : 0) + (x.authors.length ? 0.5 : -2)
+    + (x.source === 'hardcover' ? 0.5 : 0) - ((x.editions ?? 1) === 0 ? 3 : 0);
+  return out.sort((a, b) => score(b) - score(a)).slice(0, 20);
 }
 
 // ---------- details → titles ----------
@@ -116,7 +145,8 @@ async function details(db: any, ref: string, force = false) {
       image { url } cached_contributors cached_tags book_series { position series { id name } } } }`, { id: Number(id) });
     const b = d?.books_by_pk; if (!b) throw new Error('Hardcover book ' + id + ' not found');
     const authors = (b.cached_contributors ?? []).filter((c: any) => !c.contribution || /author/i.test(c.contribution)).map((c: any) => c.author?.name).filter(Boolean);
-    const tags = b.cached_tags?.Genre ?? b.cached_tags?.genre ?? [];
+    const tags = (b.cached_tags?.Genre ?? b.cached_tags?.genre ?? []).slice().sort((x: any, y: any) => (y.count ?? 0) - (x.count ?? 0))
+      .map((t: any) => String(t.tag ?? t)).filter((t: string) => /^[\p{L}][\p{L} '&-]{1,30}$/u.test(t)).map((t: string) => t[0].toUpperCase() + t.slice(1));
     const ser = b.book_series?.[0];
     let seriesBooks: any[] = [];
     if (ser?.series?.id) {
@@ -124,7 +154,7 @@ async function details(db: any, ref: string, force = false) {
       seriesBooks = (s?.book_series ?? []).filter((x: any) => x.book && x.book.id !== b.id)
         .map((x: any) => ({ ref: 'hc:' + x.book.id, id: String(x.book.id), name: x.book.title, position: x.position, year: x.book.release_year ?? null }));
     }
-    row = { title: b.title, release_date: b.release_date ?? null, year: b.release_year ?? null, authors, genres: tags.slice(0, 6).map((t: any) => t.tag ?? t).filter(Boolean),
+    row = { title: b.title, release_date: b.release_date ?? null, year: b.release_year ?? null, authors, genres: [...new Set(tags)].slice(0, 6),
       overview: b.description ?? null, poster: b.image?.url ?? null,
       data: { subtitle: b.subtitle ?? null, pages: b.pages ?? null, audio_min: b.audio_seconds ? Math.round(b.audio_seconds / 60) : null, rating: b.rating ?? null, ratings: b.ratings_count ?? null,
         series: ser?.series ? { id: String(ser.series.id), name: ser.series.name, position: ser.position ?? null } : null, series_books: seriesBooks, url: 'https://hardcover.app/books/' + b.slug } };

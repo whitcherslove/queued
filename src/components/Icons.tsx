@@ -41,3 +41,5 @@ export const ReplayIcon = ({ size = 15 }: { size?: number }) => (
 
 export const DuoHome = () => <svg {...d}><path {...body} d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z" /><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z" /></svg>;
 export const DuoStats = () => <svg {...d}><rect {...body} x="4" y="12" width="4" height="8" rx="1" /><rect {...body} x="10" y="7" width="4" height="13" rx="1" /><rect {...body} x="16" y="4" width="4" height="16" rx="1" /><rect x="4" y="12" width="4" height="8" rx="1" /><rect x="10" y="7" width="4" height="13" rx="1" /><rect x="16" y="4" width="4" height="16" rx="1" /></svg>;
+
+export const DuoBook = () => <svg {...d}><path {...body} d="M4 5.5c2.7-1.2 5.3-1.2 8 .4 2.7-1.6 5.3-1.6 8-.4v13c-2.7-1.2-5.3-1.2-8 .4-2.7-1.6-5.3-1.6-8-.4z" /><path d="M4 5.5c2.7-1.2 5.3-1.2 8 .4 2.7-1.6 5.3-1.6 8-.4v13c-2.7-1.2-5.3-1.2-8 .4-2.7-1.6-5.3-1.6-8-.4z" /><path d="M12 6v12.5" /></svg>;

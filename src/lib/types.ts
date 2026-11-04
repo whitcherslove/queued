@@ -1,4 +1,4 @@
-export type Section = 'movies' | 'tv' | 'console' | 'pc' | 'retro';
+export type Section = 'movies' | 'tv' | 'console' | 'pc' | 'retro' | 'books';
 export type Status = 'backlog' | 'playing' | 'done' | 'dropped';
 
 export interface Title {

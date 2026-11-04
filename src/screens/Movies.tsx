@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Section, LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { localDay, needsRefresh, topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
-import { ensureGame, gameIdBySlug, gameImages, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
+import { bookRefFromLink, ensureBook, searchBooks, ensureGame, gameIdBySlug, gameImages, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
 import { epLabel, epRuntime, isEnded, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, showState, todayIso, type ShowState } from '../lib/tv';
@@ -18,6 +18,9 @@ import { DROPPED_COLOR, TIERS } from '../lib/scores';
 import { movieState } from '../lib/movie';
 import GameAddSheet, { type GameAddMode } from '../components/GameAddSheet';
 import PlatformIcon from '../components/PlatformIcon';
+import FormatIcon from '../components/FormatIcon';
+import BookAddSheet from '../components/BookAddSheet';
+import { readHours } from '../lib/formats';
 import { DEFAULT_RETRO, keyOfIgdb, platformLabel, sectionOf, type GameSection, type IgdbPlatform } from '../lib/platforms';
 
 type GameItem = LibItem & { platform?: string | null; coop?: boolean };
@@ -28,6 +31,15 @@ const CoopIcon = () => <span className="coop-icon" role="img" aria-label="Co-op"
 const gameMeta = (it: LibItem) => {
   const ttb = ((it.overrides as { ttb_main?: number } | null)?.ttb_main) ?? ((it.title.data as { ttb?: { main?: number | null } } | null)?.ttb?.main ?? null);
   return [releaseText(it.title.release_date, it.title.year), ttb ? (ttb >= 10 ? Math.round(ttb) : ttb) + ' h' : ''].filter(Boolean).join(' · ');
+};
+
+type BookItem = LibItem & { format?: string | null; progress?: number | null };
+/** books, second line in lists: author · year · reading time */
+const bookMeta = (it: LibItem) => {
+  const d = it.title.data as { pages?: number | null; audio_min?: number | null } | null;
+  const mine = (it.overrides as { ttb_main?: number } | null)?.ttb_main;
+  const h = mine ?? readHours(d?.pages, d?.audio_min, (it as BookItem).format);
+  return [it.title.directors?.[0], it.title.year ? String(it.title.year) : '', h ? (h >= 10 ? Math.round(h) : h) + ' h' : ''].filter(Boolean).join(' · ');
 };
 
 type Row = { it: LibItem; p: ReturnType<typeof progress>; state: ShowState; seasons: number[]; when: string | null; last: string | null };
@@ -46,7 +58,7 @@ const readCollapsed = (): Record<string, boolean> => { try { return JSON.parse(l
  */
 const listCache = new Map<string, { items: LibItem[]; logs: LogRow[]; eps: SeasonEps[]; marks: Mark[]; tab: Tab }>();
 
-interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void; kind?: 'movie' | 'tv' | 'game'; gameSection?: GameSection; onBack?: () => void }
+interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu: () => void; kind?: 'movie' | 'tv' | 'game' | 'book'; gameSection?: GameSection; onBack?: () => void }
 type Tab = 'watched' | 'playing' | 'backlog';
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
@@ -58,11 +70,13 @@ const EyePlus = ({ size = 15 }: { size?: number }) => (
 export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'movie', gameSection = 'console' }: Props) {
   const isTv = kind === 'tv';
   const isGame = kind === 'game';
+  const isBook = kind === 'book';
+  const isPlay = isGame || isBook;   // games and books: Finished · Playing/Reading · Backlog, progress, a format/platform
   // replay mark: the eye for movies and shows, a gamepad in a circular arrow for games
   const RewIcon = ({ size = 15 }: { size?: number }) => (isGame ? <span className="rew-mini" role="img" aria-label="Replay"><ReplayIcon size={size} /></span> : <EyePlus size={size} />);
   // games: one list per section (Console / PC / Retro); finished playthroughs show in the section of the platform you played on
-  const section: Section = isGame ? gameSection : isTv ? 'tv' : 'movies';
-  const noun = isTv ? 'show' : isGame ? 'game' : 'movie';
+  const section: Section = isGame ? gameSection : isBook ? 'books' : isTv ? 'tv' : 'movies';
+  const noun = isTv ? 'show' : isGame ? 'game' : isBook ? 'book' : 'movie';
   const retro = settings.retroPlatforms ?? DEFAULT_RETRO;
   const cached = listCache.get(section);
   const [tab, setTab] = useState<Tab>(cached?.tab ?? 'watched');
@@ -71,6 +85,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   const [scopeAdd, setScopeAdd] = useState<Title | null>(null);
   const [addChoice, setAddChoice] = useState<Title | null>(null);
   const [gameAdd, setGameAdd] = useState<Title | null>(null);
+  const [bookAdd, setBookAdd] = useState<{ t: Title; shown: string } | null>(null);
   const [allGames, setAllGames] = useState<LibItem[]>([]);
   const [cardPast, setCardPast] = useState(false);
   const warmed = useRef(false);
@@ -134,10 +149,10 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     const KEY = 'queued.refreshedAt.' + section;
     let last = 0; try { last = Number(localStorage.getItem(KEY) || 0); } catch { /* private mode */ }
     if (Date.now() - last < 20 * 3600e3) return;
-    const due = items.filter((i) => needsRefresh(i.title as { release_date?: string | null; fetched_at?: string | null }) && (isGame || i.title.source === 'tmdb'))
+    const due = items.filter((i) => needsRefresh(i.title as { release_date?: string | null; fetched_at?: string | null }) && (isPlay || i.title.source === 'tmdb'))
       .sort((a, b) => (b.title.release_date ?? '9999').localeCompare(a.title.release_date ?? '9999')).slice(0, 15);
     (async () => {
-      for (const i of due) await (isGame ? ensureGame(i.title.source_id) : ensureTitle('movie', i.title.source_id)).catch(() => undefined);
+      for (const i of due) await (isGame ? ensureGame(i.title.source_id) : isBook ? ensureBook(({ hardcover: 'hc', openlibrary: 'ol', google: 'gb' } as Record<string, string>)[i.title.source] + ':' + i.title.source_id) : ensureTitle('movie', i.title.source_id)).catch(() => undefined);
       try { localStorage.setItem(KEY, String(Date.now())); } catch { /* ignore */ }
       if (due.length) refresh();
     })();
@@ -175,7 +190,12 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     if (s.length < 1) { setHits([]); setSearching(false); return; }
     const my = ++seq.current; setSearching(true);
     const t = setTimeout(async () => {
-      try { const r = isGame ? await searchGames(s) : await searchTitles(s, kind as 'movie' | 'tv'); if (my === seq.current) setHits(r); }
+      try {
+        const r = isGame ? await searchGames(s)
+          : isBook ? (await searchBooks(s)).map((b) => ({ sourceId: b.ref, title: b.displayTitle ?? b.title, year: b.year, releaseDate: null, posterUrl: b.cover, platforms: b.authors.slice(0, 2), type: undefined, parent: b.series }))
+          : await searchTitles(s, kind as 'movie' | 'tv');
+        if (my === seq.current) setHits(r);
+      }
       catch { if (my === seq.current) setHits([]); }
       if (my === seq.current) setSearching(false);
     }, 350);
@@ -237,7 +257,9 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
       refresh();
     }).catch(() => undefined);
   };
-  const imdbInQuery = isGame ? null : (q.match(/tt\d{6,10}/) ?? [null])[0];
+  const imdbInQuery = isPlay ? null : (q.match(/tt\d{6,10}/) ?? [null])[0];
+  // books: a link to Hardcover / Open Library / Google Books adds exactly that book
+  const bookLinkInQuery = isBook && /(hardcover\.app\/books\/|openlibrary\.org\/works\/|books\.google\.)/i.test(q) ? q.trim() : null;
   // games: an IGDB page link (igdb.com/games/portal-revolution) adds that exact game
   const igdbSlugInQuery = isGame ? (q.match(/igdb\.com\/games\/([a-z0-9-]+)/i)?.[1] ?? null) : null;
   const addByIgdb = async () => {
@@ -262,6 +284,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     setAdding(h.sourceId);
     try {
       if (isGame) { const t = await ensureGame(h.sourceId, false, true); if (items.some((i) => i.title_id === t.id)) setQ(''); else setGameAdd(t); }
+      else if (isBook) { const t = await ensureBook(h.sourceId); if (!items.some((i) => i.title_id === t.id)) setBookAdd({ t, shown: h.title }); }
       else { const t = await ensureTitle(kind as 'movie' | 'tv', h.sourceId); await offerAdd(t); }
     }
     catch { setError('Couldn’t add “' + h.title + '”. Try again in a moment.'); }
@@ -305,7 +328,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         <Poster t={it.title} w={56} h={84}></Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
-          <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? <><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}</> : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <RewIcon />}</span>
+          <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? <><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}</> : isBook ? <><FormatIcon f={(it as BookItem).format} /><span className="dot-sep">·</span>{bookMeta(it)}</> : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <RewIcon />}</span>
           <span className="row-meta"><Metascore v={it.title.metascore} size="sm" game={isGame} /></span>
         </span>
       </button>
@@ -394,12 +417,12 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={lScore} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
           <span className="row-text">
             <span className="row-title">{t.title}</span>
-            <span className="row-meta">{isGame ? <><PlatformIcon k={(l as GameLog).platform ?? (l.library as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(l.library)}</> : isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{isGame && (l as GameLog).coop && <CoopIcon />}{settings.listMetascore && <Metascore v={t.metascore} size="sm" game={isGame} />}</span>
+            <span className="row-meta">{isGame ? <><PlatformIcon k={(l as GameLog).platform ?? (l.library as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(l.library)}</> : isBook ? <><FormatIcon f={(l as GameLog & { format?: string | null }).format ?? (l.library as BookItem).format} /><span className="dot-sep">·</span>{bookMeta(l.library)}</> : isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{isGame && (l as GameLog).coop && <CoopIcon />}{settings.listMetascore && <Metascore v={t.metascore} size="sm" game={isGame} />}</span>
             {l.dropped ? <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped{tr ? ' · ' + tr.label : ''}</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : isTv && <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
           </span>
         </button>
         {edit ? grip('w', l.id, t.title) : (
-          <span className="date-col"><span className="date-cap">{isTv || isGame ? 'Finished on' : 'Watched on'}</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}{l.rewatch && <RewIcon size={13} />}</span></span>
+          <span className="date-col"><span className="date-cap">{isTv || isPlay ? 'Finished on' : 'Watched on'}</span><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}{l.rewatch && <RewIcon size={13} />}</span></span>
         )}
       </div>
     );
@@ -419,8 +442,8 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   ); };
 
   const searchingMode = q.trim().length >= 1;
-  const TABS: Tab[] = isTv || isGame ? ['watched', 'playing', 'backlog'] : ['watched', 'backlog'];
-  const gamePlaying = useMemo(() => (isGame ? items.filter((i) => i.status === 'playing').sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')) : []), [items, isGame]);
+  const TABS: Tab[] = isTv || isPlay ? ['watched', 'playing', 'backlog'] : ['watched', 'backlog'];
+  const gamePlaying = useMemo(() => (isPlay ? items.filter((i) => i.status === 'playing').sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')) : []), [items, isPlay]);
   const tabIndex = TABS.indexOf(tab);
   // Swipe between tabs. While the finger moves we write transforms straight to the DOM (no React re-render) so it stays smooth.
   const [anim, setAnim] = useState<'' | 'enter-right' | 'enter-left'>('');
@@ -506,8 +529,8 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
             ? <button className="icon-btn" aria-label="Back" onClick={onBack}><IconBack /></button>
             : <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>}
           <div className="title-block">
-            <h1 className="section-title">{isGame ? { console: 'Console games', pc: 'PC games', retro: 'Retro games' }[gameSection] : isTv ? 'TV Shows' : 'Movies'}</h1>
-            <span className="muted small">{isGame ? `${watched.length} finished · ${gamePlaying.length} playing · ${next.length + rest.length} in backlog` : isTv ? `${watched.length} logged · ${playingCount} watching · ${next.length + rest.length} in backlog` : `${watched.length} watched · ${next.length + rest.length} in backlog`}</span>
+            <h1 className="section-title">{isGame ? { console: 'Console games', pc: 'PC games', retro: 'Retro games' }[gameSection] : isBook ? 'Books' : isTv ? 'TV Shows' : 'Movies'}</h1>
+            <span className="muted small">{isBook ? `${watched.length} read · ${gamePlaying.length} reading · ${next.length + rest.length} in backlog` : isGame ? `${watched.length} finished · ${gamePlaying.length} playing · ${next.length + rest.length} in backlog` : isTv ? `${watched.length} logged · ${playingCount} watching · ${next.length + rest.length} in backlog` : `${watched.length} watched · ${next.length + rest.length} in backlog`}</span>
           </div>
           <button className="icon-btn boxed" aria-label={view === 'list' ? 'Show as grid' : 'Show as list'} onClick={() => onSettings({ ...settings, view: view === 'list' ? 'grid' : 'list' })}>
             {view === 'list'
@@ -529,7 +552,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
             <span className="seg-pill" ref={pillRef} aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: pillAt(tabIndex) }} />
             {TABS.map((tb, i) => (
               <button key={tb} role="tab" aria-selected={tab === tb} onClick={() => tab !== tb && goTab(i, i > tabIndex ? 'from-right' : 'from-left')}>
-                {tb === 'watched' ? (isGame ? 'Finished' : 'Watched') : tb === 'playing' ? (isGame ? 'Playing' : 'Watching') : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? (isGame ? gamePlaying.length : playingCount) : next.length + rest.length}</span>
+                {tb === 'watched' ? (isBook ? 'Read' : isGame ? 'Finished' : 'Watched') : tb === 'playing' ? (isBook ? 'Reading' : isGame ? 'Playing' : 'Watching') : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? (isPlay ? gamePlaying.length : playingCount) : next.length + rest.length}</span>
               </button>
             ))}
           </div>
@@ -567,7 +590,18 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                 <button className="add-btn" aria-label={'Add ' + igdbSlugInQuery} disabled={adding === igdbSlugInQuery} onClick={addByIgdb}>{adding === igdbSlugInQuery ? '…' : '+'}</button>
               </div>
             )}
-            {!searching && !imdbInQuery && !igdbSlugInQuery && fresh.length === 0 && <p className="muted small">Nothing new found for “{q.trim()}”. {isGame ? 'Try another spelling, or paste its IGDB link (igdb.com/games/…).' : 'Can’t find it? Paste its IMDb link here.'}</p>}
+            {bookLinkInQuery && (
+              <div className="hit">
+                <span className="row-text"><span className="row-title">Add from link</span><span className="row-meta ellipsis">{bookLinkInQuery}</span></span>
+                <button className="add-btn" aria-label="Add this book" disabled={adding === 'link'} onClick={async () => {
+                  setAdding('link');
+                  try { const ref = await bookRefFromLink(bookLinkInQuery); if (!ref) { setError('Couldn’t read that link.'); return; } const t = await ensureBook(ref); setBookAdd({ t, shown: t.title }); }
+                  catch { setError('Couldn’t add it. Try again in a moment.'); } finally { setAdding(null); }
+                }}>{adding === 'link' ? '…' : '+'}</button>
+              </div>
+            )}
+            {!searching && !imdbInQuery && !igdbSlugInQuery && !bookLinkInQuery && fresh.length === 0 && isBook && <p className="muted small">Nothing new found for “{q.trim()}”. Try the author’s name, or paste a link from Hardcover, Open Library or Google Books.</p>}
+            {!searching && !imdbInQuery && !igdbSlugInQuery && !isBook && fresh.length === 0 && <p className="muted small">Nothing new found for “{q.trim()}”. {isGame ? 'Try another spelling, or paste its IGDB link (igdb.com/games/…).' : 'Can’t find it? Paste its IMDb link here.'}</p>}
             {fresh.map((h) => (
               <div className="hit" key={h.sourceId}>
                 <Poster t={{ poster_url: h.posterUrl, title: h.title }} w={46} h={68} />
@@ -578,9 +612,9 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
               </div>
             ))}
           </div>
-        ) : tab === 'playing' && isGame ? (
+        ) : tab === 'playing' && isPlay ? (
           <div className="stack">
-            {gamePlaying.length === 0 && <div className="empty small-pad">Start a game from your Backlog — it shows up here.</div>}
+            {gamePlaying.length === 0 && <div className="empty small-pad">{isBook ? 'Start a book from your Backlog — it shows up here.' : 'Start a game from your Backlog — it shows up here.'}</div>}
             {view === 'list' ? gamePlaying.map((it) => {
               const d = it.started_on ? dateParts(it.started_on) : null;
               return (
@@ -589,7 +623,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                     <Poster t={it.title} w={56} h={84} />
                     <span className="row-text">
                       <span className="row-title">{it.title.title}</span>
-                      <span className="row-meta"><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <RewIcon />}</span>
+                      <span className="row-meta">{isBook ? <><FormatIcon f={(it as BookItem).format} /><span className="dot-sep">·</span>{bookMeta(it)}</> : <><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}</>}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <RewIcon />}</span>
                       <span className="row-meta"><span className="mini-bar w72"><span style={{ width: ((it as GameItem & { progress?: number | null }).progress ?? 0) + '%' }} /></span><strong className="tiny">{(it as GameItem & { progress?: number | null }).progress ?? 0}%</strong></span>
                     </span>
                   </button>
@@ -659,7 +693,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
               </div>
               {menuConfirm ? (
                 <div className="stack">
-                  <span className="small">{menuConfirm === 'remove' ? 'Remove “' + t.title + '” and all its ' + (isGame ? 'playthroughs' : 'viewings') + '?' : (isGame ? 'Delete this playthrough?' : 'Delete this viewing?')}</span>
+                  <span className="small">{menuConfirm === 'remove' ? 'Remove “' + t.title + '” and all its ' + (isGame ? 'playthroughs' : isBook ? 'readings' : 'viewings') + '?' : (isGame ? 'Delete this playthrough?' : isBook ? 'Delete this reading?' : 'Delete this viewing?')}</span>
                   <div className="row nowrap"><button className="btn grow" onClick={() => setMenuConfirm(null)}>Cancel</button>
                     <button className="btn danger-fill grow" onClick={menuConfirm === 'remove'
                       ? run(async () => { await removeFromLibrary(item.id); })
@@ -668,11 +702,11 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
               ) : (
                 <div className="action-list">
                   <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Open</button>
-                  {isBack && !isTv && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>{isGame ? 'Start playing…' : 'Mark as watched…'}</button>}
+                  {isBack && !isTv && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>{isGame ? 'Start playing…' : isBook ? 'Start reading…' : 'Mark as watched…'}</button>}
                   {isBack && <button role="menuitem" onClick={run(async () => { await setUpNext(item.id, !item.up_next, topPosition(items)); })}>{item.up_next ? 'Remove from Up next' : 'Add to Up next'}</button>}
-                  {isGame && item.status === 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Finished…</button>}
+                  {isPlay && item.status === 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(false); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Finished…</button>}
                   {!isBack && item.status !== 'playing' && <button role="menuitem" onClick={() => { close(); setCardTake(true); setCardPast(false); setCardSeq(currentSeq()); setCardEnter(null); setCardId(item.id); }}>Change rating…</button>}
-                  {!isBack && !isTv && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>{isGame ? 'Replay → Backlog' : 'Log a rewatch → Backlog'}</button>}
+                  {!isBack && !isTv && <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, score: null, position: topPosition(items) }); })}>{isGame ? 'Replay → Backlog' : isBook ? 'Reread → Backlog' : 'Log a rewatch → Backlog'}</button>}
                   {isTv && (() => {
                     const mine = logs.filter((l) => l.library.id === item.id);
                     const st = showState(item, item.title, mine, item.status === 'playing' ? progress(item, item.title, tvEps.filter((e) => e.title_id === item.title_id), tvMarks.filter((m) => m.library_id === item.id), today) : null, today);
@@ -685,7 +719,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                     </>;
                   })()}
                   {isBack && <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>}
-                  {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>{isGame ? 'Delete this playthrough' : 'Delete this viewing'}</button>}
+                  {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>{isGame ? 'Delete this playthrough' : isBook ? 'Delete this reading' : 'Delete this viewing'}</button>}
                   <button role="menuitem" className="danger" onClick={() => setMenuConfirm('remove')}>Remove from my lists</button>
                 </div>
               )}
@@ -710,6 +744,16 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           </div>
         </div>
       )}
+      {bookAdd && <BookAddSheet t={bookAdd.t} shown={bookAdd.shown} today={today} onCancel={() => setBookAdd(null)} onDone={async ({ format, mode }) => {
+        const { t, shown } = bookAdd; setBookAdd(null);
+        try {
+          // the title you searched in (e.g. Russian) wins over the source's (English) one
+          const extra = shown && shown !== t.title ? { overrides: { title: shown } } : {};
+          const id = await addToBacklog(t.id, 'books', topPosition(items), { format, ...extra, ...(mode === 'playing' ? { status: 'playing', started_on: today, run_started_at: new Date().toISOString(), progress: 0 } : {}) } as never);
+          await refresh();
+          if (mode === 'past') { setCardSeq([id]); setCardTake(false); setCardEnter(null); setCardPast(true); setCardId(id); }
+        } catch { setError('Couldn’t add “' + t.title + '”.'); }
+      }} />}
       {gameAdd && <GameAddSheet t={gameAdd} retro={retro} today={today} prefer={gameSection} onCancel={() => setGameAdd(null)} onDone={async ({ platform, coop, mode }) => {
         const t = gameAdd; setGameAdd(null);
         const dest = sectionOf(platform, retro);
@@ -730,7 +774,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
         onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null}
         onClose={() => { setCardId(null); setCardTake(false); setCardPast(false); }} onChanged={refresh} />}
-      {cardId && !isTv && <MovieCard key={cardId} game={isGame} openPast={cardPast} itemId={cardId} openTake={cardTake} enterFrom={cardEnter}
+      {cardId && !isTv && <MovieCard key={cardId} game={isGame} book={isBook} openPast={cardPast} itemId={cardId} openTake={cardTake} enterFrom={cardEnter}
         onPrev={cardSeq.indexOf(cardId) > 0 ? () => { setCardEnter('left'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) - 1]); } : null}
         onNext={cardSeq.indexOf(cardId) >= 0 && cardSeq.indexOf(cardId) < cardSeq.length - 1 ? () => { setCardEnter('right'); setCardTake(false); setCardPast(false); setCardId(cardSeq[cardSeq.indexOf(cardId) + 1]); } : null} initial={items.find((i) => i.id === cardId) ?? logs.find((l) => l.library.id === cardId)?.library ?? null}
         initialLogs={logs.filter((l) => l.library.id === cardId).map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch })).sort((a, b) => b.watched_at.localeCompare(a.watched_at))}

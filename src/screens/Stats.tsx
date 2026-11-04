@@ -40,6 +40,8 @@ export default function Stats({ onBack }: { onBack: () => void }) {
   const movies = pl.filter((l) => l.library.section === 'movies' && !l.dropped);
   const tvLogs = pl.filter((l) => l.library.section === 'tv' && !l.dropped);
   const games = pl.filter((l) => GAMES.includes(l.library.section) && !l.dropped);
+  const books = pl.filter((l) => l.library.section === 'books' && !l.dropped);
+  const pages = books.reduce((n, l) => n + ((l.library.title.data as { pages?: number | null } | null)?.pages ?? 0), 0);
   const seasons = tvLogs.reduce((n, l) => n + Math.max(1, logSeasons(l)?.length ?? 0), 0);
   const episodes = period === 'all' ? null : marks.filter(inP).length;   // episode dates are loaded for ~the last year
   const hours = games.reduce((h, l) => {
@@ -95,6 +97,7 @@ export default function Stats({ onBack }: { onBack: () => void }) {
             <div className="stat"><span className="muted small">Movies</span><b>{movies.length}</b><span className="muted tiny">{period !== 'month' ? '+' + thisMonth((l) => l.library.section === 'movies') + ' this month' : 'watched'}</span></div>
             <div className="stat"><span className="muted small">{episodes === null ? 'Seasons' : 'Episodes'}</span><b>{episodes ?? seasons}</b><span className="muted tiny">{episodes === null ? 'finished' : seasons + (seasons === 1 ? ' season' : ' seasons')}</span></div>
             <div className="stat"><span className="muted small">Games</span><b>{games.length}</b><span className="muted tiny">{hours ? '~' + Math.round(hours) + ' h' : 'finished'}</span></div>
+            {(books.length > 0 || items.some((i) => i.section === 'books')) && <div className="stat"><span className="muted small">Books</span><b>{books.length}</b><span className="muted tiny">{pages ? pages.toLocaleString('en-GB') + ' pages' : 'read'}</span></div>}
           </div>
 
           <section className="card stack-sm">

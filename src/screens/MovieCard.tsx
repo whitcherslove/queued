@@ -5,7 +5,7 @@ import { DROPPED_COLOR, PICK_TIERS, TIERS, displayScore, imdbColor, metascoreCol
 import { needsRefresh, diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import { shortCountries } from '../lib/logic';
 import {
-  type Owned, estimateProgress, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
+  type Owned, ensureBook, findOwnedBooks, estimateProgress, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import DateField from '../components/DateField';
@@ -16,17 +16,24 @@ import { platformChoices, platformLabel, sectionOf, type IgdbPlatform } from '..
 import { PlatformSheet } from '../components/GameAddSheet';
 import ProgressRing from '../components/ProgressRing';
 import PlatformIcon from '../components/PlatformIcon';
+import FormatIcon from '../components/FormatIcon';
+import { FORMATS, formatLabel, positionText, readHours } from '../lib/formats';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import { ChevBtn, IconBack, MoreBtn, ReplayIcon } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
 import { usePress } from '../lib/press';
 
-interface Props { game?: boolean; openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, Owned>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string, past?: boolean) => void; backlogCount: number }
+interface Props { game?: boolean; book?: boolean; openPast?: boolean; itemId: string; onPrev?: (() => void) | null; onNext?: (() => void) | null; enterFrom?: 'left' | 'right' | null; openTake?: boolean; initial?: LibItem | null; initialLogs?: ItemLog[] | null; initialOwned?: Record<string, Owned>; settings: Settings; onClose: () => void; onChanged: () => void; onOpenOther: (id: string, past?: boolean) => void; backlogCount: number }
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const EXT = <svg aria-hidden="true" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M14 4h6v6" /><path d="M20 4l-9 9" /></svg>;
+/** reread (books): a plain circular arrow */
+const REREAD = <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 1 1-2.9-6.6" /><path d="M21 3.5v5h-5" /></svg>;
+/** a book's reference for the books function: 'hc:123' / 'ol:OL1W' / 'gb:abc' */
+export const bookRef = (t: { source: string; source_id: string }) => ({ hardcover: 'hc', openlibrary: 'ol', google: 'gb' } as Record<string, string>)[t.source] + ':' + t.source_id;
 const EYE_PLUS_SVG = <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 18c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /><path d="M16 19h6" /><path d="M19 16v6" /></svg>;
 const CHIPS = ['Similar movies', 'Fun facts', 'Post-credits scene?', 'Explain the ending'];
+const BOOK_CHIPS = ['Similar books', 'Is it worth finishing?', 'Recap so far (no spoilers)', 'About the author'];
 const GAME_CHIPS = ['Similar games', 'Is it worth 100%?', 'Tips for a first run', 'How long is it really?'];
 
 export const tierOfId = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
@@ -35,7 +42,7 @@ export const EXT_ICON = EXT;
 
 const PIN = <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4.5l4.5 4.5-3 1.5-3.5 3.5.5 4-1.5 1.5-3.5-3.5L4 20M8.5 11.5L12.5 15.5M15 4.5L12 7.5 8.5 7 7 8.5l3.5 3.5" /></svg>;
 
-export default function MovieCard({ game, openPast, itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
+export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
   const [full, setFull] = useState(!!initial?.title?.data);
@@ -56,7 +63,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   // an imported game only has IGDB data — the first time you open it, fetch HLTB / Metacritic / RAWG in the background
   // fresh data on open when it's due (games: also right after a fast add) — in the background, the card doesn't wait
   const needsEnrich = !!item && (!!(game && (item.title.data as { needs_enrich?: boolean } | null)?.needs_enrich) || needsRefresh(item.title as { release_date?: string | null; fetched_at?: string | null }));
-  useEffect(() => { if (!needsEnrich || !item) return; (game ? ensureGame(item.title.source_id, !!(item.title.data as { needs_enrich?: boolean } | null)?.needs_enrich) : item.title.source === 'tmdb' ? ensureTitle('movie', item.title.source_id) : Promise.resolve(null)).then(() => reload()).catch(() => undefined); }, [needsEnrich]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!needsEnrich || !item) return; (game ? ensureGame(item.title.source_id, !!(item.title.data as { needs_enrich?: boolean } | null)?.needs_enrich) : book ? ensureBook(bookRef(item.title)) : item.title.source === 'tmdb' ? ensureTitle('movie', item.title.source_id) : Promise.resolve(null)).then(() => reload()).catch(() => undefined); }, [needsEnrich]); // eslint-disable-line react-hooks/exhaustive-deps
   const [platAsk, setPlatAsk] = useState<'' | 'start' | 'replay'>('');
   const [platPick, setPlatPick] = useState<string | null>(null);   // log id, or 'item'
   const [progAsk, setProgAsk] = useState(false);
@@ -66,12 +73,12 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const [dlcEdit, setDlcEdit] = useState(false);
   const [showHidden, setShowHidden] = useState(false);
   // which DLCs / main game you already have (games only), once the full game data is here
-  const dlcKey = game && item?.title?.data ? JSON.stringify([[...((item.title.data as { dlcs?: { id: string }[] }).dlcs ?? []), ...((item.title.data as { franchise_games?: { id: string }[] }).franchise_games ?? [])].map((d) => d.id), (item.title.data as { parent?: { id: string } | null }).parent?.id ?? null]) : '';
+  const dlcKey = book && item?.title?.data ? JSON.stringify([((item.title.data as { series_books?: { id: string }[] }).series_books ?? []).map((d) => d.id), null]) : game && item?.title?.data ? JSON.stringify([[...((item.title.data as { dlcs?: { id: string }[] }).dlcs ?? []), ...((item.title.data as { franchise_games?: { id: string }[] }).franchise_games ?? [])].map((d) => d.id), (item.title.data as { parent?: { id: string } | null }).parent?.id ?? null]) : '';
   useEffect(() => {
     if (!dlcKey) return;
     const [ids, parent] = JSON.parse(dlcKey) as [string[], string | null];
     const all = parent ? [...ids, parent] : ids;
-    if (all.length) findOwnedGames(all).then(setOwnedGames).catch(() => undefined);
+    if (all.length) (book ? findOwnedBooks(all) : findOwnedGames(all)).then(setOwnedGames).catch(() => undefined);
   }, [dlcKey]);
   const [aiOpen, setAiOpen] = useState(false);
   const [ovOpen, setOvOpen] = useState(false);
@@ -137,7 +144,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
     const parts = ((it.title.data as any)?.collection?.parts ?? []) as CollectionPart[];
     setOwned(await findOwnedBySource(parts.map((p) => p.sourceId), 'movies'));
   }, [itemId]);
-  useEffect(() => { reload().catch(() => setError(game ? 'Couldn’t load this game.' : 'Couldn’t load this movie.')); }, [reload]);
+  useEffect(() => { reload().catch(() => setError(game ? 'Couldn’t load this game.' : book ? 'Couldn’t load this book.' : 'Couldn’t load this movie.')); }, [reload]);
 
   const t = useMemo(() => (item ? merged(item.title, item.overrides) : null), [item]);
   const last = latestLog(logs);
@@ -171,13 +178,25 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const planRewatch = async () => { await updateItem(item.id, { status: 'backlog', rewatch: true, position: backlogCount }); };
   const cancelRewatch = async () => { await updateItem(item.id, { status: 'done', rewatch: false, up_next: false }); };
   const logRewatch = guard(async () => { if (planned && logs.length) await cancelRewatch(); else if (game) setPlatAsk('replay'); else await planRewatch(); });
-  const EYE_PLUS = game ? <ReplayIcon size={18} /> : EYE_PLUS_SVG;
+  const EYE_PLUS = game ? <ReplayIcon size={18} /> : book ? REREAD : EYE_PLUS_SVG;
   // games use the same card with their own words: Finished / Playing / Replay / Playthroughs / Played before
-  const W = game
+  const W = book
+    ? { done: 'Read', doneOn: 'Finished on', rewatch: 'Reread', viewings: 'Readings', before: 'Read before', viewing: 'reading', notYet: 'Not read yet', just: 'Just finished · rate it', list: 'Read' }
+    : game
     ? { done: 'Finished', doneOn: 'Finished on', rewatch: 'Replay', viewings: 'Playthroughs', before: 'Played before', viewing: 'playthrough', notYet: 'Not played yet', just: 'Just finished · rate it', list: 'Finished' }
     : { done: 'Watched', doneOn: 'Watched on', rewatch: 'Rewatch', viewings: 'Viewings', before: 'Watched before', viewing: 'viewing', notYet: 'Not watched yet', just: 'Just watched · rate it', list: 'Watched' };
   const gItem = item as typeof item & { platform?: string | null; coop?: boolean; progress?: number | null };
-  const isPlaying = game && item.status === 'playing';
+  const isPlaying = (game || book) && item.status === 'playing';
+  // books: progress in pages (or minutes for audio) when we know the length
+  const bData = (book ? t.data : null) as { pages?: number | null; audio_min?: number | null; series?: { name: string } | null; series_books?: { ref: string; id: string; name: string; position: number | null; year: number | null }[]; rating?: number | null; ratings?: number | null; url?: string | null } | null;
+  const bItem = item as typeof item & { format?: string | null; position_at?: number | null };
+  const unitMax = book ? (bItem.format === 'audio' ? bData?.audio_min ?? null : bData?.pages ?? null) : null;
+  const unitPos = unitMax ? (bItem.position_at ?? Math.round(((gItem.progress ?? 0) * unitMax) / 100)) : null;
+  const setUnit = (v: number, save: boolean) => {
+    const pos = Math.max(0, Math.min(unitMax ?? 0, v)); const pct = unitMax ? Math.round((pos / unitMax) * 100) : 0;
+    setItem({ ...item, position_at: pos, progress: pct } as never);
+    if (save) updateItem(item.id, { position_at: pos, progress: pct } as never).then(onChanged).catch(() => undefined);
+  };
   // the platform you play / played on (latest playthrough unless it's in Backlog or Playing)
   const heroPlat: string | null = game ? ((item.status === 'backlog' || item.status === 'playing' ? gItem.platform : (last as (typeof last) & { platform?: string | null } | null)?.platform ?? gItem.platform) ?? null) : null;
   const mState = isPlaying ? ('playing' as const) : movieState(item, t, planned ? null : last);
@@ -211,14 +230,34 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
     return <ListRow icon={Ico.coop} label="Co-op" onClick={guard(async () => { if (lp) await updateLog(lp.id, { coop: !coopOn } as never); else await updateItem(item.id, { coop: !coopOn } as never); })}><span className={'switch' + (coopOn ? ' on-green' : '')}><span /></span></ListRow>;
   };
   const sectionOfKey = (k: string) => sectionOf(k, settings.retroPlatforms ?? undefined);
+  /** books: the format of the latest reading (or of the book you haven't read yet) */
+  const formatRow = (l: (typeof logs)[number] | null) => {
+    const lf = l as (typeof logs)[number] & { format?: string | null } | null;
+    const cur = (lf ? lf.format : null) ?? bItem.format ?? 'paper';
+    return (
+      <ListRow icon={<FormatIcon f={cur} size={18} />} label="Format">
+        <span className="fmt-seg" role="radiogroup" aria-label="Format">
+          {FORMATS.map((f) => <button key={f.key} role="radio" aria-checked={cur === f.key} className={cur === f.key ? 'on' : ''}
+            onClick={() => guard(async () => { if (lf) await updateLog(lf.id, { format: f.key } as never); else await updateItem(item.id, { format: f.key, position_at: null } as never); })()}>{f.label}</button>)}
+        </span>
+      </ListRow>
+    );
+  };
   // DLC & expansions of a game (or the main game of a DLC) — owned ones open, the rest can be added with the same platform
   const gameDlcs = (game ? ((t.data as { dlcs?: { id: string; name: string; kind: string; cover: string | null; release_date: string | null }[] } | null)?.dlcs ?? []) : []);
   const franHidden: string[] = ((item.overrides as { franchise_hidden?: string[] } | null)?.franchise_hidden ?? []);
   const setFranHidden = (list: string[]) => { const ov = { ...(item.overrides ?? {}), franchise_hidden: list }; setItem({ ...item, overrides: ov } as never); updateItem(item.id, { overrides: ov } as never).catch(() => setError('Couldn’t save. Try again.')); };
-  const franchiseGames = (game ? ((t.data as { franchise_games?: { id: string; name: string; kind: string; release_date: string | null }[] } | null)?.franchise_games ?? []) : []);
+  const franchiseGames = book
+    ? (bData?.series_books ?? []).map((b) => ({ id: b.id, name: (b.position ? '#' + b.position + ' ' : '') + b.name, kind: 'game', release_date: b.year ? b.year + '-01-01' : null }))
+    : (game ? ((t.data as { franchise_games?: { id: string; name: string; kind: string; release_date: string | null }[] } | null)?.franchise_games ?? []) : []);
   const gameParent = game ? ((t.data as { parent?: { id: string; name: string } | null } | null)?.parent ?? null) : null;
   const addDlc = async (igdbId: string) => {
     setAddingDlc(igdbId);
+    if (book) {
+      try { const bt = await ensureBook('hc:' + igdbId); const newId = await addToBacklog(bt.id, 'books' as never, backlogCount, { format: bItem.format ?? 'paper' } as never); setOwnedGames((o) => ({ ...o, [igdbId]: { id: newId, status: 'backlog', up_next: false } })); onChanged(); }
+      catch { setError('Couldn’t add it. Try again in a moment.'); }
+      setAddingDlc(null); return;
+    }
     try {
       const dt = await ensureGame(igdbId);
       const plat = gItem.platform ?? null;
@@ -233,7 +272,9 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const setDlcHidden = (list: string[]) => { const ov = { ...(item.overrides ?? {}), dlc_hidden: list }; setItem({ ...item, overrides: ov } as never); updateItem(item.id, { overrides: ov } as never).catch(() => setError('Couldn’t save. Try again.')); };
   /** games: Backlog → Playing on the chosen platform */
   // the platform was picked when adding — start right away; ask only if the game has no platform yet
-  const startPlaying = () => (gItem.platform ? confirmPlatform('start', gItem.platform, !!gItem.coop) : setPlatAsk('start'));
+  const startPlaying = () => (book
+    ? guard(async () => { await updateItem(item.id, { status: 'playing', progress: 0, position_at: 0, started_on: localDay(new Date().toISOString()), run_started_at: new Date().toISOString(), up_next: false } as never); })()
+    : gItem.platform ? confirmPlatform('start', gItem.platform, !!gItem.coop) : setPlatAsk('start'));
   /** after the platform sheet: start playing now, or plan a replay in Backlog — the platform decides the section */
   const confirmPlatform = (mode: 'start' | 'replay', platform: string, coop: boolean) => guard(async () => {
     const section = sectionOf(platform, settings.retroPlatforms ?? undefined);
@@ -243,7 +284,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   /** "Watched": logs the viewing with today's date (it shows up in Watched) and opens My take to rate it */
   const watchedIt = guard(async () => {
     // a rewatch starts from what you thought last time — adjust it if your opinion changed
-    await insertLog(item.id, { watched_at: new Date().toISOString(), tier: item.rewatch ? last?.tier ?? null : null, score: item.rewatch ? last?.score ?? null : null, rewatch: !!item.rewatch, ...(game ? { platform: gItem.platform ?? null, coop: !!gItem.coop } : {}) } as never);
+    await insertLog(item.id, { watched_at: new Date().toISOString(), tier: item.rewatch ? last?.tier ?? null : null, score: item.rewatch ? last?.score ?? null : null, rewatch: !!item.rewatch, ...(game ? { platform: gItem.platform ?? null, coop: !!gItem.coop } : {}), ...(book ? { format: bItem.format ?? null } : {}) } as never);
     await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
     setJustWatched(true); setTakeOpen(true);
     window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
@@ -279,6 +320,11 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
     ['Modes', (data.modes ?? []).join(', ')], ['Franchise', data.franchise ?? ''],
     ['Story', hrs(ttb?.main)], ['Main + extras', hrs((ttb as { plus?: number | null } | null)?.plus)], ['Quick', hrs(ttb?.quick)], ['100%', hrs(ttb?.full)],
     ['Times from', ttbMine ? 'you' : (ttbRaw as { source?: string } | null)?.source === 'hltb' ? 'HowLongToBeat' : ttbRaw ? 'IGDB' : '']
+  ] : book ? [
+    [t.directors.length > 1 ? 'Authors' : 'Author', t.directors.join(', ')], ['Pages', bData?.pages ? String(bData.pages) : ''],
+    ['Audiobook', bData?.audio_min ? Math.floor(bData.audio_min / 60) + ' h ' + (bData.audio_min % 60) + ' m' : ''],
+    ['Series', bData?.series ? bData.series.name + ((bData.series as { position?: number | null }).position ? ' #' + (bData.series as { position?: number | null }).position : '') : ''],
+    ['First published', t.year ? String(t.year) : ''], ['Ratings', bData?.ratings ? String(bData.ratings) : '']
   ] : [
     ['Country', shortCountries(data.countries)], ['Language', (data.language ?? '').toUpperCase()],
     ['Budget', money(data.budget)], ['Box office', money(data.revenue)]
@@ -325,10 +371,14 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
         {ov && <Overview text={ov} />}
 
         <div className="tiles3">
-          {game && t.metascore == null && typeof data.critics === 'number'
+          {book ? (
+            <a className="tile3" href={bData?.url ?? '#'} target="_blank" rel="noopener"><span className="ttb-big">{bData?.rating ? (Math.round(bData.rating * 10) / 10).toFixed(1) + '★' : '—'}</span><span className="muted small">Rating{bData?.url ? ' ↗' : ''}</span></a>
+          ) : game && t.metascore == null && typeof data.critics === 'number'
             ? <a className="tile3" href={mcUrl} target="_blank" rel="noopener"><span className="sq" style={{ background: metascoreColor(data.critics, true) ?? 'var(--surface2)', color: '#17161A' }}>{data.critics}</span><span className="muted small">Critics ↗</span></a>
             : tile('metascore')}
-          {game
+          {book
+            ? <div className="tile3"><span className="ttb-big">{(() => { const h = ttbMine ?? readHours(bData?.pages, bData?.audio_min, bItem.format); return h ? hrs(h) : '—'; })()}</span><span className="muted small">{bItem.format === 'audio' ? 'Listening time' : 'Time to read'}</span></div>
+            : game
             ? (() => { const hid = (ttbRaw as { hltb_id?: number } | null)?.hltb_id; const inner = <><span className="ttb-big">{ttb?.main ? hrs(ttb.main) : '—'}</span><span className="muted small">Time to beat ↗</span></>;
                 return <a className="tile3" href={hid ? 'https://howlongtobeat.com/game/' + hid : 'https://howlongtobeat.com/?q=' + encodeURIComponent(t.title)} target="_blank" rel="noopener">{inner}</a>; })()
             : tile('imdb_rating')}
@@ -345,8 +395,9 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
         <section id="my-take" className={'card state-card' + (statusPress.pressed ? ' pressed' : '')} data-state={mState}>
           {(() => {
             const head = <>
-              <span className="state-pill" data-state={mState}>{game && mState === 'watched' ? 'Finished' : MOVIE_STATE_LABEL[mState]}</span>
+              <span className="state-pill" data-state={mState}>{book && mState === 'watched' ? 'Read' : book && mState === 'playing' ? 'Reading' : game && mState === 'watched' ? 'Finished' : MOVIE_STATE_LABEL[mState]}</span>
               <span className="state-title">{mState === 'dropped' ? 'Not in your lists' : mSub}</span>
+              {book && bItem.format && <span className="plat-line"><span>{inBacklog ? 'In' : isPlaying ? 'Reading in' : 'Read in'}</span><FormatIcon f={bItem.format} /><span>{formatLabel(bItem.format)}</span></span>}
               {game && (() => { const lp = (last as (typeof last) & { platform?: string | null; coop?: boolean } | null); const pl = (inBacklog || isPlaying ? gItem.platform : lp?.platform ?? gItem.platform); const co = inBacklog || isPlaying ? gItem.coop : lp?.coop;
                 return pl ? <span className="plat-line"><span>{inBacklog ? 'On' : isPlaying ? 'Playing on' : 'Played on'}</span><PlatformIcon k={pl} size={16} />{co && <span className="coop-icon" role="img" aria-label="Co-op">{Ico.coop}</span>}</span> : null; })()}
               {inBacklog && t.runtime ? <span className="small muted">{runtimeText(t.runtime)}{item.rewatch ? ' · ' + W.rewatch.toLowerCase() : ''}</span> : null}
@@ -356,6 +407,13 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           })()}
           {isPlaying && (
             <div className="prog-row">
+              {unitMax ? <>
+                <SafeRange className="range" label={bItem.format === 'audio' ? 'Minutes listened' : 'Page'} min={0} max={unitMax} value={unitPos ?? 0}
+                  onInput={(v) => setUnit(v, false)} onCommit={(v) => setUnit(v, true)} />
+                <button className="step-btn" aria-label={bItem.format === 'audio' ? 'Back 5 minutes' : 'Previous page'} disabled={(unitPos ?? 0) <= 0} onClick={() => setUnit((unitPos ?? 0) - (bItem.format === 'audio' ? 5 : 1), true)}>−</button>
+                <strong className="prog-num">{gItem.progress ?? 0}%</strong>
+                <button className="step-btn" aria-label={bItem.format === 'audio' ? 'Forward 5 minutes' : 'Next page'} disabled={(unitPos ?? 0) >= unitMax} onClick={() => setUnit((unitPos ?? 0) + (bItem.format === 'audio' ? 5 : 1), true)}>+</button>
+              </> : <>
               <SafeRange className="range" label="Progress" value={gItem.progress ?? 0}
                 onInput={(v) => setItem({ ...item, progress: v } as never)}
                 onCommit={(v) => { updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }} />
@@ -363,9 +421,11 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
               <button className="step-btn" aria-label="Progress minus 1%" disabled={(gItem.progress ?? 0) <= 0} onClick={() => { const v = Math.max(0, (gItem.progress ?? 0) - 1); setItem({ ...item, progress: v } as never); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}>−</button>
               <strong className="prog-num">{gItem.progress ?? 0}%</strong>
               <button className="step-btn" aria-label="Progress plus 1%" disabled={(gItem.progress ?? 0) >= 100} onClick={() => { const v = Math.min(100, (gItem.progress ?? 0) + 1); setItem({ ...item, progress: v } as never); updateItem(item.id, { progress: v } as never).then(onChanged).catch(() => undefined); }}>+</button>
+              </>}
               <button className={'ai-round' + (progAsk ? ' on' : '')} aria-label={progAsk ? 'Close Ask AI' : 'Ask AI where you are'} aria-expanded={progAsk} onClick={() => { setProgAsk(!progAsk); setProgNote(''); }}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" opacity=".7" /></svg></button>
             </div>
           )}
+          {isPlaying && unitMax ? <span className="muted small">{positionText(gItem.progress ?? 0, bData?.pages, bData?.audio_min, bItem.format)}</span> : null}
           {isPlaying && progAsk && (
             <div className="prog-ask">
               <input className="text-input" autoFocus placeholder="Where are you? e.g. “just beat the second boss”" value={progText} onChange={(e) => setProgText(e.target.value)}
@@ -386,7 +446,9 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           )}
           {inBacklog && (
             <div className="state-actions">
-              {canWatchNow && (game
+              {canWatchNow && (book
+                ? <button className="btn primary" onClick={startPlaying}>{Ico.play}Start reading</button>
+                : game
                 ? <button className="btn primary" onClick={startPlaying}>{Ico.play}Start playing</button>
                 : <button className="btn primary" onClick={watchedIt}>{Ico.check}Watched</button>)}
               <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>
@@ -413,16 +475,18 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 <div className="list-group">
                   <ListRow icon={Ico.date} label={W.doneOn}><DateField label={W.doneOn} value={localDay(last.watched_at)} onChange={(d) => setDate(d)} /></ListRow>
                   {game && gameRow('platform', last)}
+                  {book && formatRow(last)}
                   <ListRow icon={game ? <ReplayIcon size={18} /> : Ico.rewatch} label={W.rewatch} onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
                   {game && gameRow('coop', last)}
                 </div>
               </> : <>
                 {/* Not watched yet: everything is here; rating it logs a viewing with today's date (change it after) */}
-                <span className="muted small">{game ? 'Not played yet — rating it marks it as finished today.' : 'Not watched yet — rating it marks it as watched today.'}</span>
+                <span className="muted small">{book ? 'Not read yet — rating it marks it as read today.' : game ? 'Not played yet — rating it marks it as finished today.' : 'Not watched yet — rating it marks it as watched today.'}</span>
                 <RatingTiles value={null} onPick={(v) => { if (v) rateFirst({ tier: v }); }} />
                 <ScoreStepper value={null} scale={scale} onChange={(v) => { if (v !== null) rateFirst({ score: v }); }} />
                 <div className="list-group">
                   {game && gameRow('platform', null)}
+                  {book && formatRow(null)}
                   <ListRow icon={game ? <ReplayIcon size={18} /> : Ico.rewatch} label={W.rewatch} onClick={() => { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }}><span className={'switch' + (item.rewatch ? ' on-green' : '')}><span /></span></ListRow>
                   {game && gameRow('coop', null)}
                 </div>
@@ -430,7 +494,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
             </div>
           )}
           {takeOpen && (canWatchNow || mState === 'dropped') && (confirmDrop ? (
-            <div className="quiet-row"><span className="small grow">{game ? 'Started it but didn’t finish? It goes to Finished marked Dropped.' : 'Started it but didn’t finish? It goes to Watched marked Dropped.'}</span>
+            <div className="quiet-row"><span className="small grow">{book ? 'Started it but didn’t finish? It goes to Read marked Dropped.' : game ? 'Started it but didn’t finish? It goes to Finished marked Dropped.' : 'Started it but didn’t finish? It goes to Watched marked Dropped.'}</span>
               <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
           ) : (
             <div className="quiet-row">
@@ -472,10 +536,10 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
           {!game && cast.length > 0 && <div className="stack-sm top-line"><span className="muted small">Starring</span><strong>{cast.join(', ')}</strong></div>}
         </section>
 
-        {game && franchiseGames.length > 0 && (
+        {(game || book) && franchiseGames.length > 0 && (
           <section className={'card stack-sm' + (franPress.pressed ? ' pressed' : '')}>
             <button className="take-head" aria-expanded={franOpen} {...franPress.bind} onClick={() => setFranOpen(!franOpen)}>
-              <span className="h2 grow">More {(data.franchise as string | null) ? 'in ' + data.franchise : 'in the series'}</span>
+              <span className="h2 grow">More {book ? (bData?.series ? 'in ' + bData.series.name : 'in the series') : (data.franchise as string | null) ? 'in ' + data.franchise : 'in the series'}</span>
               <span className="count-badge">{franchiseGames.length - franHidden.length}</span><ChevBtn open={franOpen} />
             </button>
             {franOpen && <div className="stack-sm">
@@ -575,29 +639,29 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
             {/* Top row = where the movie is now, like on shows: a first viewing or a rewatch waiting in Backlog */}
             {isPlaying && (
               <div className="view-row">
-                <span className="grow small strong view-line">Now: playing{gItem.platform && <PlatformIcon k={gItem.platform} size={13} />}{gItem.coop && <span className="coop-icon" role="img" aria-label="Co-op">{Ico.coop}</span>}{item.started_on ? <span className="muted normal">since {longDate(item.started_on)}</span> : null}</span>
-                <span className="state-pill" data-state="playing">Playing</span>
+                <span className="grow small strong view-line">{book ? 'Now: reading' : 'Now: playing'}{book ? <FormatIcon f={bItem.format} size={13} /> : gItem.platform && <PlatformIcon k={gItem.platform} size={13} />}{gItem.coop && <span className="coop-icon" role="img" aria-label="Co-op">{Ico.coop}</span>}{item.started_on ? <span className="muted normal">since {longDate(item.started_on)}</span> : null}</span>
+                <span className="state-pill" data-state="playing">{book ? 'Reading' : 'Playing'}</span>
               </div>
             )}
             {planned && (
               <div className="view-row">
                 <span className="grow small strong">{logs.length ? 'Planned: ' + W.rewatch.toLowerCase() : 'Planned: first ' + W.viewing}</span>
                 {logs.length > 0 && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
-                <span className="state-pill" data-state={mState}>{game && mState === 'watched' ? 'Finished' : MOVIE_STATE_LABEL[mState]}</span>
+                <span className="state-pill" data-state={mState}>{book && mState === 'watched' ? 'Read' : book && mState === 'playing' ? 'Reading' : game && mState === 'watched' ? 'Finished' : MOVIE_STATE_LABEL[mState]}</span>
                 {logs.length > 0 && <button className="del-x" aria-label="Cancel the planned rewatch" onClick={logRewatch}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>}
               </div>
             )}
             {logs.map((l, i) => {
               const x = tierOf(l.tier);
               return delView === l.id ? (
-                <div key={l.id} className="view-row"><span className="grow small strong">Delete the {longDate(l.watched_at)} {game ? 'playthrough' : 'viewing'}?</span>
+                <div key={l.id} className="view-row"><span className="grow small strong">Delete the {longDate(l.watched_at)} {game ? 'playthrough' : book ? 'reading' : 'viewing'}?</span>
                   <button className="btn sm" onClick={() => setDelView(null)}>Cancel</button>
                   <button className="btn sm danger-fill" onClick={guard(async () => { await deleteLog(l.id); const rem = logs.filter((y) => y.id !== l.id); if (!planned) await updateItem(item.id, { status: rem.length ? (latestLog(rem)!.tier === 'dropped' ? 'dropped' : 'done') : 'backlog' }); setDelView(null); })}>Delete</button></div>
               ) : (
                 <div key={l.id} className="view-wrap">
                 <div className="view-row">
                   <button className="view-date grow" aria-expanded={editLog === l.id} onClick={() => setEditLog(editLog === l.id ? null : l.id)}>
-                    <span className="small strong view-line">{longDate(l.watched_at)}{game && <PlatformIcon k={(l as typeof l & { platform?: string | null }).platform ?? gItem.platform} size={13} />}{game && (l as typeof l & { coop?: boolean }).coop && <span className="coop-icon" role="img" aria-label="Co-op">{Ico.coop}</span>}{i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
+                    <span className="small strong view-line">{longDate(l.watched_at)}{game && <PlatformIcon k={(l as typeof l & { platform?: string | null }).platform ?? gItem.platform} size={13} />}{book && <FormatIcon f={(l as typeof l & { format?: string | null }).format ?? bItem.format} size={13} />}{game && (l as typeof l & { coop?: boolean }).coop && <span className="coop-icon" role="img" aria-label="Co-op">{Ico.coop}</span>}{i === 0 && !planned && <span className="accent-text normal">Latest</span>}</span>
                     
                     <span className="muted tiny">{editLog === l.id ? 'Done' : 'Edit'}</span>
                   </button>
@@ -627,7 +691,7 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
         <section className={'card ai' + (aiPress.pressed ? ' pressed' : '')}>
           <button className="ai-head" {...aiPress.bind} onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>
             <span className="accent-text" aria-hidden="true">✦</span><span className="h2">Ask AI</span>
-            <span className="muted small ellipsis grow">{chat.length ? `${chat.filter((m) => m.role === 'user').length} questions · ${chat[chat.length - 1].content}` : (game ? 'Trivia, secrets, what to play next' : 'Trivia, endings, what to watch next')}</span>
+            <span className="muted small ellipsis grow">{chat.length ? `${chat.filter((m) => m.role === 'user').length} questions · ${chat[chat.length - 1].content}` : (book ? 'Themes, the author, what to read next' : game ? 'Trivia, secrets, what to play next' : 'Trivia, endings, what to watch next')}</span>
             <ChevBtn open={aiOpen} />
           </button>
           {aiOpen && (
@@ -636,10 +700,10 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
                 {chat.length === 0 && <span className="muted small chat-empty">Ask anything about {t.title}.</span>}
                 {chat.slice().reverse().map((m) => <div key={m.id} className={'bubble ' + m.role + (m.pending ? ' pending' : '')}>{m.content}</div>)}
               </div>
-              <div className="chips scroll">{(game ? GAME_CHIPS : CHIPS).map((c) => <button key={c} className="chip" onClick={() => send(c)}>{c}</button>)}</div>
+              <div className="chips scroll">{(book ? BOOK_CHIPS : game ? GAME_CHIPS : CHIPS).map((c) => <button key={c} className="chip" onClick={() => send(c)}>{c}</button>)}</div>
               <div className="row nowrap">
-                <label htmlFor="ai" className="sr">{game ? 'Ask about this game' : 'Ask about this movie'}</label>
-                <input id="ai" className="chat-input" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send(draft); } }} placeholder={game ? 'Ask about this game…' : 'Ask about this movie…'} />
+                <label htmlFor="ai" className="sr">{book ? 'Ask about this book' : game ? 'Ask about this game' : 'Ask about this movie'}</label>
+                <input id="ai" className="chat-input" value={draft} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); send(draft); } }} placeholder={book ? 'Ask about this book…' : game ? 'Ask about this game…' : 'Ask about this movie…'} />
                 <button className="send" aria-label="Send" onClick={() => send(draft)}>→</button>
               </div>
             </div>
@@ -675,14 +739,14 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
       {platAsk && item && <PlatformSheet t={t} retro={settings.retroPlatforms ?? []} title={platAsk === 'start' ? 'Start playing' : 'Replay'} confirm={platAsk === 'start' ? 'Start playing' : 'Add to Backlog'}
         initial={gItem.platform} initialCoop={platAsk === 'start' ? !!gItem.coop : false} onCancel={() => setPlatAsk('')}
         onDone={({ platform, coop }) => { const m = platAsk as 'start' | 'replay'; setPlatAsk(''); confirmPlatform(m, platform, coop); }} />}
-      {pastOpen && <PastMovieSheet t={t} scale={scale} game={game} onCancel={() => setPastOpen(false)}
+      {pastOpen && <PastMovieSheet t={t} scale={scale} game={game} book={book} onCancel={() => setPastOpen(false)}
         onSave={(at, tier, sc) => { setPastOpen(false); guard(async () => {
           await insertLog(item.id, { watched_at: at, tier, score: sc, rewatch: false });
           // a backlog movie you'd already seen counts as watched now (unless it's a planned rewatch)
           if (item.status === 'backlog' && !item.rewatch) await updateItem(item.id, { status: 'done', up_next: false });
         })(); }} />}
       {quick && <QuickNumber media={game ? 'game' : 'movie'} kind={quick} title={t.title} titleRow={item.title} item={item} onClose={() => setQuick(null)} onSaved={async () => { setQuick(null); await changed(); }} />}
-      {editOpen && <EditDetails kind={game ? 'game' : 'movie'} item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }}
+      {editOpen && <EditDetails kind={book ? 'book' : game ? 'game' : 'movie'} item={item} onClose={() => setEditOpen(false)} onSaved={async () => { setEditOpen(false); await changed(); }}
         onDeleted={async () => { await removeFromLibrary(item.id); onChanged(); onClose(); }} />}
     </div>
   );
@@ -710,7 +774,7 @@ export function QuickNumber({ media = 'movie', kind, title, item, onClose, onSav
   );
 }
 
-export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' }: { item: LibItem; onClose: () => void; onSaved: () => void; onDeleted: () => void; kind?: 'movie' | 'tv' | 'game' }) {
+export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' }: { item: LibItem; onClose: () => void; onSaved: () => void; onDeleted: () => void; kind?: 'movie' | 'tv' | 'game' | 'book' }) {
   const m = merged(item.title, item.overrides);
   const [f, setF] = useState({
     title: m.title, release_date: m.release_date ?? '', runtime: m.runtime ? String(m.runtime) : '', directors: m.directors.join(', '),
@@ -733,7 +797,7 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
       // box art for the platform you play on first (TheGamesDB / SteamGridDB), then IGDB; backgrounds RAWG first, then IGDB
       const g = await gameImages(item.title.id).catch(() => ({ posters: [], backdrops: [] }));
       setPics({ posters: g.posters.map((x) => ({ thumb: x.url, full: x.url, label: x.label })), backdrops: g.backdrops.map((x) => ({ thumb: x.url, full: x.url, label: x.label })) } as never);
-    } else setPics(await loadImages(item.title.source_id, kind));
+    } else if (kind !== 'book') setPics(await loadImages(item.title.source_id, kind));
   };
   const upload = (k: 'poster' | 'backdrop') => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
@@ -776,9 +840,9 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
     const keep = (item.overrides ?? {}) as { dlc_hidden?: string[] };
     const ttbN = Number(String(f.ttb_main).replace(',', '.'));
     setBusy(true); await updateItem(item.id, { overrides: { ...diffOverrides(item.title, edited), ...(kind === 'tv' && showStatus && showStatus !== tmdbStatus ? { status: showStatus } : {}),
-      ...(kind === 'game' && keep.dlc_hidden ? { dlc_hidden: keep.dlc_hidden } : {}), ...(kind === 'game' && (keep as { franchise_hidden?: string[] }).franchise_hidden ? { franchise_hidden: (keep as { franchise_hidden?: string[] }).franchise_hidden } : {}), ...(kind === 'game' && f.ttb_main && ttbN > 0 ? { ttb_main: Math.round(ttbN * 10) / 10 } : {}) } as never }); setBusy(false); onSaved();
+      ...(kind === 'game' && keep.dlc_hidden ? { dlc_hidden: keep.dlc_hidden } : {}), ...(kind === 'game' && (keep as { franchise_hidden?: string[] }).franchise_hidden ? { franchise_hidden: (keep as { franchise_hidden?: string[] }).franchise_hidden } : {}), ...((kind === 'game' || kind === 'book') && f.ttb_main && ttbN > 0 ? { ttb_main: Math.round(ttbN * 10) / 10 } : {}) } as never }); setBusy(false); onSaved();
   };
-  const refresh = async () => { setBusy(true); try { if (kind === 'game') await ensureGame(item.title.source_id, true); else if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle(kind, item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
+  const refresh = async () => { setBusy(true); try { if (kind === 'game') await ensureGame(item.title.source_id, true); else if (kind === 'book') await ensureBook(bookRef(item.title), true); else if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle(kind, item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
   const clearEdits = async () => { await updateItem(item.id, { overrides: {} }); onSaved(); };
 
   const field = (k: keyof typeof f, label: string, mode: 'text' | 'numeric' | 'decimal', ph: string) => (
@@ -801,23 +865,24 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
         )}
         {field('title', 'Title', 'text', 'Title')}
         {field('release_date', kind === 'tv' ? 'First aired (YYYY-MM-DD)' : 'Release date (YYYY-MM-DD)', 'numeric', '2019-11-22')}
-        {kind !== 'game' && field('runtime', kind === 'tv' ? 'Episode runtime, minutes' : 'Runtime, minutes', 'numeric', '103')}
-        {field('directors', kind === 'tv' ? 'Created by' : kind === 'game' ? 'Developer' : 'Director', 'text', 'Name, Name')}
+        {kind !== 'game' && kind !== 'book' && field('runtime', kind === 'tv' ? 'Episode runtime, minutes' : 'Runtime, minutes', 'numeric', '103')}
+        {field('directors', kind === 'tv' ? 'Created by' : kind === 'game' ? 'Developer' : kind === 'book' ? 'Author' : 'Director', 'text', 'Name, Name')}
         {field('genres', 'Genres', 'text', 'Drama, Comedy')}
-        {field('metascore', 'Metascore (0–100)', 'numeric', '64')}
-        {kind !== 'game' && field('imdb_rating', 'IMDb (0–10)', 'decimal', '6.8')}
+        {kind !== 'book' && field('metascore', 'Metascore (0–100)', 'numeric', '64')}
+        {kind !== 'game' && kind !== 'book' && field('imdb_rating', 'IMDb (0–10)', 'decimal', '6.8')}
         {kind === 'game' && field('ttb_main' as never, 'Time to beat, hours (your own — leave empty for IGDB)', 'decimal', '35')}
+        {kind === 'book' && field('ttb_main' as never, 'Time to read, hours (your own — leave empty to count by pages)', 'decimal', '9')}
         {Object.keys(item.overrides ?? {}).length > 0 && <button className="link left" onClick={clearEdits}>Clear my edits</button>}
         {confirm
           ? <div className="row"><span className="small">Delete “{m.title}” and its viewings?</span><button className="btn sm" onClick={() => setConfirm(false)}>Cancel</button><button className="btn sm danger-fill" onClick={onDeleted}>Delete</button></div>
-          : <button className="btn danger" onClick={() => setConfirm(true)}>{kind === 'tv' ? 'Delete show' : kind === 'game' ? 'Delete game' : 'Delete movie'}</button>}
+          : <button className="btn danger" onClick={() => setConfirm(true)}>{kind === 'tv' ? 'Delete show' : kind === 'game' ? 'Delete game' : kind === 'book' ? 'Delete book' : 'Delete movie'}</button>}
       </div>
     </div>
   );
 }
 
 /** "Add past": a viewing from before you started tracking. Default date = release date. */
-function PastMovieSheet({ t, scale, game, onCancel, onSave }: { t: Title; scale: 5 | 10; game?: boolean; onCancel: () => void; onSave: (at: string, tier: string | null, score: number | null) => void }) {
+function PastMovieSheet({ t, scale, game, book, onCancel, onSave }: { t: Title; scale: 5 | 10; game?: boolean; book?: boolean; onCancel: () => void; onSave: (at: string, tier: string | null, score: number | null) => void }) {
   const def = t.release_date ?? (t.year ? t.year + '-12-31' : null);
   const [day, setDay] = useState<string>(def ?? localDay(new Date().toISOString()));
   const touched = useRef(false);
@@ -827,13 +892,13 @@ function PastMovieSheet({ t, scale, game, onCancel, onSave }: { t: Title; scale:
   return (
     <div className="sheet-wrap">
       <button className="sheet-scrim" aria-label="Close" onClick={onCancel} />
-      <div className="sheet" role="dialog" aria-label={game ? 'Past playthrough' : 'Past viewing'}>
-        <div className="stack-sm"><strong className="sheet-title">{t.title}</strong><span className="muted small">{game ? 'A playthrough from before you started tracking' : 'A viewing from before you started tracking'}</span></div>
-        <div className="score-row"><label htmlFor="past-day" className="strong">{game ? 'Finished on' : 'Watched on'}</label><DateField id="past-day" label={game ? 'Finished on' : 'Watched on'} value={day} onChange={(d) => { touched.current = true; setDay(d); }} /></div>
-        <span className="muted small">{'Don’t remember? Keep the release date — the entry still lands in the right place in ' + (game ? 'Finished' : 'Watched') + '.'}</span>
+      <div className="sheet" role="dialog" aria-label={book ? 'Past reading' : game ? 'Past playthrough' : 'Past viewing'}>
+        <div className="stack-sm"><strong className="sheet-title">{t.title}</strong><span className="muted small">{book ? 'A reading from before you started tracking' : game ? 'A playthrough from before you started tracking' : 'A viewing from before you started tracking'}</span></div>
+        <div className="score-row"><label htmlFor="past-day" className="strong">{game || book ? 'Finished on' : 'Watched on'}</label><DateField id="past-day" label={game || book ? 'Finished on' : 'Watched on'} value={day} onChange={(d) => { touched.current = true; setDay(d); }} /></div>
+        <span className="muted small">{'Don’t remember? Keep the release date — the entry still lands in the right place in ' + (book ? 'Read' : game ? 'Finished' : 'Watched') + '.'}</span>
         <RatingTiles value={tier} onPick={setTier} />
         <ScoreStepper size="sm" label="Score" value={score} scale={scale} onChange={setScore} />
-        <div className="row nowrap"><button className="btn grow" onClick={onCancel}>Cancel</button><button className="btn primary grow" onClick={() => onSave(new Date(day + 'T20:00:00').toISOString(), tier, score)}>{game ? 'Add to Finished' : 'Add to Watched'}</button></div>
+        <div className="row nowrap"><button className="btn grow" onClick={onCancel}>Cancel</button><button className="btn primary grow" onClick={() => onSave(new Date(day + 'T20:00:00').toISOString(), tier, score)}>{book ? 'Add to Read' : game ? 'Add to Finished' : 'Add to Watched'}</button></div>
       </div>
     </div>
   );

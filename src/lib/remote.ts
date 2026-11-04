@@ -14,7 +14,7 @@ export async function ensureTitle(kind: 'movie' | 'tv', sourceId: string, force 
   return data.title as Title;
 }
 
-const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop, progress';
+const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop, progress, format, position_at';
 const LIB_FIELDS = LIB_BASE + ', title:titles(*)';
 // Lists only need what the rows show. Movies skip the heavy "data" (cast, collection, budget…) — the card loads it when opened.
 // Shows keep "data": seasons and status drive Watching / Caught up.
@@ -41,7 +41,7 @@ export async function loadLibrary(section: Section): Promise<LibItem[]> {
 export type LogLite = Omit<LogRow, 'library'>;
 export async function loadLogs(section: Section): Promise<LogLite[]> {
   return allPages<LogLite>((a, b) => supabase.from('logs')
-    .select('id, library_id, scope, season_from, season_to, seasons, watched_at, tier, score, rewatch, dropped, platform, coop, position, library:library!inner(section)')
+    .select('id, library_id, scope, season_from, season_to, seasons, watched_at, tier, score, rewatch, dropped, platform, coop, format, position, library:library!inner(section)')
     .eq('library.section', section).eq('folded', false).order('watched_at', { ascending: false }).order('id').range(a, b) as never);
 }
 
@@ -95,7 +95,7 @@ export async function loadItem(id: string): Promise<LibItem> {
 }
 
 export async function loadItemLogs(libraryId: string): Promise<ItemLog[]> {
-  const { data, error } = await supabase.from('logs').select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons, platform, coop').eq('library_id', libraryId).order('watched_at', { ascending: false });
+  const { data, error } = await supabase.from('logs').select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons, platform, coop, format').eq('library_id', libraryId).order('watched_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as ItemLog[];
 }
@@ -106,7 +106,7 @@ export async function updateItem(id: string, patch: Partial<{ status: Status; up
 }
 
 export async function insertLog(libraryId: string, log: Partial<ItemLog>): Promise<ItemLog> {
-  const { data, error } = await supabase.from('logs').insert({ library_id: libraryId, ...log }).select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons, platform, coop').single();
+  const { data, error } = await supabase.from('logs').insert({ library_id: libraryId, ...log }).select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons, platform, coop, format').single();
   if (error) throw error;
   return data as ItemLog;
 }
@@ -292,7 +292,7 @@ export async function gameIdBySlug(slug: string): Promise<string | null> {
 export type Everything = { items: LibItem[]; logs: LogRow[] };
 /** Library and journal of all sections, journal rows with their library item attached. */
 export async function loadEverything(): Promise<Everything> {
-  const secs: Section[] = ['movies', 'tv', 'console', 'pc', 'retro'];
+  const secs: Section[] = ['movies', 'tv', 'console', 'pc', 'retro', 'books'];
   const [libs, logsLite] = await Promise.all([Promise.all(secs.map((x) => loadLibrary(x))), Promise.all(secs.map((x) => loadLogs(x)))]);
   const items = libs.flat();
   const byId = new Map(items.map((i) => [i.id, i]));
@@ -303,4 +303,32 @@ export async function loadEverything(): Promise<Everything> {
 export async function loadMarkDates(since: string): Promise<string[]> {
   const rows = await allPages<{ watched_at: string }>((a, b) => supabase.from('episode_marks').select('watched_at').gte('watched_at', since).order('watched_at').range(a, b) as never);
   return rows.map((r) => r.watched_at);
+}
+
+// ---------- books (Hardcover + Open Library + Google Books via the "books" function) ----------
+export interface BookHit { ref: string; source: string; title: string; displayTitle?: string; authors: string[]; year: number | null; cover: string | null; pages: number | null; series: string | null; editions: number | null }
+export async function searchBooks(q: string): Promise<BookHit[]> {
+  const { data, error } = await supabase.functions.invoke('books', { body: { action: 'search', q } });
+  if (error) throw await fnError(error);
+  return (data?.results ?? []) as BookHit[];
+}
+export async function ensureBook(ref: string, force = false): Promise<Title> {
+  const { data, error } = await supabase.functions.invoke('books', { body: { action: 'details', ref, force } });
+  if (error) throw await fnError(error);
+  if (data?.error) throw new Error(data.error);
+  return data.title as Title;
+}
+export async function bookRefFromLink(url: string): Promise<string | null> {
+  const { data, error } = await supabase.functions.invoke('books', { body: { action: 'link', url } });
+  if (error) throw await fnError(error);
+  return data?.ref ?? null;
+}
+
+/** Your copies of Hardcover books (for "More in <series>"), by Hardcover id. */
+export async function findOwnedBooks(hcIds: string[]): Promise<Record<string, Owned>> {
+  if (!hcIds.length) return {};
+  const { data } = await supabase.from('library').select('id, status, up_next, title:titles!inner(source_id, kind, source)').eq('section', 'books').eq('titles.kind', 'book').eq('titles.source', 'hardcover').in('titles.source_id', hcIds);
+  const out: Record<string, Owned> = {};
+  (data ?? []).forEach((r: any) => { out[r.title.source_id] = { id: r.id, status: r.status, up_next: r.up_next }; });
+  return out;
 }

@@ -8,15 +8,17 @@ import { applyEpisodeMarks } from '../lib/tvActions';
 import { TIERS } from '../lib/scores';
 import { Poster } from '../components/Rows';
 import PlatformIcon from '../components/PlatformIcon';
+import FormatIcon from '../components/FormatIcon';
+import { readHours } from '../lib/formats';
 import { IconMenu } from '../components/Icons';
 import { Ico } from '../components/Rate';
 import MovieCard from './MovieCard';
 import ShowCard from './ShowCard';
 
-type Open = { id: string; kind: 'movie' | 'tv' | 'game' } | null;
-const kindOf = (i: LibItem): 'movie' | 'tv' | 'game' => (i.section === 'movies' ? 'movie' : i.section === 'tv' ? 'tv' : 'game');
+type Open = { id: string; kind: 'movie' | 'tv' | 'game' | 'book' } | null;
+const kindOf = (i: LibItem): 'movie' | 'tv' | 'game' | 'book' => (i.section === 'movies' ? 'movie' : i.section === 'tv' ? 'tv' : i.section === 'books' ? 'book' : 'game');
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
-const SEC_LABEL: Record<string, string> = { movies: 'Movie', tv: 'Show', console: 'Console', pc: 'PC', retro: 'Retro' };
+const SEC_LABEL: Record<string, string> = { movies: 'Movie', tv: 'Show', console: 'Console', pc: 'PC', retro: 'Retro', books: 'Book' };
 
 /** Home: what's going on now — continue, coming up, recently finished, up next — and a way into Stats. */
 export default function Home({ settings, onMenu, onStats }: { settings: Settings; onMenu: () => void; onStats: () => void }) {
@@ -47,7 +49,7 @@ export default function Home({ settings, onMenu, onStats }: { settings: Settings
     const p = progress(it, it.title, eps.filter((e) => e.title_id === it.title_id), marks.filter((m) => m.library_id === it.id), today);
     return { it, p };
   }).filter((x) => x.p.nextEp).sort((a, b) => (b.p.lastSeen ?? '').localeCompare(a.p.lastSeen ?? '')), [items, eps, marks, today]);
-  const games = useMemo(() => items.filter((i) => ['console', 'pc', 'retro'].includes(i.section) && i.status === 'playing')
+  const games = useMemo(() => items.filter((i) => ['console', 'pc', 'retro', 'books'].includes(i.section) && i.status === 'playing')
     .sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')), [items]);
 
   // --- Coming up (next 30 days): new episodes, season premieres, releases from Backlog
@@ -121,14 +123,16 @@ export default function Home({ settings, onMenu, onStats }: { settings: Settings
           {games.map((it) => {
             const g = it as LibItem & { platform?: string | null; progress?: number | null };
             const pct = g.progress ?? 0;
-            const ttb = ((it.overrides as { ttb_main?: number } | null)?.ttb_main) ?? ((it.title.data as { ttb?: { main?: number | null } } | null)?.ttb?.main ?? null);
+            const isBook = it.section === 'books';
+            const bd = it.title.data as { ttb?: { main?: number | null }; pages?: number | null; audio_min?: number | null } | null;
+            const ttb = ((it.overrides as { ttb_main?: number } | null)?.ttb_main) ?? (isBook ? readHours(bd?.pages, bd?.audio_min, (it as LibItem & { format?: string | null }).format) : bd?.ttb?.main ?? null);
             const left = ttb ? Math.max(0, Math.round(ttb * (1 - pct / 100))) : null;
             return (
               <div key={it.id} className="row-card">
-                <button className="row-main" onClick={() => setOpen({ id: it.id, kind: 'game' })}>
+                <button className="row-main" onClick={() => setOpen({ id: it.id, kind: isBook ? 'book' : 'game' })}>
                   <Poster t={it.title} w={46} h={68} />
                   <span className="row-text"><span className="row-title">{it.title.title}</span>
-                    <span className="row-meta"><PlatformIcon k={g.platform} /><span className="dot-sep">·</span>{pct}%{left !== null ? ' · ~' + left + ' h left' : ''}</span>
+                    <span className="row-meta">{isBook ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : <PlatformIcon k={g.platform} />}<span className="dot-sep">·</span>{pct}%{left !== null ? ' · ~' + left + ' h left' : ''}</span>
                     <span className="row-meta"><span className="mini-bar"><span style={{ width: pct + '%' }} /></span></span></span>
                 </button>
               </div>
@@ -167,7 +171,7 @@ export default function Home({ settings, onMenu, onStats }: { settings: Settings
             <button key={it.id} className="home-item" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })}>
               <Poster t={it.title} w={34} h={50} />
               <span className="grow"><span className="row-title">{it.title.title}</span></span>
-              {['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} /> : <span className="muted small">{SEC_LABEL[it.section]}</span>}
+              {it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : ['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} /> : <span className="muted small">{SEC_LABEL[it.section]}</span>}
             </button>
           ))}
         </section>}
@@ -181,7 +185,7 @@ export default function Home({ settings, onMenu, onStats }: { settings: Settings
 
       {open?.kind === 'tv' && <ShowCard key={open.id} itemId={open.id} initial={items.find((i) => i.id === open.id) ?? null} settings={settings} topPos={0}
         onClose={() => setOpen(null)} onChanged={load} />}
-      {open && open.kind !== 'tv' && <MovieCard key={open.id} game={open.kind === 'game'} itemId={open.id} initial={items.find((i) => i.id === open.id) ?? null} settings={settings} backlogCount={0}
+      {open && open.kind !== 'tv' && <MovieCard key={open.id} game={open.kind === 'game'} book={open.kind === 'book'} itemId={open.id} initial={items.find((i) => i.id === open.id) ?? null} settings={settings} backlogCount={0}
         onClose={() => setOpen(null)} onChanged={load} onOpenOther={(id) => { const it = items.find((i) => i.id === id); setOpen({ id, kind: it ? kindOf(it) : open.kind }); }} />}
     </div>
   );

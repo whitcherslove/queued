@@ -54,8 +54,8 @@ Deno.serve(async (req) => {
 
     const context = [
       `Title: ${t.title}${t.year ? ` (${t.year})` : ''}`,
-      t.kind === 'game' ? 'Type: video game' : t.kind === 'tv' ? 'Type: TV show' : 'Type: movie',
-      t.directors?.length ? `${t.kind === 'game' ? 'Developer' : t.kind === 'tv' ? 'Created by' : 'Director'}: ${t.directors.join(', ')}` : '',
+      t.kind === 'game' ? 'Type: video game' : t.kind === 'book' ? 'Type: book' : t.kind === 'tv' ? 'Type: TV show' : 'Type: movie',
+      t.directors?.length ? `${t.kind === 'game' ? 'Developer' : t.kind === 'book' ? 'Author' : t.kind === 'tv' ? 'Created by' : 'Director'}: ${t.directors.join(', ')}` : '',
       t.kind === 'game' && t.data?.platforms?.length ? `Platforms: ${t.data.platforms.map((p: any) => p.name).join(', ')}` : '',
       t.kind === 'game' && t.data?.ttb?.main ? `Time to beat (story): about ${t.data.ttb.main} h` : '',
       t.genres?.length ? `Genres: ${t.genres.join(', ')}` : '',
@@ -66,6 +66,8 @@ Deno.serve(async (req) => {
       systemInstruction: { parts: [{ text:
         (t.kind === 'game'
           ? 'You are a friendly video game expert inside a personal backlog app. Answer questions about the game below. '
+          : t.kind === 'book'
+          ? 'You are a friendly literature expert inside a personal reading log. Answer questions about the book below; avoid spoilers unless asked. Reply in the language of the question. '
           : 'You are a friendly film and TV expert inside a personal watch-log app. Answer questions about the title below. ') +
         'Reply in the same language as the question, briefly (2–6 sentences) unless asked for more. ' +
         'Use web search for facts you are not sure about. Do not reveal major plot twists unless the user clearly asks about the plot or ending.\n\n' + context } ] },
@@ -80,7 +82,7 @@ Deno.serve(async (req) => {
     if (mode === 'progress') {
       const pBody = {
         systemInstruction: { parts: [{ text:
-          'You estimate a player\'s progress through a video game\'s main story. Use web search to check the game\'s structure (chapters, missions, bosses). ' +
+          (t.kind === 'book' ? 'You estimate how far a reader is through a book (percent of the whole book). Use web search to check its structure (parts, chapters, key events). ' : 'You estimate a player\'s progress through a video game\'s main story. Use web search to check the game\'s structure (chapters, missions, bosses). ') +
           'Reply ONLY with JSON: {"progress": <integer 0-100>, "note": "<one short sentence: where that point is in the game>"}. No markdown.\n\n' + context } ] },
         contents: [{ role: 'user', parts: [{ text: 'Where I am: ' + q }] }],
         tools: [{ google_search: {} }]
