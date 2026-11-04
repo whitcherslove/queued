@@ -372,8 +372,10 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
   return (
     <div className={'card-screen' + (enterFrom ? ' enter-' + enterFrom : '')} {...swipe}>
       <div ref={swipeEl} className="card-swipe">
-      <div className="hero">
+      <div className={'hero' + (!t.backdrop_url && t.poster_url ? ' hero-cover' : '')}>
         {t.backdrop_url && <img src={t.backdrop_url} alt="" />}
+        {/* no background (books, some games): the cover blurred as the background + the cover itself, like a book on a table */}
+        {!t.backdrop_url && t.poster_url && <><img className="hero-blur" src={t.poster_url} alt="" /><img className="hero-book" src={t.poster_url} alt="" /></>}
         <div className="hero-shade" />
         <button className="hero-btn left" aria-label="Back" onClick={onClose}><IconBack /></button>
         <button className="hero-btn right" aria-label="Edit details" onClick={() => setEditOpen(true)}>
