@@ -173,6 +173,15 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   const [upAll, setUpAll] = useState(false);
   // folded: one random thing from all of it
   const featured = useMemo(() => { const pinned = ready.filter((r) => r.state === 'upNext'); if (pinned.length) return pinned.slice(0, 2); const rest = ready; return rest.length ? [rest[Math.floor(Math.random() * rest.length)]] : []; }, [ready.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** "2h 35m" · "33 h to beat" · "432 pages" */
+  const lengthOf = (i: LibItem) => {
+    const d = i.title.data as { ttb?: { main?: number | null }; pages?: number | null } | null;
+    const mine = (i.overrides as { ttb_main?: number; pages?: number } | null) ?? null;
+    if (i.section === 'movies') return i.title.runtime ? Math.floor(i.title.runtime / 60) + 'h ' + (i.title.runtime % 60) + 'm' : '';
+    if (i.section === 'books') { const pg = mine?.pages ?? d?.pages; return pg ? pg + ' pages' : ''; }
+    if (i.section === 'tv') return '';
+    const t = mine?.ttb_main ?? d?.ttb?.main; return t ? Math.round(t) + ' h to beat' : '';
+  };
   const readyKinds = (['Shows', 'Movies', 'Games', 'Books'] as const).filter((k) => ready.some((r) => r.kind === k));
   const readyList = ready.filter((r) => readyKind === 'All' || r.kind === readyKind);
 
@@ -355,9 +364,8 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
               <span className="ticket-img">{bg(x.it) ? <img className={x.it.title.backdrop_url ? '' : 'blur'} src={bg(x.it)!} alt="" /> : null}</span>
               <span className="ticket-body">
                 <span className="row-title ellipsis">{x.it.title.title}</span>
-                <span className="ticket-meta">{justOut.some((j) => j.it.id === x.it.id) && <span className="new-dot">New</span>}<span className="state-pill sm" data-state={x.state}>{x.label}</span><span className="muted">{x.kind.slice(0, -1) + (x.text ? ' ·' : '')}</span><span className="ellipsis">{x.text}</span></span>
+                <span className="ticket-meta">{justOut.some((j) => j.it.id === x.it.id) && <span className="new-dot">New</span>}<span className="state-pill sm" data-state={x.state}>{x.label}</span><span className="ellipsis">{[x.kind.slice(0, -1), x.state === 'upNext' ? '' : x.text, lengthOf(x.it) || (x.state === 'upNext' ? x.text : '')].filter(Boolean).join(' · ')}</span></span>
               </span>
-              {x.kind === 'Shows' && x.state !== 'upNext' && <span className="ticket-act" role="button" tabIndex={0} aria-label="Start watching" onClick={(e) => { e.stopPropagation(); setBusy(x.it.id); startWatching(x.it, x.seasons).then(load).finally(() => setBusy(null)); }}>{busy === x.it.id ? '…' : Ico.play}</span>}
             </button>
           ))}
           {!readyOpen && ready.length > featured.length && <button className="link left" onClick={() => setReadyOpen(true)}>and {ready.length - featured.length} more</button>}
