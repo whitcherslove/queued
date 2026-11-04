@@ -10,6 +10,7 @@ import {
 import ScoreRing from '../components/ScoreRing';
 import DateField from '../components/DateField';
 import SafeRange from '../components/SafeRange';
+import PageScrub from '../components/PageScrub';
 import Overview from '../components/Overview';
 import { MOVIE_STATE_LABEL, movieState } from '../lib/movie';
 import { platformChoices, platformLabel, sectionOf, type IgdbPlatform } from '../lib/platforms';
@@ -214,7 +215,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
       case 'outNow': return 'Released on ' + (rel ? longDate(rel) : 'this year');
       case 'backlog': return item.rewatch ? W.rewatch + ' planned' : 'In your Backlog';
       case 'watched': return W.doneOn + ' ' + (last ? longDate(last.watched_at) : '');
-      case 'playing': return [platformLabel(gItem.platform), item.started_on ? 'started on ' + longDate(item.started_on) : ''].filter(Boolean).join(' · ');
+      case 'playing': { const t2 = [book ? '' : platformLabel(gItem.platform), item.started_on ? 'started on ' + longDate(item.started_on) : ''].filter(Boolean).join(' · '); return t2 ? t2[0].toUpperCase() + t2.slice(1) : ''; }
       case 'didntFinish': return 'Didn’t finish · stopped on ' + (last ? longDate(last.watched_at) : '');
       default: return 'Hidden from your lists · search still finds it';
     }
@@ -433,9 +434,8 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
             <div className="prog-row">
               {unitMax ? <>
                 {/* the bar moves in percent (smooth); − + move one page (or 5 minutes); the page is kept underneath */}
-                <SafeRange className="range" label="Progress" min={0} max={100} value={gItem.progress ?? 0}
-                  onInput={(v) => setItem({ ...item, progress: v, position_at: Math.round((v * unitMax) / 100) } as never)}
-                  onCommit={(v) => setUnit(Math.round((v * unitMax) / 100), true)} />
+                <PageScrub label={bItem.format === 'audio' ? 'Minutes listened' : 'Page'} max={unitMax} value={unitPos ?? 0}
+                  onInput={(v) => setUnit(v, false)} onCommit={(v) => setUnit(v, true)} />
                 <button className="step-btn" aria-label={bItem.format === 'audio' ? 'Back 5 minutes' : 'Previous page'} disabled={(unitPos ?? 0) <= 0} onClick={() => setUnit((unitPos ?? 0) - (bItem.format === 'audio' ? 5 : 1), true)}>−</button>
                 <strong className="prog-num">{gItem.progress ?? 0}%</strong>
                 <button className="step-btn" aria-label={bItem.format === 'audio' ? 'Forward 5 minutes' : 'Next page'} disabled={(unitPos ?? 0) >= unitMax} onClick={() => setUnit((unitPos ?? 0) + (bItem.format === 'audio' ? 5 : 1), true)}>+</button>
@@ -843,10 +843,10 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
     const set = k === 'poster' ? setPoster : setBackdrop, list = pics ? (k === 'poster' ? pics.posters : pics.backdrops) : null;
     return (
       <div className="stack-sm">
-        <span className="muted small strong">{k === 'poster' ? 'Poster' : 'Background'}</span>
+        <span className="muted small strong">{k === 'poster' ? (kind === 'book' ? 'Cover' : 'Poster') : 'Background'}</span>
         <div className={k === 'poster' ? 'pp-preview' : 'bd-preview'}>{cur ? <img src={cur} alt="" /> : <span className="muted small">None</span>}</div>
         <div className="row">
-          {isTmdb && <button className="btn sm" aria-expanded={picker === k} onClick={() => openPicker(k)}>{k === 'poster' ? 'Choose a different poster' : 'Choose a different background'}</button>}
+          {isTmdb && <button className="btn sm" aria-expanded={picker === k} onClick={() => openPicker(k)}>{k === 'poster' ? (kind === 'book' ? 'Choose a different cover' : 'Choose a different poster') : 'Choose a different background'}</button>}
           <label className="btn sm file-btn">{uploading === k ? 'Uploading…' : 'Upload from device'}<input type="file" accept="image/*" onChange={upload(k)} /></label>
           {cur !== def && <button className="btn sm" onClick={() => set(def)}>Reset</button>}
         </div>

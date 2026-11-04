@@ -944,3 +944,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .hero-cover .hero-text { z-index: 2; max-width: 58%; }
 .hero-cover .hero-text h2 { font-size: 26px; }
 @media (max-width: 360px) { .hero img.hero-book { height: 52%; } }
+
+/* page-by-page progress bar (books) — same look as the game progress bar */
+.scrub { position: relative; flex: 1; min-width: 0; height: 36px; display: flex; align-items: center; cursor: pointer; outline: none; }
+.scrub-track { position: relative; width: 100%; height: 8px; border-radius: 999px; background: var(--surface2); overflow: hidden; }
+.scrub-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #4C9BEA; border-radius: 999px; }
+.scrub-thumb { position: absolute; top: 50%; width: 22px; height: 22px; margin-left: -11px; transform: translateY(-50%); border-radius: 999px; background: #4C9BEA; border: 3px solid var(--surface); box-shadow: 0 1px 4px rgba(0,0,0,.35); pointer-events: none; }
+.scrub:focus-visible .scrub-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
