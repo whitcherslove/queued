@@ -125,7 +125,7 @@ export default function Home({ settings, onMenu, onStats }: { settings: Settings
             const pct = g.progress ?? 0;
             const isBook = it.section === 'books';
             const bd = it.title.data as { ttb?: { main?: number | null }; pages?: number | null; audio_min?: number | null } | null;
-            const ttb = ((it.overrides as { ttb_main?: number } | null)?.ttb_main) ?? (isBook ? readHours(bd?.pages, bd?.audio_min, (it as LibItem & { format?: string | null }).format) : bd?.ttb?.main ?? null);
+            const ttb = ((it.overrides as { ttb_main?: number } | null)?.ttb_main) ?? (isBook ? readHours((it.overrides as { pages?: number } | null)?.pages ?? bd?.pages, (it.overrides as { audio_min?: number } | null)?.audio_min ?? bd?.audio_min, (it as LibItem & { format?: string | null }).format) : bd?.ttb?.main ?? null);
             const left = ttb ? Math.max(0, Math.round(ttb * (1 - pct / 100))) : null;
             return (
               <div key={it.id} className="row-card">

@@ -62,8 +62,9 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
   const [addingDlc, setAddingDlc] = useState<string | null>(null);
   // an imported game only has IGDB data — the first time you open it, fetch HLTB / Metacritic / RAWG in the background
   // fresh data on open when it's due (games: also right after a fast add) — in the background, the card doesn't wait
-  const needsEnrich = !!item && (!!(game && (item.title.data as { needs_enrich?: boolean } | null)?.needs_enrich) || needsRefresh(item.title as { release_date?: string | null; fetched_at?: string | null }));
-  useEffect(() => { if (!needsEnrich || !item) return; (game ? ensureGame(item.title.source_id, !!(item.title.data as { needs_enrich?: boolean } | null)?.needs_enrich) : book ? ensureBook(bookRef(item.title)) : item.title.source === 'tmdb' ? ensureTitle('movie', item.title.source_id) : Promise.resolve(null)).then(() => reload()).catch(() => undefined); }, [needsEnrich]); // eslint-disable-line react-hooks/exhaustive-deps
+  const oldSeries = !!(book && item && (item.title.data as { series?: unknown; series_v?: number } | null)?.series && (item.title.data as { series_v?: number }).series_v !== 2);
+  const needsEnrich = !!item && (oldSeries || !!(game && (item.title.data as { needs_enrich?: boolean } | null)?.needs_enrich) || needsRefresh(item.title as { release_date?: string | null; fetched_at?: string | null }));
+  useEffect(() => { if (!needsEnrich || !item) return; (game ? ensureGame(item.title.source_id, !!(item.title.data as { needs_enrich?: boolean } | null)?.needs_enrich) : book ? ensureBook(bookRef(item.title), oldSeries) : item.title.source === 'tmdb' ? ensureTitle('movie', item.title.source_id) : Promise.resolve(null)).then(() => reload()).catch(() => undefined); }, [needsEnrich]); // eslint-disable-line react-hooks/exhaustive-deps
   const [platAsk, setPlatAsk] = useState<'' | 'start' | 'replay'>('');
   const [platPick, setPlatPick] = useState<string | null>(null);   // log id, or 'item'
   const [progAsk, setProgAsk] = useState(false);
@@ -190,7 +191,10 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
   // books: progress in pages (or minutes for audio) when we know the length
   const bData = (book ? t.data : null) as { pages?: number | null; audio_min?: number | null; series?: { name: string } | null; series_books?: { ref: string; id: string; name: string; position: number | null; year: number | null }[]; rating?: number | null; ratings?: number | null; url?: string | null } | null;
   const bItem = item as typeof item & { format?: string | null; position_at?: number | null };
-  const unitMax = book ? (bItem.format === 'audio' ? bData?.audio_min ?? null : bData?.pages ?? null) : null;
+  const myPages = (item.overrides as { pages?: number | null } | null)?.pages ?? null;
+  const myAudio = (item.overrides as { audio_min?: number | null } | null)?.audio_min ?? null;
+  const pagesN = myPages ?? bData?.pages ?? null, audioN = myAudio ?? bData?.audio_min ?? null;
+  const unitMax = book ? (bItem.format === 'audio' ? audioN : pagesN) : null;
   const unitPos = unitMax ? (bItem.position_at ?? Math.round(((gItem.progress ?? 0) * unitMax) / 100)) : null;
   const setUnit = (v: number, save: boolean) => {
     const pos = Math.max(0, Math.min(unitMax ?? 0, v)); const pct = unitMax ? Math.round((pos / unitMax) * 100) : 0;
@@ -231,6 +235,24 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
   };
   const sectionOfKey = (k: string) => sectionOf(k, settings.retroPlatforms ?? undefined);
   /** books: the format of the latest reading (or of the book you haven't read yet) */
+  /** books: how many pages (or minutes of audio) — your number wins; the progress bar counts in these */
+  const lengthRow = () => {
+    const audio = bItem.format === 'audio';
+    const cur = audio ? audioN : pagesN;
+    const save = (v: number | null) => {
+      const ov = { ...(item.overrides ?? {}), [audio ? 'audio_min' : 'pages']: v };
+      const pos = bItem.position_at != null && v ? Math.min(bItem.position_at, v) : bItem.position_at;
+      setItem({ ...item, overrides: ov, position_at: pos, progress: v && pos != null ? Math.round((pos / v) * 100) : gItem.progress } as never);
+      updateItem(item.id, { overrides: ov, position_at: pos, ...(v && pos != null ? { progress: Math.round((pos / v) * 100) } : {}) } as never).then(onChanged).catch(() => setError('Couldn’t save. Try again.'));
+    };
+    return (
+      <ListRow icon={<FormatIcon f={bItem.format ?? 'paper'} size={18} />} label={audio ? 'Length, minutes' : 'Pages'}>
+        <input className="num-input" type="number" inputMode="numeric" min={1} aria-label={audio ? 'Length in minutes' : 'Number of pages'} defaultValue={cur ?? ''} key={String(cur)}
+          placeholder={audio ? 'min' : 'pages'} onBlur={(e) => { const v = Math.round(Number(e.target.value)); if (e.target.value === '' ) { if (cur !== null && (audio ? myAudio : myPages) !== null) save(null); } else if (v > 0 && v !== cur) save(v); }}
+          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }} />
+      </ListRow>
+    );
+  };
   const formatRow = (l: (typeof logs)[number] | null) => {
     const lf = l as (typeof logs)[number] & { format?: string | null } | null;
     const cur = (lf ? lf.format : null) ?? bItem.format ?? 'paper';
@@ -321,7 +343,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
     ['Story', hrs(ttb?.main)], ['Main + extras', hrs((ttb as { plus?: number | null } | null)?.plus)], ['Quick', hrs(ttb?.quick)], ['100%', hrs(ttb?.full)],
     ['Times from', ttbMine ? 'you' : (ttbRaw as { source?: string } | null)?.source === 'hltb' ? 'HowLongToBeat' : ttbRaw ? 'IGDB' : '']
   ] : book ? [
-    [t.directors.length > 1 ? 'Authors' : 'Author', t.directors.join(', ')], ['Pages', bData?.pages ? String(bData.pages) : ''],
+    [t.directors.length > 1 ? 'Authors' : 'Author', t.directors.join(', ')], ['Pages', pagesN ? String(pagesN) : ''],
     ['Audiobook', bData?.audio_min ? Math.floor(bData.audio_min / 60) + ' h ' + (bData.audio_min % 60) + ' m' : ''],
     ['Series', bData?.series ? bData.series.name + ((bData.series as { position?: number | null }).position ? ' #' + (bData.series as { position?: number | null }).position : '') : ''],
     ['First published', t.year ? String(t.year) : ''], ['Ratings', bData?.ratings ? String(bData.ratings) : '']
@@ -377,7 +399,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
             ? <a className="tile3" href={mcUrl} target="_blank" rel="noopener"><span className="sq" style={{ background: metascoreColor(data.critics, true) ?? 'var(--surface2)', color: '#17161A' }}>{data.critics}</span><span className="muted small">Critics ↗</span></a>
             : tile('metascore')}
           {book
-            ? <div className="tile3"><span className="ttb-big">{(() => { const h = ttbMine ?? readHours(bData?.pages, bData?.audio_min, bItem.format); return h ? hrs(h) : '—'; })()}</span><span className="muted small">{bItem.format === 'audio' ? 'Listening time' : 'Time to read'}</span></div>
+            ? <div className="tile3"><span className="ttb-big">{(() => { const h = ttbMine ?? readHours(pagesN, audioN, bItem.format); return h ? hrs(h) : '—'; })()}</span><span className="muted small">{bItem.format === 'audio' ? 'Listening time' : 'Time to read'}</span></div>
             : game
             ? (() => { const hid = (ttbRaw as { hltb_id?: number } | null)?.hltb_id; const inner = <><span className="ttb-big">{ttb?.main ? hrs(ttb.main) : '—'}</span><span className="muted small">Time to beat ↗</span></>;
                 return <a className="tile3" href={hid ? 'https://howlongtobeat.com/game/' + hid : 'https://howlongtobeat.com/?q=' + encodeURIComponent(t.title)} target="_blank" rel="noopener">{inner}</a>; })()
@@ -425,7 +447,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
               <button className={'ai-round' + (progAsk ? ' on' : '')} aria-label={progAsk ? 'Close Ask AI' : 'Ask AI where you are'} aria-expanded={progAsk} onClick={() => { setProgAsk(!progAsk); setProgNote(''); }}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" opacity=".7" /></svg></button>
             </div>
           )}
-          {isPlaying && unitMax ? <span className="muted small">{positionText(gItem.progress ?? 0, bData?.pages, bData?.audio_min, bItem.format)}</span> : null}
+          {isPlaying && unitMax ? <span className="muted small">{positionText(gItem.progress ?? 0, pagesN, audioN, bItem.format)}</span> : null}
           {isPlaying && progAsk && (
             <div className="prog-ask">
               <input className="text-input" autoFocus placeholder="Where are you? e.g. “just beat the second boss”" value={progText} onChange={(e) => setProgText(e.target.value)}
@@ -476,6 +498,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
                   <ListRow icon={Ico.date} label={W.doneOn}><DateField label={W.doneOn} value={localDay(last.watched_at)} onChange={(d) => setDate(d)} /></ListRow>
                   {game && gameRow('platform', last)}
                   {book && formatRow(last)}
+                  {book && lengthRow()}
                   <ListRow icon={game ? <ReplayIcon size={18} /> : Ico.rewatch} label={W.rewatch} onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
                   {game && gameRow('coop', last)}
                 </div>
@@ -487,6 +510,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
                 <div className="list-group">
                   {game && gameRow('platform', null)}
                   {book && formatRow(null)}
+                  {book && lengthRow()}
                   <ListRow icon={game ? <ReplayIcon size={18} /> : Ico.rewatch} label={W.rewatch} onClick={() => { const v = !item.rewatch; optimistic(() => setItem({ ...item, rewatch: v }), () => setItem({ ...item, rewatch: !v }), () => updateItem(item.id, { rewatch: v })); }}><span className={'switch' + (item.rewatch ? ' on-green' : '')}><span /></span></ListRow>
                   {game && gameRow('coop', null)}
                 </div>

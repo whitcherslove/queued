@@ -934,3 +934,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .fmt-seg button.on { background: var(--accent); color: var(--on-accent); }
 
 .stat-grid { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+
+.num-input { width: 86px; height: 36px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font: inherit; font-weight: 700; text-align: right; }

@@ -38,7 +38,8 @@ type BookItem = LibItem & { format?: string | null; progress?: number | null };
 const bookMeta = (it: LibItem) => {
   const d = it.title.data as { pages?: number | null; audio_min?: number | null } | null;
   const mine = (it.overrides as { ttb_main?: number } | null)?.ttb_main;
-  const h = mine ?? readHours(d?.pages, d?.audio_min, (it as BookItem).format);
+  const ov = it.overrides as { pages?: number | null; audio_min?: number | null } | null;
+  const h = mine ?? readHours(ov?.pages ?? d?.pages, ov?.audio_min ?? d?.audio_min, (it as BookItem).format);
   return [it.title.directors?.[0], it.title.year ? String(it.title.year) : '', h ? (h >= 10 ? Math.round(h) : h) + ' h' : ''].filter(Boolean).join(' · ');
 };
 

@@ -150,14 +150,22 @@ async function details(db: any, ref: string, force = false) {
     const ser = b.book_series?.[0];
     let seriesBooks: any[] = [];
     if (ser?.series?.id) {
-      const s = await hc(`query S($id: Int!) { book_series(where: {series_id: {_eq: $id}}, order_by: {position: asc}, limit: 40) { position book { id title release_year } } }`, { id: ser.series.id }).catch(() => null);
-      seriesBooks = (s?.book_series ?? []).filter((x: any) => x.book && x.book.id !== b.id)
+      const s = await hc(`query S($id: Int!) { book_series(where: {series_id: {_eq: $id}}, order_by: {position: asc}, limit: 100) { position book { id title release_year users_count } } }`, { id: ser.series.id }).catch(() => null);
+      // only the real books of the series: whole-number positions, one per position (the most read one) — no editions, box sets or extras
+      const best = new Map<number, any>();
+      for (const x of s?.book_series ?? []) {
+        const pos = Number(x.position);
+        if (!x.book || !Number.isInteger(pos) || pos < 1) continue;
+        const cur = best.get(pos);
+        if (!cur || (x.book.users_count ?? 0) > (cur.book.users_count ?? 0)) best.set(pos, x);
+      }
+      seriesBooks = [...best.values()].sort((a, c) => a.position - c.position).filter((x: any) => x.book.id !== b.id)
         .map((x: any) => ({ ref: 'hc:' + x.book.id, id: String(x.book.id), name: x.book.title, position: x.position, year: x.book.release_year ?? null }));
     }
     row = { title: b.title, release_date: b.release_date ?? null, year: b.release_year ?? null, authors, genres: [...new Set(tags)].slice(0, 6),
       overview: b.description ?? null, poster: b.image?.url ?? null,
       data: { subtitle: b.subtitle ?? null, pages: b.pages ?? null, audio_min: b.audio_seconds ? Math.round(b.audio_seconds / 60) : null, rating: b.rating ?? null, ratings: b.ratings_count ?? null,
-        series: ser?.series ? { id: String(ser.series.id), name: ser.series.name, position: ser.position ?? null } : null, series_books: seriesBooks, url: 'https://hardcover.app/books/' + b.slug } };
+        series: ser?.series ? { id: String(ser.series.id), name: ser.series.name, position: ser.position ?? null } : null, series_books: seriesBooks, series_v: 2, url: 'https://hardcover.app/books/' + b.slug } };
   } else if (p === 'ol') {
     const r = await fetchT(`https://openlibrary.org/works/${id}.json`, { headers: { 'user-agent': 'Queued/1.0 (personal reading log)' } });
     if (!r.ok) throw new Error('Open Library ' + r.status);
