@@ -109,9 +109,9 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   const topShow = watchingNow.find((x) => x.p?.nextEp) ?? watchingNow[0] ?? null;
   const spot = topShow ? { it: topShow.it, show: topShow.p as ReturnType<typeof progress> | null } : games[0] ? { it: games[0], show: null } : null;
   // 2) In progress: everything else you're actually in the middle of (other shows you watch, games, books)
-  const showsNow = watchingNow.filter((x) => x.it.id !== spot?.it.id);
-  const gamesNow = games.filter((g) => g.id !== spot?.it.id && g.section !== 'books');
-  const booksNow = games.filter((g) => g.id !== spot?.it.id && g.section === 'books');
+  const showsNow = watchingNow;
+  const gamesNow = games.filter((g) => g.section !== 'books');
+  const booksNow = games.filter((g) => g.section === 'books');
   /** "4 of 10 left · ~3 h" for a show, "~15 h of 33 h left" for a game, "308 pages left · ~7 h" for a book */
   const extraOf = (it: LibItem, p: ReturnType<typeof progress> | null) => {
     if (p) { const left = Math.max(0, p.aired - p.seen); const hrs = left * (it.title.runtime ?? 30) / 60; return left ? left + (left === 1 ? ' episode left' : ' episodes left') + (hrs >= 1 ? ' · ~' + Math.round(hrs) + ' h' : '') : 'All aired episodes watched'; }
@@ -232,30 +232,27 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
       <main className="content home">
         {loading && <div className="card-wait"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div>}
 
-        {/* spotlight */}
-        {!loading && spot && (
-          <div className="spot" role="button" tabIndex={0} onClick={() => setOpen({ id: spot.it.id, kind: kindOf(spot.it) })} onKeyDown={(e) => { if (e.key === 'Enter') setOpen({ id: spot.it.id, kind: kindOf(spot.it) }); }}>
-            {bg(spot.it) && <img className={spot.it.title.backdrop_url ? '' : 'blur'} src={bg(spot.it)!} alt="" />}
-            <div className="spot-shade" />
-            <div className="spot-text">
-              <span className="spot-kicker">{verb(spot.it)}</span>
-              <strong className="spot-title">{spot.it.title.title}</strong>
-              <span className="spot-sub">{subOf(spot.it, spot.show)}</span>
-              {spot.show && <span className="spot-sub dim">{extraOf(spot.it, spot.show)}</span>}
-              <div className="spot-row">
-                {spot.show?.nextEp && <button className="spot-btn" disabled={busy === spot.it.id} onClick={(e) => { e.stopPropagation(); watchedEp(spot.it, { season: spot.show!.nextEp!.season, episode: spot.show!.nextEp!.episode }); }}>{busy === spot.it.id ? '…' : <>{Ico.check}Watched</>}</button>}
-                <span className="spot-bar"><i style={{ width: progressOf(spot.it, spot.show) + '%' }} /></span>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* In progress — one panel per kind, each with what's left */}
         {!loading && ([['Shows', showsNow.map((x) => ({ it: x.it, p: x.p as ReturnType<typeof progress> | null }))], ['Games', gamesNow.map((it) => ({ it, p: null }))], ['Books', booksNow.map((it) => ({ it, p: null }))]] as [string, { it: LibItem; p: ReturnType<typeof progress> | null }[]][])
           .filter(([, list]) => list.length > 0).map(([title, list]) => (
           <section key={title} className={'panel kind-' + title.toLowerCase()}>
             <div className="panel-head"><span className="ph-icon">{title === 'Shows' ? <DuoTvMini /> : title === 'Books' ? <FormatIcon f="paper" /> : Ico.play}</span><span>{title === 'Shows' ? 'Watching' : title === 'Games' ? 'Playing' : 'Reading'}</span><span className="count-badge">{list.length}</span></div>
-            {list.map(({ it, p }) => (
+            {list.slice(0, 1).map(({ it, p }) => (
+              <div key={it.id} className="spot in-panel" role="button" tabIndex={0} onClick={() => setOpen({ id: it.id, kind: kindOf(it) })} onKeyDown={(e) => { if (e.key === 'Enter') setOpen({ id: it.id, kind: kindOf(it) }); }}>
+                {bg(it) && <img className={it.title.backdrop_url ? '' : 'blur'} src={bg(it)!} alt="" />}
+                <div className="spot-shade" />
+                <div className="spot-text">
+                  <strong className="spot-title">{it.title.title}</strong>
+                  <span className="spot-sub">{p ? subOf(it, p) : <>{it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} size={12} />} {extraOf(it, null).split(' · ').slice(1).join(' · ')}</>}</span>
+                  {p && <span className="spot-sub dim">{extraOf(it, p)}</span>}
+                  <div className="spot-row">
+                    {p?.nextEp && <button className="spot-btn" disabled={busy === it.id} onClick={(e) => { e.stopPropagation(); watchedEp(it, { season: p.nextEp!.season, episode: p.nextEp!.episode }); }}>{busy === it.id ? '…' : <>{Ico.check}Watched</>}</button>}
+                    <span className="spot-bar"><i style={{ width: progressOf(it, p) + '%' }} /></span><strong className="spot-pct">{progressOf(it, p)}%</strong>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {list.slice(1).map(({ it, p }) => (
               <button key={it.id} className="ticket" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })}>
                 <span className="ticket-img">{bg(it) ? <img className={it.title.backdrop_url ? '' : 'blur'} src={bg(it)!} alt="" /> : null}</span>
                 <span className="ticket-body">
@@ -358,8 +355,6 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
           <span className="grow"><strong>Your stats</strong><span className="muted small">What you watched, played and read, ratings, activity</span></span><span aria-hidden="true">›</span>
         </button>}
 
-        {/* TEMP diagnostics (to find why a show you're watching doesn't show up) — remove after */}
-        {!loading && <span className="muted tiny diag">tv items {items.filter((i) => i.section === 'tv').length} · playing {items.filter((i) => i.section === 'tv' && i.status === 'playing').map((i) => i.title.title + (shows.some((x) => x.it.id === i.id) ? '' : ' ✗')).join(', ') || '—'} · eps {eps.length} · marks {marks.length} · top: {spot ? spot.it.title.title : '—'}</span>}
         {!loading && !nowCount && !coming.length && !recent.length && !upNext.length && <div className="empty">Add a movie, a show, a game or a book — your activity shows up here.</div>}
       </main>
 

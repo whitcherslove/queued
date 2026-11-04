@@ -1078,3 +1078,9 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 
 .bar-row { display: flex; align-items: center; gap: 8px; }
 .bar-row .mini-bar { flex: 1; }
+
+.spot.in-panel { height: 180px; border-radius: 14px; }
+.spot.in-panel .spot-title { font-size: 22px; }
+.spot-pct { color: #fff; font-size: 12px; min-width: 34px; text-align: right; }
+.spot .plat-logo { filter: none !important; margin: 0 4px 0 0 !important; vertical-align: -1px; }
+.spot .fmt-icon { color: #fff; margin: 0 4px 0 0; }
