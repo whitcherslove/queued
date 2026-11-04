@@ -5,7 +5,7 @@ import { DROPPED_COLOR, PICK_TIERS, TIERS, displayScore, imdbColor, metascoreCol
 import { needsRefresh, diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import { shortCountries } from '../lib/logic';
 import {
-  type Owned, bookImages, ensureBook, findOwnedBooks, estimateProgress, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
+  type Owned, translateText, bookImages, ensureBook, findOwnedBooks, estimateProgress, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import DateField from '../components/DateField';
@@ -869,9 +869,10 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
     const ms = numOrNull(f.metascore, 100), im = numOrNull(f.imdb_rating, 10), rt = f.runtime.trim() ? parseInt(f.runtime, 10) : null;
     if (ms === undefined || im === undefined || (f.release_date && !/^\d{4}-\d{2}-\d{2}$/.test(f.release_date))) { setNote('Check the highlighted values: dates as YYYY-MM-DD, Metascore 0–100, IMDb 0–10.'); return; }
     const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im, backdrop_url: backdrop, poster_url: poster, ...(kind === 'tv' && showStatus ? { status: showStatus } : {}) };
-    const keep = (item.overrides ?? {}) as { dlc_hidden?: string[] };
+    const keep = (item.overrides ?? {}) as { dlc_hidden?: string[]; overview?: string; pages?: number; audio_min?: number };
     const ttbN = Number(String(f.ttb_main).replace(',', '.'));
     setBusy(true); await updateItem(item.id, { overrides: { ...diffOverrides(item.title, edited), ...(kind === 'tv' && showStatus && showStatus !== tmdbStatus ? { status: showStatus } : {}),
+      ...(keep.overview ? { overview: keep.overview } : {}), ...(keep.pages ? { pages: keep.pages } : {}), ...(keep.audio_min ? { audio_min: keep.audio_min } : {}),
       ...(kind === 'game' && keep.dlc_hidden ? { dlc_hidden: keep.dlc_hidden } : {}), ...(kind === 'game' && (keep as { franchise_hidden?: string[] }).franchise_hidden ? { franchise_hidden: (keep as { franchise_hidden?: string[] }).franchise_hidden } : {}), ...((kind === 'game' || kind === 'book') && f.ttb_main && ttbN > 0 ? { ttb_main: Math.round(ttbN * 10) / 10 } : {}) } as never }); setBusy(false); onSaved();
   };
   const refresh = async () => { setBusy(true); try { if (kind === 'game') await ensureGame(item.title.source_id, true); else if (kind === 'book') await ensureBook(bookRef(item.title), true); else if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle(kind, item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
@@ -886,6 +887,13 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
       <div className="edit-head"><button className="link" onClick={onClose}>Cancel</button><span className="h2">Edit details</span><button className="btn primary sm" onClick={save} disabled={busy}>Save</button></div>
       <div className="card-body">
         <button className="btn wide" onClick={refresh} disabled={busy}>↻ Update the info</button>
+        {kind === 'book' && item.title.overview && (
+          <div className="row nowrap">
+            {/* the original description, translated by the AI — or back to the original */}
+            <button className="btn grow" disabled={busy} onClick={async () => { setBusy(true); try { const tr = await translateText(item.title.overview!, 'ru'); if (tr) { await updateItem(item.id, { overrides: { ...(item.overrides ?? {}), overview: tr } } as never); setNote('Description translated.'); onSaved(); } } catch { setNote('Couldn’t translate. Try again.'); } setBusy(false); }}>Описание по-русски</button>
+            {(item.overrides as { overview?: string } | null)?.overview && <button className="btn grow" disabled={busy} onClick={async () => { const { overview: _o, ...rest } = (item.overrides ?? {}) as Record<string, unknown>; await updateItem(item.id, { overrides: rest } as never); onSaved(); }}>Original description</button>}
+          </div>
+        )}
         {note && <p className="muted small">{note}</p>}
         {imageBlock('poster')}
         {kind !== 'book' && imageBlock('backdrop')}

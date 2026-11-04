@@ -124,7 +124,7 @@ async function search(q: string) {
       }
       twin.editions = Math.max(twin.editions ?? 0, x.editions ?? 0) || twin.editions;
       twin.cover = twin.cover ?? x.cover; twin.pages = twin.pages ?? x.pages;
-      if (x.year && (!twin.year || x.year < twin.year)) twin.year = x.year;
+      if (!twin.year && x.year) twin.year = x.year;   // the main source's year wins, so search and card agree
       continue;
     }
     out.push({ ...x });

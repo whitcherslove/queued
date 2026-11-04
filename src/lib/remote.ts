@@ -339,3 +339,10 @@ export async function bookImages(ref: string, title: string, author: string, alt
   if (error) throw await fnError(error);
   return data ?? { posters: [], backdrops: [] };
 }
+
+/** A description translated by the AI (books found in Russian keep their good original description, in Russian). */
+export async function translateText(text: string, lang: 'ru' | 'en'): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('ask', { body: { mode: 'translate', text, lang } });
+  if (error) throw await fnError(error);
+  return String(data?.text ?? '');
+}

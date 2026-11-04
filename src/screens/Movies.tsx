@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Section, LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { localDay, needsRefresh, topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
-import { bookRefFromLink, ensureBook, searchBooks, ensureGame, gameIdBySlug, gameImages, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
+import { bookRefFromLink, ensureBook, searchBooks, translateText, ensureGame, gameIdBySlug, gameImages, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
 import ShowCard from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
 import { epLabel, epRuntime, isEnded, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, showState, todayIso, type ShowState } from '../lib/tv';
@@ -752,12 +752,15 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           // searched in Russian: title, author and description in Russian (from the Russian edition), the rest (pages, series) from the main source
           const ov: Record<string, unknown> = {};
           if (shown && shown !== t.title) ov.title = shown;
+          const searchedRu = /[а-яё]/i.test(shown);
           if (alt) {
             const ru = await ensureBook(alt).catch(() => null);
-            if (ru) {
-              if (ru.directors?.length && /[а-яё]/i.test(ru.directors[0])) ov.directors = ru.directors;
-              if (ru.overview && /[а-яё]/i.test(ru.overview)) ov.overview = ru.overview;
-            }
+            if (ru?.directors?.length && /[а-яё]/i.test(ru.directors[0])) ov.directors = ru.directors;
+          }
+          // the description: the main source's (usually the good one), translated into Russian if you searched in Russian
+          if (searchedRu && t.overview && !/[а-яё]/i.test(t.overview)) {
+            const tr = await translateText(t.overview, 'ru').catch(() => '');
+            if (tr) ov.overview = tr;
           }
           const extra = Object.keys(ov).length ? { overrides: ov } : {};
           const id = await addToBacklog(t.id, 'books', topPosition(items), { format, ...extra, ...(mode === 'playing' ? { status: 'playing', started_on: today, run_started_at: new Date().toISOString(), progress: 0 } : {}) } as never);

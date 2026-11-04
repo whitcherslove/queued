@@ -39,7 +39,18 @@ async function gemini(model: string, body: any): Promise<string> {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
-    const { libraryId, question, mode } = await req.json();
+    const { libraryId, question, mode, text, lang } = await req.json();
+    // mode "translate": a book description in the language you read in (signed-in users only)
+    if (mode === 'translate') {
+      const { data: who } = await createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } }).auth.getUser();
+      if (!who?.user) return Response.json({ error: 'Sign in first' }, { status: 401, headers: CORS });
+      const src = String(text ?? '').slice(0, 6000); if (!src) return Response.json({ text: '' }, { headers: CORS });
+      const target = lang === 'ru' ? 'Russian' : 'English';
+      const tBody = { systemInstruction: { parts: [{ text: `Translate this book description into natural, literary ${target}. Keep names as they are usually written in ${target} editions. Reply with the translation only.` }] }, contents: [{ role: 'user', parts: [{ text: src }] }] };
+      const m1 = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash', m2 = Deno.env.get('GEMINI_FALLBACK_MODEL') || 'gemini-3.5-flash-lite';
+      let out: string; try { out = await gemini(m1, tBody); } catch { out = await gemini(m2, tBody); }
+      return Response.json({ text: out }, { headers: CORS });
+    }
     const q = String(question ?? '').trim();
     if (!libraryId || !q) return Response.json({ error: 'libraryId and question are required' }, { status: 400, headers: CORS });
 

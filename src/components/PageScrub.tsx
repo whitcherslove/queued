@@ -15,10 +15,10 @@ export default function PageScrub({ value, max, label, onInput, onCommit }: {
   const pct = max ? Math.max(0, Math.min(100, (value / max) * 100)) : 0;
   const clamp = (v: number) => Math.max(0, Math.min(max, Math.round(v)));
   return (
-    <div ref={track} className="scrub" role="slider" tabIndex={0} aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value}
+    <div ref={track} className="scrub no-swipe" role="slider" tabIndex={0} aria-label={label} aria-valuemin={0} aria-valuemax={max} aria-valuenow={value}
       style={{ touchAction: 'pan-y' }}
       onKeyDown={(e) => { if (e.key === 'ArrowRight' || e.key === 'ArrowUp') { e.preventDefault(); onCommit(clamp(value + 1)); } if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') { e.preventDefault(); onCommit(clamp(value - 1)); } }}
-      onPointerDown={(e) => { st.current = { x: e.clientX, y: e.clientY, start: value, armed: false, moved: false, last: value }; (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }}
+      onPointerDown={(e) => { e.stopPropagation(); st.current = { x: e.clientX, y: e.clientY, start: value, armed: false, moved: false, last: value }; (e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId); }}
       onPointerMove={(e) => {
         const s = st.current; if (!s) return;
         const dx = e.clientX - s.x, dy = e.clientY - s.y;
