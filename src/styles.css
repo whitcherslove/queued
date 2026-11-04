@@ -1026,3 +1026,37 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .upnext-panel .panel-head span:first-child { color: #E26FB0; }
 .count-badge.pink { background: color-mix(in srgb, #E26FB0 22%, transparent); color: #E26FB0; }
 .home-item.flat { border: 0; background: transparent; padding: 6px 2px; }
+
+/* ---------- Home v4 polish ---------- */
+.panel { gap: 10px; padding: 14px; }
+.panel-head span:first-child { flex: none; }
+.panel-head > span:nth-child(2) { flex: 1; }
+.ph-icon { display: inline-flex; width: 26px; height: 26px; border-radius: 8px; align-items: center; justify-content: center; background: var(--surface2); color: var(--muted); }
+.ph-icon svg { width: 15px; height: 15px; }
+.upnext-panel .panel-head span:first-child { color: inherit; }
+.upnext-panel .panel-head > span:nth-child(2) { color: #E26FB0; }
+.upnext-panel .ph-icon { background: color-mix(in srgb, #E26FB0 20%, transparent); color: #E26FB0; }
+
+.tn-head { display: flex; align-items: center; justify-content: space-between; width: 100%; padding: 0; border: 0; background: transparent; color: inherit; }
+
+/* In progress rows */
+.ticket { gap: 12px; padding: 8px; background: var(--surface2); border-radius: 14px; min-height: 72px; }
+.ticket-img { width: 92px; height: 56px; align-self: center; border-radius: 9px; }
+.ticket-body { padding: 0; gap: 4px; }
+.ticket-meta { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); min-width: 0; }
+.ticket-meta .plat-logo { margin: 0 !important; flex: none; }
+.ticket-meta .fmt-icon { margin: 0; }
+.ticket-act { margin-right: 2px; width: 38px; height: 38px; }
+.state-pill.sm { font-size: 10px; padding: 1px 7px; flex: none; }
+
+/* Recently finished cards */
+.fin-card { position: relative; flex: none; width: 200px; display: flex; flex-direction: column; padding: 0; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; background: var(--surface2); color: var(--ink); text-align: left; scroll-snap-align: start; }
+.fin-img { position: relative; height: 92px; overflow: hidden; background: var(--surface); }
+.fin-img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.fin-img img.blur { transform: scale(1.3); filter: blur(18px) saturate(1.3) brightness(.75); }
+.fin-shade { position: absolute; inset: 0; background: linear-gradient(to top, rgba(0,0,0,.55), transparent 60%); }
+.fin-when { position: absolute; right: 8px; top: 8px; font-size: 10px; font-weight: 800; padding: 2px 7px; border-radius: 999px; background: rgba(0,0,0,.55); color: #fff; }
+.fin-cover { position: absolute; left: 10px; top: 52px; border-radius: 6px; overflow: hidden; box-shadow: 0 6px 16px rgba(0,0,0,.45); }
+.fin-body { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px 10px 72px; min-height: 84px; min-width: 0; }
+.fin-rate { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
+.fin-rate .tier-under { align-self: center; }
