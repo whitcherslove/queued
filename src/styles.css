@@ -957,3 +957,7 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .nav-btn { flex: none; min-width: 36px; height: 34px; padding: 0 8px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font-weight: 800; }
 .nav-btn.wide { min-width: 78px; font-size: 12px; }
 .nav-btn:disabled { opacity: .35; }
+
+/* "[icon] · author · year": the same tight spacing as the dots inside the text */
+.row-meta .fmt-icon, .row-meta .plat-logo, .row-meta .plat-text { margin-right: 0; }
+.row-meta .dot-sep { margin: 0 -2.5px; }
