@@ -24,3 +24,9 @@ export function positionText(pct: number, pages: number | null | undefined, audi
   if (pages) return 'p. ' + Math.round((pages * pct) / 100) + ' / ' + pages;
   return '';
 }
+
+/** "1 h 40 m / 3 h 20 m" from the minute you're at — the exact one, not rounded through a percent. */
+export function positionMinutes(at: number, total: number): string {
+  const hm = (m: number) => (m >= 60 ? Math.floor(m / 60) + ' h ' : '') + (m % 60) + ' m';
+  return hm(Math.round(at)) + ' / ' + hm(Math.round(total));
+}

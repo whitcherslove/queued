@@ -18,7 +18,7 @@ import { PlatformSheet } from '../components/GameAddSheet';
 import ProgressRing from '../components/ProgressRing';
 import PlatformIcon from '../components/PlatformIcon';
 import FormatIcon from '../components/FormatIcon';
-import { FORMATS, formatLabel, positionText, readHours } from '../lib/formats';
+import { FORMATS, formatLabel, positionMinutes, readHours } from '../lib/formats';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import { ChevBtn, IconBack, MoreBtn, ReplayIcon } from '../components/Icons';
 import { useBackLayer } from '../lib/back';
@@ -451,7 +451,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
               <button className={'ai-round' + (progAsk ? ' on' : '')} aria-label={progAsk ? 'Close Ask AI' : 'Ask AI where you are'} aria-expanded={progAsk} onClick={() => { setProgAsk(!progAsk); setProgNote(''); }}><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5l1.9 5.6 5.6 1.9-5.6 1.9L12 17.5l-1.9-5.6L4.5 10l5.6-1.9z" /><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z" opacity=".7" /></svg></button>
             </div>
           )}
-          {isPlaying && unitMax ? <span className="muted small">{positionText(gItem.progress ?? 0, pagesN, audioN, bItem.format)}</span> : null}
+          {isPlaying && unitMax ? <span className="muted small">{bItem.format === 'audio' ? positionMinutes(unitPos ?? 0, unitMax) : 'p. ' + (unitPos ?? 0) + ' / ' + unitMax}</span> : null}
           {isPlaying && progAsk && (
             <div className="prog-ask">
               <input className="text-input" autoFocus placeholder="Where are you? e.g. “just beat the second boss”" value={progText} onChange={(e) => setProgText(e.target.value)}
