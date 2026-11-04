@@ -107,7 +107,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   }, [items, logs, eps, marks, today]);
   const outLabel = (date: string) => { const d = Math.round((new Date(today).getTime() - new Date(date).getTime()) / 864e5); return d <= 0 ? 'Out today' : d === 1 ? 'Out yesterday' : 'Out ' + d + ' d ago'; };
   const recent = useMemo(() => logs.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at)).slice(0, 14), [logs]);
-  const upNext = useMemo(() => items.filter((i) => i.status === 'backlog' && i.up_next).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).slice(0, 10), [items]);
+  const upNext = useMemo(() => items.filter((i) => i.status === 'backlog' && i.up_next).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)), [items]);
 
   const watchedEp = async (it: LibItem, ep: { season: number; episode: number }) => {
     setBusy(it.id);
@@ -157,14 +157,22 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
       .sort((a, b) => (b.title.release_date ?? '').localeCompare(a.title.release_date ?? ''))
       .forEach((i) => out.push({ it: i, kind: i.section === 'movies' ? 'Movies' : i.section === 'books' ? 'Books' : 'Games', label: 'Out now', state: 'outNow',
         text: 'Released ' + new Date(i.title.release_date!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), seasons: [] }));
-    return out;
+    // your Up next goes first (in your order); if something is both pinned and new, it stays once — as Up next
+    const kindOfSec = (sec: string): ReadyRow['kind'] => (sec === 'tv' ? 'Shows' : sec === 'movies' ? 'Movies' : sec === 'books' ? 'Books' : 'Games');
+    const pinned: ReadyRow[] = items.filter((i) => i.status === 'backlog' && i.up_next).sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+      .map((i) => { const d = i.title.data as { ttb?: { main?: number | null }; pages?: number | null; seasons?: unknown[] } | null;
+        const text = i.section === 'movies' ? (i.title.runtime ? Math.floor(i.title.runtime / 60) + 'h ' + (i.title.runtime % 60) + 'm' : '') : i.section === 'tv' ? (d?.seasons?.length ? d.seasons.length + (d.seasons.length === 1 ? ' season' : ' seasons') : '') : i.section === 'books' ? (d?.pages ? d.pages + ' pages' : '') : (d?.ttb?.main ? Math.round(d.ttb.main) + ' h to beat' : '');
+        return { it: i, kind: kindOfSec(i.section), label: 'Up next', state: 'upNext', text, seasons: [] }; });
+    return [...pinned, ...out.filter((r) => !pinned.some((p) => p.it.id === r.it.id))];
   }, [shows, watchingNow.length, items, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const [readyOpen, setReadyOpen] = useState(false);
   const [readyKind, setReadyKind] = useState<'All' | ReadyRow['kind']>('All');
   const [readyAll, setReadyAll] = useState(false);
   const [comingAll, setComingAll] = useState(false);
+  const [upOpen, setUpOpen] = useState(false);
+  const [upAll, setUpAll] = useState(false);
   // folded: one random thing from all of it
-  const featured = useMemo(() => (ready.length ? ready[Math.floor(Math.random() * ready.length)] : null), [ready.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const featured = useMemo(() => { const pinned = ready.filter((r) => r.state === 'upNext'); if (pinned.length) return pinned.slice(0, 2); const rest = ready; return rest.length ? [rest[Math.floor(Math.random() * rest.length)]] : []; }, [ready.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const readyKinds = (['Shows', 'Movies', 'Games', 'Books'] as const).filter((k) => ready.some((r) => r.kind === k));
   const readyList = ready.filter((r) => readyKind === 'All' || r.kind === readyKind);
 
@@ -339,21 +347,21 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
         {/* Ready to start: new seasons, last chances, and what just came out from your backlog — folded */}
         {!loading && ready.length > 0 && <section className="panel ready-panel">
           <button className="panel-head as-btn" aria-expanded={readyOpen} onClick={() => setReadyOpen(!readyOpen)}>
-            <span className="ph-icon">{Ico.seasons}</span><span>Ready to start</span><span className="count-badge">{ready.length}</span><ChevBtn open={readyOpen} size={28} />
+            <span className="ph-icon">{Ico.seasons}</span><span>Up next & ready</span><span className="count-badge">{ready.length}</span><ChevBtn open={readyOpen} size={28} />
           </button>
-          {readyOpen && readyKinds.length > 1 && <div className="seg">{(['All', ...readyKinds] as ('All' | ReadyRow['kind'])[]).map((k) => <button key={k} className={readyKind === k ? 'on' : ''} onClick={() => { setReadyKind(k); setReadyAll(false); }}>{k}{k !== 'All' ? ' ' + ready.filter((r) => r.kind === k).length : ''}</button>)}</div>}
-          {(readyOpen ? (readyAll ? readyList : readyList.slice(0, 5)) : featured ? [featured] : []).map((x) => (
+          {readyOpen && readyKinds.length > 0 && <div className="seg">{(['All', ...readyKinds] as ('All' | ReadyRow['kind'])[]).map((k) => <button key={k} className={readyKind === k ? 'on' : ''} onClick={() => { setReadyKind(k); setReadyAll(false); }}>{k}{k !== 'All' ? ' ' + ready.filter((r) => r.kind === k).length : ''}</button>)}</div>}
+          {(readyOpen ? (readyAll ? readyList : readyList.slice(0, 6)) : featured).map((x) => (
             <button key={x.it.id} className="ticket" onClick={() => setOpen({ id: x.it.id, kind: kindOf(x.it) })}>
               <span className="ticket-img">{bg(x.it) ? <img className={x.it.title.backdrop_url ? '' : 'blur'} src={bg(x.it)!} alt="" /> : null}</span>
               <span className="ticket-body">
                 <span className="row-title ellipsis">{x.it.title.title}</span>
-                <span className="ticket-meta">{justOut.some((j) => j.it.id === x.it.id) && <span className="new-dot">New</span>}<span className="state-pill sm" data-state={x.state}>{x.label}</span><span className="muted">{x.kind === 'Shows' ? '' : x.kind.slice(0, -1) + ' ·'}</span><span className="ellipsis">{x.text}</span></span>
+                <span className="ticket-meta">{justOut.some((j) => j.it.id === x.it.id) && <span className="new-dot">New</span>}<span className="state-pill sm" data-state={x.state}>{x.label}</span><span className="muted">{x.kind.slice(0, -1) + (x.text ? ' ·' : '')}</span><span className="ellipsis">{x.text}</span></span>
               </span>
-              {x.kind === 'Shows' && <span className="ticket-act" role="button" tabIndex={0} aria-label="Start watching" onClick={(e) => { e.stopPropagation(); setBusy(x.it.id); startWatching(x.it, x.seasons).then(load).finally(() => setBusy(null)); }}>{busy === x.it.id ? '…' : Ico.play}</span>}
+              {x.kind === 'Shows' && x.state !== 'upNext' && <span className="ticket-act" role="button" tabIndex={0} aria-label="Start watching" onClick={(e) => { e.stopPropagation(); setBusy(x.it.id); startWatching(x.it, x.seasons).then(load).finally(() => setBusy(null)); }}>{busy === x.it.id ? '…' : Ico.play}</span>}
             </button>
           ))}
-          {!readyOpen && ready.length > 1 && <button className="link left" onClick={() => setReadyOpen(true)}>and {ready.length - 1} more</button>}
-          {readyOpen && !readyAll && readyList.length > 5 && <button className="link left" onClick={() => setReadyAll(true)}>Show all {readyList.length}</button>}
+          {!readyOpen && ready.length > featured.length && <button className="link left" onClick={() => setReadyOpen(true)}>and {ready.length - featured.length} more</button>}
+          {readyOpen && !readyAll && readyList.length > 6 && <button className="link left" onClick={() => setReadyAll(true)}>Show all {readyList.length}</button>}
         </section>}
 
         {/* Recently finished: picture on top, the cover over it, your rating and when */}
@@ -372,20 +380,6 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
               </button>
             ); })}
           </div>
-        </section>}
-
-        {/* Up next: pink panel, rows */}
-        {!loading && upNext.length > 0 && <section className="panel upnext-panel">
-          <div className="panel-head"><span className="ph-icon">{Ico.pin}</span><span>Up next</span><span className="count-badge pink">{upNext.length}</span></div>
-          {upNext.map((it) => { const d = it.title.data as { ttb?: { main?: number | null }; pages?: number | null } | null;
-            const meta = it.section === 'movies' ? (it.title.runtime ? Math.floor(it.title.runtime / 60) + 'h ' + (it.title.runtime % 60) + 'm' : '') : it.section === 'tv' ? ((d as { seasons?: unknown[] } | null)?.seasons?.length ? (d as { seasons: unknown[] }).seasons.length + ' seasons' : '') : it.section === 'books' ? (d?.pages ? d.pages + ' pages' : '') : (d?.ttb?.main ? Math.round(d.ttb.main) + ' h' : '');
-            return (
-              <button key={it.id} className="home-item flat" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })}>
-                <Poster t={it.title} w={34} h={50} />
-                <span className="grow"><span className="row-title">{it.title.title}</span><span className="muted small">{['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} /> : SEC_LABEL[it.section]}{meta ? ' · ' + meta : ''}</span></span>
-                <span aria-hidden="true" className="muted">›</span>
-              </button>
-            ); })}
         </section>}
 
         {/* Coming up: what comes out in the next three months — shows, movies, games, books from your lists */}
