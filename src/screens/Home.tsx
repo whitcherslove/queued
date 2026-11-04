@@ -65,7 +65,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
 
   // --- Coming up (next 30 days): new episodes, season premieres, releases from Backlog
   const coming = useMemo(() => {
-    const limit = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);   // the week strip shows 7 days; the rest is 'next'
+    const limit = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);   // the next three months
     const out: { it: LibItem; date: string; what: string }[] = [];
     items.forEach((it) => {
       if (it.section === 'tv') {
@@ -80,10 +80,10 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
           }
         }
       } else if (it.status === 'backlog' && it.title.release_date && it.title.release_date >= today && it.title.release_date <= limit) {
-        out.push({ it, date: it.title.release_date, what: it.section === 'movies' ? 'Release' : 'Release · ' + SEC_LABEL[it.section] });
+        out.push({ it, date: it.title.release_date, what: 'Release' });
       }
     });
-    return out.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 30);
+    return out.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 60);
   }, [items, logs, eps, marks, today]);
 
   const recent = useMemo(() => logs.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at)).slice(0, 14), [logs]);
@@ -131,9 +131,9 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   const ready: ReadyRow[] = useMemo(() => {
     const out: ReadyRow[] = shows.filter((x) => !watchingNow.includes(x) && (x.st.state === 'newSeason' || x.st.state === 'lastChance'))
       .map((x) => ({ it: x.it, kind: 'Shows' as const, label: x.st.state === 'newSeason' ? 'New season' : 'Last chance', state: x.st.state, text: x.st.state === 'newSeason' ? seasonsName(x.st.seasons) + ' is out' : seasonsName(x.st.seasons) + ' left', seasons: x.st.seasons }));
-    // out now: in your backlog, released within the last ~4 months
+    // out now: in your backlog and already released this year (or within the last ~4 months, so January still shows December's releases)
     const since = new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10);
-    items.filter((i) => i.status === 'backlog' && i.section !== 'tv' && i.title.release_date && i.title.release_date <= today && i.title.release_date >= since)
+    items.filter((i) => i.status === 'backlog' && i.section !== 'tv' && i.title.release_date && i.title.release_date <= today && (i.title.release_date.slice(0, 4) === today.slice(0, 4) || i.title.release_date >= since))
       .sort((a, b) => (b.title.release_date ?? '').localeCompare(a.title.release_date ?? ''))
       .forEach((i) => out.push({ it: i, kind: i.section === 'movies' ? 'Movies' : i.section === 'books' ? 'Books' : 'Games', label: 'Out now', state: 'outNow',
         text: 'Released ' + new Date(i.title.release_date!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), seasons: [] }));
@@ -142,8 +142,9 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   const [readyOpen, setReadyOpen] = useState(false);
   const [readyKind, setReadyKind] = useState<'All' | ReadyRow['kind']>('All');
   const [readyAll, setReadyAll] = useState(false);
-  // folded: one thing — a fresh season if there is one, otherwise the newest release
-  const featured = useMemo(() => { const fresh = ready.filter((x) => x.state === 'newSeason'); const pool = fresh.length ? fresh : ready; return pool.length ? pool[Math.floor(Math.random() * Math.min(pool.length, 4))] : null; }, [ready.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [comingAll, setComingAll] = useState(false);
+  // folded: one random thing from all of it
+  const featured = useMemo(() => (ready.length ? ready[Math.floor(Math.random() * ready.length)] : null), [ready.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const readyKinds = (['Shows', 'Movies', 'Games', 'Books'] as const).filter((k) => ready.some((r) => r.kind === k));
   const readyList = ready.filter((r) => readyKind === 'All' || r.kind === readyKind);
 
@@ -365,6 +366,25 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
                 <span aria-hidden="true" className="muted">›</span>
               </button>
             ); })}
+        </section>}
+
+        {/* Coming up: what comes out in the next three months — shows, movies, games, books from your lists */}
+        {!loading && coming.length > 0 && <section className="panel">
+          <div className="panel-head"><span className="ph-icon">{Ico.date}</span><span>Coming up</span><span className="count-badge">{coming.length}</span></div>
+          {(comingAll ? coming : coming.slice(0, 5)).map((c, i, arr) => { const d = new Date(c.date); const mon = d.toLocaleDateString('en-GB', { month: 'long' });
+            const prevMon = i > 0 ? new Date(arr[i - 1].date).toLocaleDateString('en-GB', { month: 'long' }) : '';
+            const days = Math.round((new Date(c.date).getTime() - new Date(today).getTime()) / 864e5);
+            return (<div key={c.it.id + c.date} className="stack-0">
+              {mon !== prevMon && i > 0 && <span className="cu-month">{mon}</span>}
+              <button className="cu-row" onClick={() => setOpen({ id: c.it.id, kind: kindOf(c.it) })}>
+                <span className="cu-date"><b>{d.getDate()}</b><span>{d.toLocaleDateString('en-GB', { month: 'short' })}</span></span>
+                <Poster t={c.it.title} w={34} h={50} />
+                <span className="grow"><span className="row-title ellipsis">{c.it.title.title}</span>
+                  <span className="muted small ellipsis">{SEC_LABEL[c.it.section]} · {c.what}</span></span>
+                <span className={'cu-in' + (days <= 7 ? ' soon' : '')}>{days === 0 ? 'Today' : days === 1 ? 'Tomorrow' : 'in ' + days + ' d'}</span>
+              </button>
+            </div>); })}
+          {coming.length > 5 && <button className="link left" onClick={() => setComingAll(!comingAll)}>{comingAll ? 'Show less' : 'Show all ' + coming.length}</button>}
         </section>}
 
         {!loading && <button className="card home-stats" onClick={onStats}>

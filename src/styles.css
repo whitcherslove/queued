@@ -1091,3 +1091,14 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .spot-watched { flex: none; height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; }
 .ready-panel .seg { margin-top: 0; }
 .ready-panel .seg button { font-size: 12px; }
+
+/* Coming up */
+.stack-0 { display: flex; flex-direction: column; }
+.cu-month { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin: 6px 0 2px; }
+.cu-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 6px 4px; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.cu-row .grow { display: flex; flex-direction: column; min-width: 0; }
+.cu-date { flex: none; width: 40px; display: flex; flex-direction: column; align-items: center; padding: 4px 0; border-radius: 10px; background: var(--surface2); }
+.cu-date b { font-size: 16px; line-height: 1.1; }
+.cu-date span { font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--muted); }
+.cu-in { flex: none; font-size: 11px; font-weight: 800; color: var(--muted); }
+.cu-in.soon { color: var(--accent); }
