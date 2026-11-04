@@ -232,7 +232,8 @@ export default function MovieCard({ game, openPast, itemId, onPrev, onNext, ente
   const dlcHidden: string[] = ((item.overrides as { dlc_hidden?: string[] } | null)?.dlc_hidden ?? []);
   const setDlcHidden = (list: string[]) => { const ov = { ...(item.overrides ?? {}), dlc_hidden: list }; setItem({ ...item, overrides: ov } as never); updateItem(item.id, { overrides: ov } as never).catch(() => setError('Couldn’t save. Try again.')); };
   /** games: Backlog → Playing on the chosen platform */
-  const startPlaying = () => setPlatAsk('start');
+  // the platform was picked when adding — start right away; ask only if the game has no platform yet
+  const startPlaying = () => (gItem.platform ? confirmPlatform('start', gItem.platform, !!gItem.coop) : setPlatAsk('start'));
   /** after the platform sheet: start playing now, or plan a replay in Backlog — the platform decides the section */
   const confirmPlatform = (mode: 'start' | 'replay', platform: string, coop: boolean) => guard(async () => {
     const section = sectionOf(platform, settings.retroPlatforms ?? undefined);
