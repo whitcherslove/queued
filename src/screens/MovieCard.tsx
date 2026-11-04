@@ -10,7 +10,6 @@ import {
 import ScoreRing from '../components/ScoreRing';
 import DateField from '../components/DateField';
 import SafeRange from '../components/SafeRange';
-import PageScrub from '../components/PageScrub';
 import Overview from '../components/Overview';
 import { MOVIE_STATE_LABEL, movieState } from '../lib/movie';
 import { platformChoices, platformLabel, sectionOf, type IgdbPlatform } from '../lib/platforms';
@@ -434,7 +433,8 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
             <div className="prog-row">
               {unitMax ? <>
                 {/* the bar moves in percent (smooth); − + move one page (or 5 minutes); the page is kept underneath */}
-                <PageScrub label={bItem.format === 'audio' ? 'Minutes listened' : 'Page'} max={unitMax} value={unitPos ?? 0}
+                {/* like games: the thumb follows your finger (pages / minutes); − + fine-tune by one page */}
+                <SafeRange className="range" label={bItem.format === 'audio' ? 'Minutes listened' : 'Page'} min={0} max={unitMax} step={1} value={unitPos ?? 0}
                   onInput={(v) => setUnit(v, false)} onCommit={(v) => setUnit(v, true)} />
                 <button className="step-btn" aria-label={bItem.format === 'audio' ? 'Back 5 minutes' : 'Previous page'} disabled={(unitPos ?? 0) <= 0} onClick={() => setUnit((unitPos ?? 0) - (bItem.format === 'audio' ? 5 : 1), true)}>−</button>
                 <strong className="prog-num">{gItem.progress ?? 0}%</strong>
