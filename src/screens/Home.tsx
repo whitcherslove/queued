@@ -3,7 +3,7 @@ import type { LibItem, LogRow, Mark, SeasonEps } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { loadEpisodes, loadEverything, loadMarks, pickTonight } from '../lib/remote';
 import { dateParts, merged } from '../lib/logic';
-import { epLabel, epRuntime, logSeasons, progress, seasonAir, seasonsName, showState, todayIso } from '../lib/tv';
+import { epLabel, epRuntime, isEnded, logSeasons, progress, seasonAir, seasonsName, showState, todayIso } from '../lib/tv';
 import { applyEpisodeMarks } from '../lib/tvActions';
 import { TIERS } from '../lib/scores';
 import { Poster } from '../components/Rows';
@@ -49,7 +49,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   const shows = useMemo(() => items.filter((i) => i.section === 'tv' && i.status === 'playing').map((it) => {
     const p = progress(it, it.title, eps.filter((e) => e.title_id === it.title_id), marks.filter((m) => m.library_id === it.id), today);
     return { it, p };
-  }).filter((x) => x.p.nextEp).sort((a, b) => (b.p.lastSeen ?? '').localeCompare(a.p.lastSeen ?? '')), [items, eps, marks, today]);
+  }).sort((a, b) => Number(!!b.p.nextEp) - Number(!!a.p.nextEp) || (b.p.lastSeen ?? '').localeCompare(a.p.lastSeen ?? '')), [items, eps, marks, today]);
   const games = useMemo(() => items.filter((i) => ['console', 'pc', 'retro', 'books'].includes(i.section) && i.status === 'playing')
     .sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')), [items]);
 
@@ -90,38 +90,72 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   };
 
   const nowCount = shows.length + games.length;
+  const readyShows = shows.filter((x) => x.p.nextEp);
   const dateLine = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   const h = new Date().getHours();
   const greeting = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 
   // ---- spotlight: the show with an episode ready that you watched last, otherwise the game / book you started last
-  const spot = shows[0] ? { it: shows[0].it, show: shows[0].p } : games[0] ? { it: games[0], show: null } : null;
-  const shelf = [...shows.slice(spot?.show ? 1 : 0).map((x) => ({ it: x.it, show: x.p })), ...games.filter((g) => g.id !== spot?.it.id).map((it) => ({ it, show: null }))];
+  const spot = readyShows[0] ? { it: readyShows[0].it, show: readyShows[0].p } : games[0] ? { it: games[0], show: null } : null;
+  const shelf = [...shows.filter((x) => x.it.id !== spot?.it.id).map((x) => ({ it: x.it, show: x.p as ReturnType<typeof progress> | null })), ...games.filter((g) => g.id !== spot?.it.id).map((it) => ({ it, show: null }))];
 
-  // ---- week strip: the next 7 days with what comes out
-  const week = useMemo(() => Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() + i); const k = d.toISOString().slice(0, 10);
-    return { k, wd: d.toLocaleDateString('en-GB', { weekday: 'short' }), day: d.getDate(), ev: coming.filter((c) => c.date === k) }; }), [coming]);
-  const [day, setDay] = useState<string | null>(null);
-  const selDay = day ?? week.find((d) => d.ev.length)?.k ?? week[0].k;
-  const dayEvents = week.find((d) => d.k === selDay)?.ev ?? [];
-  const later = coming.filter((c) => c.date > week[6].k).slice(0, 3);
-
-  // ---- tonight
-  const [tTime, setTTime] = useState('2 h'); const [tMood, setTMood] = useState('Light'); const [tWhat, setTWhat] = useState('Anything');
+  // ---- What tonight? — 🎲 random or ✦ AI, from your backlog, with filters that depend on the type
+  type Kind = 'Any' | 'Movie' | 'Show' | 'Game' | 'Book';
+  const [kind, setKind] = useState<Kind>('Any');
+  const [f, setF] = useState<Record<string, string>>({});
+  const [mood, setMood] = useState('');
   const [pick, setPick] = useState<{ id: string; why: string } | null>(null); const [picking, setPicking] = useState(false); const [pickErr, setPickErr] = useState('');
-  const skip = useRef<string[]>([]);
-  const askTonight = async (again = false) => {
-    if (!again) skip.current = [];
-    else if (pick) skip.current.push(pick.id);
+  const seen = useRef<string[]>([]);
+  const toggle = (k: string, v: string) => { setF((o) => ({ ...o, [k]: o[k] === v ? '' : v })); setPick(null); seen.current = []; };
+  const SEC_OF: Record<Kind, (i: LibItem) => boolean> = {
+    Any: () => true, Movie: (i) => i.section === 'movies', Show: (i) => i.section === 'tv', Game: (i) => ['console', 'pc', 'retro'].includes(i.section), Book: (i) => i.section === 'books'
+  };
+  const backlog = items.filter((i) => i.status === 'backlog' && (!i.title.release_date || i.title.release_date <= today) && SEC_OF[kind](i));
+  const dataOf = (i: LibItem) => (i.title.data ?? {}) as { ttb?: { main?: number | null }; pages?: number | null; seasons?: unknown[]; status?: string; modes?: string[]; series?: unknown };
+  const topGenres = useMemo(() => { const m = new Map<string, number>(); backlog.forEach((i) => (i.title.genres ?? []).forEach((g) => m.set(g, (m.get(g) ?? 0) + 1))); return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([g]) => g); }, [backlog.length, kind]); // eslint-disable-line react-hooks/exhaustive-deps
+  const platforms = [...new Set(backlog.map((i) => (i as LibItem & { platform?: string | null }).platform).filter(Boolean) as string[])];
+  const filtered = backlog.filter((i) => {
+    const d = dataOf(i); const rt = i.title.runtime ?? 0; const ttb = d.ttb?.main ?? 0; const pages = d.pages ?? 0;
+    if (f.genre && !(i.title.genres ?? []).includes(f.genre)) return false;
+    if (f.upnext && !i.up_next) return false;
+    if (kind === 'Movie') {
+      if (f.len === 'short' && !(rt && rt < 90)) return false; if (f.len === 'mid' && !(rt >= 90 && rt <= 120)) return false; if (f.len === 'long' && !(rt > 120)) return false;
+      if (f.meta && !((i.title.metascore ?? 0) >= 70)) return false; if (f.old && !((i.title.year ?? 9999) < 2000)) return false;
+    }
+    if (kind === 'Show') {
+      const n = d.seasons?.length ?? 0;
+      if (f.ep === 'short' && !(rt && rt <= 30)) return false; if (f.ep === 'long' && !(rt > 30)) return false;
+      if (f.size === 'mini' && !(n === 1)) return false; if (f.size === 'few' && !(n >= 1 && n <= 2)) return false; if (f.size === 'long' && !(n >= 3)) return false;
+      if (f.status === 'ended' && !isEnded(i.title)) return false; if (f.status === 'running' && isEnded(i.title)) return false;
+    }
+    if (kind === 'Game') {
+      if (f.plat && (i as LibItem & { platform?: string | null }).platform !== f.plat) return false;
+      if (f.ttb === 'short' && !(ttb && ttb < 10)) return false; if (f.ttb === 'mid' && !(ttb >= 10 && ttb <= 30)) return false; if (f.ttb === 'long' && !(ttb > 30)) return false;
+      if (f.coop && !((d.modes ?? []).some((m) => /co-?op|multiplayer/i.test(m)) || (i as LibItem & { coop?: boolean }).coop)) return false;
+    }
+    if (kind === 'Book') {
+      const ov = (i.overrides as { pages?: number } | null)?.pages ?? pages;
+      if (f.pages === 'short' && !(ov && ov < 300)) return false; if (f.pages === 'mid' && !(ov >= 300 && ov <= 500)) return false; if (f.pages === 'long' && !(ov > 500)) return false;
+      if (f.fmt && (i as LibItem & { format?: string | null }).format !== f.fmt) return false;
+      if (f.lang === 'ru' && !/[а-яё]/i.test(i.title.title)) return false; if (f.lang === 'en' && /[а-яё]/i.test(i.title.title)) return false;
+      if (f.series === 'series' && !d.series) return false; if (f.series === 'single' && d.series) return false;
+    }
+    return true;
+  });
+  const random = () => {
+    const pool = filtered.filter((i) => !seen.current.includes(i.id));
+    const list = pool.length ? pool : filtered;
+    if (!list.length) { setPickErr('Nothing in your backlog fits these filters.'); setPick(null); return; }
+    if (!pool.length) seen.current = [];
+    const bag = list.flatMap((i) => (i.up_next ? [i, i, i] : [i]));   // Up next is three times as likely
+    const it = bag[Math.floor(Math.random() * bag.length)];
+    seen.current.push(it.id); setPickErr(''); setPick({ id: it.id, why: '' });
+  };
+  const askAI = async () => {
     setPicking(true); setPickErr('');
-    const want = { Movie: 'movies', Show: 'tv', Game: 'game', Book: 'books' } as Record<string, string>;
-    const cands = items.filter((i) => i.status === 'backlog' && (!i.title.release_date || i.title.release_date <= today))
-      .filter((i) => tWhat === 'Anything' || (want[tWhat] === 'game' ? ['console', 'pc', 'retro'].includes(i.section) : i.section === want[tWhat]))
-      .map((i) => { const d = i.title.data as { ttb?: { main?: number | null }; pages?: number | null } | null;
-        return { id: i.id, kind: SEC_LABEL[i.section], title: i.title.title, year: i.title.year, genres: (i.title.genres ?? []).slice(0, 3), minutes: i.title.runtime ?? null,
-          hoursToBeat: d?.ttb?.main ?? null, pages: d?.pages ?? null, metascore: i.title.metascore ?? null, upNext: i.up_next }; });
+    const cands = filtered.map((i) => { const d = dataOf(i); return { id: i.id, kind: SEC_LABEL[i.section], title: i.title.title, year: i.title.year, genres: (i.title.genres ?? []).slice(0, 3), minutes: i.title.runtime ?? null, hoursToBeat: d.ttb?.main ?? null, pages: d.pages ?? null, metascore: i.title.metascore ?? null, upNext: i.up_next }; });
     const liked = logs.filter((l) => l.tier === 'ten' || l.tier === 'awesome').slice(-40).map((l) => ({ title: l.library.title.title, kind: SEC_LABEL[l.library.section], rating: l.tier }));
-    try { setPick(await pickTonight(`I have ${tTime}, in the mood for something ${tMood.toLowerCase()}${tWhat !== 'Anything' ? ', a ' + tWhat.toLowerCase() : ''}.`, cands, liked, skip.current)); }
+    try { const r = await pickTonight(`Something for tonight${kind !== 'Any' ? ' — a ' + kind.toLowerCase() : ''}${mood ? ', in the mood for something ' + mood.toLowerCase() : ''}.`, cands, liked, seen.current); seen.current.push(r.id); setPick(r); }
     catch (e) { setPickErr((e as Error).message || 'Couldn’t pick — try again.'); }
     setPicking(false);
   };
@@ -130,6 +164,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   const bg = (it: LibItem) => it.title.backdrop_url ?? it.title.poster_url ?? null;
   const progressOf = (it: LibItem, p: ReturnType<typeof progress> | null) => (p ? p.pct : (it as LibItem & { progress?: number | null }).progress ?? 0);
   const subOf = (it: LibItem, p: ReturnType<typeof progress> | null) => {
+    if (p && !p.nextEp) { const c = coming.find((x) => x.it.id === it.id); return c ? 'Next: ' + c.what + ' · ' + new Date(c.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : p.nextFuture?.air_date ? 'Next ep · ' + new Date(p.nextFuture.air_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : 'Caught up · waiting for news'; }
     if (p?.nextEp) return 'Next: ' + epLabel(p.nextEp) + (p.nextEp.name ? ' — ' + p.nextEp.name : '') + (p.nextEp.runtime ? ' · ' + epRuntime(p.nextEp.runtime) : '');
     const g = it as LibItem & { progress?: number | null; format?: string | null };
     const bd = it.title.data as { ttb?: { main?: number | null }; pages?: number | null; audio_min?: number | null } | null;
@@ -172,84 +207,74 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
           </div>
         )}
 
-        {/* week strip */}
-        {!loading && (
-          <section className="home-sec">
-            <div className="week" role="tablist" aria-label="This week">
-              {week.map((d) => (
-                <button key={d.k} role="tab" aria-selected={d.k === selDay} className={'wk' + (d.k === selDay ? ' on' : '') + (d.k === week[0].k ? ' today' : '')} onClick={() => setDay(d.k)}>
-                  <span className="wk-wd">{d.wd}</span><b>{d.day}</b>
-                  <span className="wk-dots">{d.ev.slice(0, 3).map((e, i) => <i key={i} style={{ background: SEC_COLOR[e.it.section] }} />)}</span>
-                </button>
-              ))}
-            </div>
-            {dayEvents.length ? dayEvents.map((c) => (
-              <button key={c.it.id + c.date} className="home-item" onClick={() => setOpen({ id: c.it.id, kind: kindOf(c.it) })}>
-                <Poster t={c.it.title} w={34} h={50} />
-                <span className="grow"><span className="row-title">{c.it.title.title}</span><span className="muted small">{c.what}</span></span>
-              </button>
-            )) : <span className="muted small">{later.length ? 'Nothing that day. Next: ' + later.map((c) => c.it.title.title + ' (' + dateParts(c.date).day + ' ' + dateParts(c.date).mon + ')').join(', ') : 'Nothing coming out this week.'}</span>}
-          </section>
-        )}
-
-        {/* tonight */}
+        {/* What tonight? */}
         {!loading && (
           <section className="tonight">
-            <span className="tonight-kicker">✦ Tonight</span>
-            {!pick ? <>
-              <div className="tn-chips">{['1 h', '2 h', 'All evening'].map((x) => <button key={x} className={'chip' + (tTime === x ? ' on' : '')} onClick={() => setTTime(x)}>{x}</button>)}</div>
-              <div className="tn-chips">{['Light', 'Intense', 'Smart', 'Cozy'].map((x) => <button key={x} className={'chip' + (tMood === x ? ' on' : '')} onClick={() => setTMood(x)}>{x}</button>)}</div>
-              <div className="tn-chips">{['Anything', 'Movie', 'Show', 'Game', 'Book'].map((x) => <button key={x} className={'chip' + (tWhat === x ? ' on' : '')} onClick={() => setTWhat(x)}>{x}</button>)}</div>
-              <button className="btn primary" disabled={picking} onClick={() => askTonight(false)}>{picking ? 'Thinking…' : 'Pick something for me'}</button>
-            </> : <>
-              {pickItem && <button className="home-item tn-pick" onClick={() => setOpen({ id: pickItem.id, kind: kindOf(pickItem) })}>
-                <Poster t={pickItem.title} w={52} h={76} />
-                <span className="grow"><span className="row-title">{pickItem.title.title}</span><span className="muted small">{SEC_LABEL[pickItem.section]}{pickItem.title.year ? ' · ' + pickItem.title.year : ''}</span></span>
-              </button>}
-              <span className="small">{pick.why}</span>
-              <div className="row nowrap"><button className="btn grow" disabled={picking} onClick={() => askTonight(true)}>{picking ? 'Thinking…' : 'Another idea'}</button><button className="btn grow" onClick={() => setPick(null)}>Change</button></div>
-            </>}
+            <span className="tonight-kicker">What tonight?</span>
+            <div className="seg">{(['Any', 'Movie', 'Show', 'Game', 'Book'] as Kind[]).map((k) => <button key={k} className={kind === k ? 'on' : ''} onClick={() => { setKind(k); setF({}); setPick(null); seen.current = []; }}>{k}</button>)}</div>
+            {kind === 'Movie' && <><div className="tn-row"><span className="muted tiny">Length</span><div className="tn-chips"><button className={'chip' + (f.len === 'short' ? ' on' : '')} onClick={() => toggle('len', 'short')}>{'< 90 min'}</button><button className={'chip' + (f.len === 'mid' ? ' on' : '')} onClick={() => toggle('len', 'mid')}>90–120</button><button className={'chip' + (f.len === 'long' ? ' on' : '')} onClick={() => toggle('len', 'long')}>2 h +</button></div></div><div className="tn-chips"><button className={'chip' + (f.meta === '1' ? ' on' : '')} onClick={() => toggle('meta', '1')}>Metascore 70+</button><button className={'chip' + (f.old === '1' ? ' on' : '')} onClick={() => toggle('old', '1')}>Before 2000</button></div></>}
+            {kind === 'Show' && <><div className="tn-row"><span className="muted tiny">Episode</span><div className="tn-chips"><button className={'chip' + (f.ep === 'short' ? ' on' : '')} onClick={() => toggle('ep', 'short')}>≤ 30 min</button><button className={'chip' + (f.ep === 'long' ? ' on' : '')} onClick={() => toggle('ep', 'long')}>Longer</button></div></div><div className="tn-row"><span className="muted tiny">Size</span><div className="tn-chips"><button className={'chip' + (f.size === 'mini' ? ' on' : '')} onClick={() => toggle('size', 'mini')}>Miniseries</button><button className={'chip' + (f.size === 'few' ? ' on' : '')} onClick={() => toggle('size', 'few')}>1–2 seasons</button><button className={'chip' + (f.size === 'long' ? ' on' : '')} onClick={() => toggle('size', 'long')}>3+ seasons</button></div></div><div className="tn-row"><span className="muted tiny">Status</span><div className="tn-chips"><button className={'chip' + (f.status === 'ended' ? ' on' : '')} onClick={() => toggle('status', 'ended')}>Ended</button><button className={'chip' + (f.status === 'running' ? ' on' : '')} onClick={() => toggle('status', 'running')}>Still running</button></div></div></>}
+            {kind === 'Game' && <>
+              {platforms.length > 1 && <div className="tn-row"><span className="muted tiny">Platform</span><div className="tn-chips">{platforms.map((p) => <button key={p} className={'chip' + (f.plat === p ? ' on' : '')} onClick={() => toggle('plat', p)}><PlatformIcon k={p} size={12} /></button>)}</div></div>}
+              <div className="tn-row"><span className="muted tiny">Time to beat</span><div className="tn-chips"><button className={'chip' + (f.ttb === 'short' ? ' on' : '')} onClick={() => toggle('ttb', 'short')}>{'< 10 h'}</button><button className={'chip' + (f.ttb === 'mid' ? ' on' : '')} onClick={() => toggle('ttb', 'mid')}>10–30 h</button><button className={'chip' + (f.ttb === 'long' ? ' on' : '')} onClick={() => toggle('ttb', 'long')}>30 h +</button></div></div><div className="tn-chips"><button className={'chip' + (f.coop === '1' ? ' on' : '')} onClick={() => toggle('coop', '1')}>Co-op</button></div></>}
+            {kind === 'Book' && <><div className="tn-row"><span className="muted tiny">Length</span><div className="tn-chips"><button className={'chip' + (f.pages === 'short' ? ' on' : '')} onClick={() => toggle('pages', 'short')}>{'< 300 p.'}</button><button className={'chip' + (f.pages === 'mid' ? ' on' : '')} onClick={() => toggle('pages', 'mid')}>300–500</button><button className={'chip' + (f.pages === 'long' ? ' on' : '')} onClick={() => toggle('pages', 'long')}>500 +</button></div></div><div className="tn-row"><span className="muted tiny">Format</span><div className="tn-chips"><button className={'chip' + (f.fmt === 'paper' ? ' on' : '')} onClick={() => toggle('fmt', 'paper')}>Paper</button><button className={'chip' + (f.fmt === 'ebook' ? ' on' : '')} onClick={() => toggle('fmt', 'ebook')}>E-book</button><button className={'chip' + (f.fmt === 'audio' ? ' on' : '')} onClick={() => toggle('fmt', 'audio')}>Audio</button></div></div><div className="tn-row"><span className="muted tiny">Language</span><div className="tn-chips"><button className={'chip' + (f.lang === 'ru' ? ' on' : '')} onClick={() => toggle('lang', 'ru')}>Русские</button><button className={'chip' + (f.lang === 'en' ? ' on' : '')} onClick={() => toggle('lang', 'en')}>English</button></div></div><div className="tn-row"><span className="muted tiny">Kind</span><div className="tn-chips"><button className={'chip' + (f.series === 'single' ? ' on' : '')} onClick={() => toggle('series', 'single')}>Standalone</button><button className={'chip' + (f.series === 'series' ? ' on' : '')} onClick={() => toggle('series', 'series')}>Series</button></div></div></>}
+            {topGenres.length > 0 && <div className="tn-row"><span className="muted tiny">Genre</span><div className="tn-chips">{topGenres.map((g) => <button key={g} className={'chip' + (f.genre === g ? ' on' : '')} onClick={() => toggle('genre', g)}>{g}</button>)}</div></div>}
+            <div className="tn-chips"><button className={'chip' + (f.upnext === '1' ? ' on' : '')} onClick={() => toggle('upnext', '1')}>Up next only</button></div>
+            <div className="tn-row"><span className="muted tiny">Mood (for the AI)</span><div className="tn-chips">{['Light', 'Intense', 'Smart', 'Cozy'].map((m) => <button key={m} className={'chip' + (mood === m ? ' on' : '')} onClick={() => setMood(mood === m ? '' : m)}>{m}</button>)}</div></div>
+            <span className="muted tiny">{filtered.length} in your backlog fit</span>
+            <div className="row nowrap">
+              <button className="btn grow" disabled={!filtered.length} onClick={random}>🎲 {pick && !pick.why ? 'Again' : 'Random'}</button>
+              <button className="btn primary grow" disabled={picking || !filtered.length} onClick={askAI}>{picking ? 'Thinking…' : '✦ Ask AI'}</button>
+            </div>
+            {pickItem && <button className="home-item tn-pick" onClick={() => setOpen({ id: pickItem.id, kind: kindOf(pickItem) })}>
+              <Poster t={pickItem.title} w={52} h={76} />
+              <span className="grow"><span className="row-title">{pickItem.title.title}</span><span className="muted small">{SEC_LABEL[pickItem.section]}{pickItem.title.year ? ' · ' + pickItem.title.year : ''}{pickItem.up_next ? ' · Up next' : ''}</span>{pick?.why && <span className="small tn-why">{pick.why}</span>}</span>
+            </button>}
             {pickErr && <span className="muted small">{pickErr}</span>}
           </section>
         )}
 
-        {/* in progress shelf */}
-        {!loading && shelf.length > 0 && <section className="home-sec">
-          <h2 className="home-h"><span>In progress</span></h2>
-          <div className="home-strip">
-            {shelf.map(({ it, show }) => (
-              <button key={it.id} className="shelf-card" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })}>
-                <span className="shelf-img">{bg(it) && <img className={it.title.backdrop_url ? '' : 'blur'} src={bg(it)!} alt="" />}
-                  <span className="shelf-icon">{it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : ['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} /> : null}</span></span>
-                <span className="shelf-body"><span className="row-title ellipsis">{it.title.title}</span>
-                  <span className="mini-bar wide"><span style={{ width: progressOf(it, show) + '%' }} /></span>
-                  <span className="muted tiny ellipsis">{show?.nextEp ? 'Next: ' + epLabel(show.nextEp) : subOf(it, show)}</span></span>
-              </button>
-            ))}
-          </div>
+        {/* In progress: wide tickets */}
+        {!loading && shelf.length > 0 && <section className="panel">
+          <div className="panel-head"><span>In progress</span><span className="count-badge">{shelf.length}</span></div>
+          {shelf.map(({ it, show }) => (
+            <button key={it.id} className="ticket" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })}>
+              <span className="ticket-img">{bg(it) && <img className={it.title.backdrop_url ? '' : 'blur'} src={bg(it)!} alt="" />}
+                <span className="shelf-icon">{it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : ['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} /> : null}</span></span>
+              <span className="ticket-body"><span className="row-title ellipsis">{it.title.title}</span>
+                <span className="muted tiny ellipsis">{subOf(it, show)}</span>
+                <span className="mini-bar wide"><span style={{ width: progressOf(it, show) + '%' }} /></span></span>
+              {show?.nextEp && <span className="ticket-act" role="button" tabIndex={0} aria-label="Watched" onClick={(e) => { e.stopPropagation(); watchedEp(it, { season: show.nextEp!.season, episode: show.nextEp!.episode }); }}>{busy === it.id ? '…' : Ico.check}</span>}
+            </button>
+          ))}
         </section>}
 
-        {!loading && recent.length > 0 && <section className="home-sec">
-          <h2 className="home-h"><span>Recently finished</span></h2>
+        {/* Recently finished: posters, your rating centred under each */}
+        {!loading && recent.length > 0 && <section className="panel">
+          <div className="panel-head"><span>Recently finished</span></div>
           <div className="home-strip">
             {recent.map((l) => { const tr = tierOf(l.tier); const ss = l.library.section === 'tv' ? seasonsName(logSeasons(l)) : ''; return (
-              <button key={l.id} className="home-poster" onClick={() => setOpen({ id: l.library.id, kind: kindOf(l.library) })} aria-label={l.library.title.title}>
-                <span className="poster-wrap"><Poster t={l.library.title} w={92} h={136} />{tr ? <span className="tile-tier on-poster" style={{ background: tr.color }}>{tr.label}</span> : null}</span>
+              <button key={l.id} className="home-poster centered" onClick={() => setOpen({ id: l.library.id, kind: kindOf(l.library) })} aria-label={l.library.title.title}>
+                <Poster t={l.library.title} w={88} h={130} />
+                {tr ? <span className="tier-under" style={{ background: tr.color }}>{tr.label}</span> : <span className="tier-under none">—</span>}
                 {ss && <span className="tiny muted ellipsis">{ss}</span>}
               </button>
             ); })}
           </div>
         </section>}
 
-        {!loading && upNext.length > 0 && <section className="home-sec">
-          <h2 className="home-h"><span>Up next</span></h2>
-          <div className="home-strip">
-            {upNext.map((it) => (
-              <button key={it.id} className="home-poster" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })} aria-label={it.title.title}>
-                <Poster t={it.title} w={92} h={136} /><span className="tiny ellipsis">{it.title.title}</span>
+        {/* Up next: pink panel, rows */}
+        {!loading && upNext.length > 0 && <section className="panel upnext-panel">
+          <div className="panel-head"><span>Up next</span><span className="count-badge pink">{upNext.length}</span></div>
+          {upNext.map((it) => { const d = it.title.data as { ttb?: { main?: number | null }; pages?: number | null } | null;
+            const meta = it.section === 'movies' ? (it.title.runtime ? Math.floor(it.title.runtime / 60) + 'h ' + (it.title.runtime % 60) + 'm' : '') : it.section === 'tv' ? ((d as { seasons?: unknown[] } | null)?.seasons?.length ? (d as { seasons: unknown[] }).seasons.length + ' seasons' : '') : it.section === 'books' ? (d?.pages ? d.pages + ' pages' : '') : (d?.ttb?.main ? Math.round(d.ttb.main) + ' h' : '');
+            return (
+              <button key={it.id} className="home-item flat" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })}>
+                <Poster t={it.title} w={34} h={50} />
+                <span className="grow"><span className="row-title">{it.title.title}</span><span className="muted small">{['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} /> : SEC_LABEL[it.section]}{meta ? ' · ' + meta : ''}</span></span>
+                <span aria-hidden="true" className="muted">›</span>
               </button>
-            ))}
-          </div>
+            ); })}
         </section>}
 
         {!loading && <button className="card home-stats" onClick={onStats}>

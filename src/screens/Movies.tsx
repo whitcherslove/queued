@@ -33,6 +33,14 @@ const gameMeta = (it: LibItem) => {
   return [releaseText(it.title.release_date, it.title.year), ttb ? (ttb >= 10 ? Math.round(ttb) : ttb) + ' h' : ''].filter(Boolean).join(' · ');
 };
 
+/** books: the readers' rating from Hardcover (0–5), coloured like the other score badges */
+const BookRating = ({ t }: { t: Title }) => {
+  const r = (t.data as { rating?: number | null } | null)?.rating;
+  if (!r) return <span className="mc mc-sm" style={{ background: 'var(--surface2)', color: 'var(--muted)' }} aria-label="No rating">—</span>;
+  const v = Math.round(r * 10) / 10;
+  const c = v >= 4 ? '#39C316' : v >= 3.3 ? '#F6B26B' : '#DE3C49';
+  return <span className="mc mc-sm book-rt" style={{ background: c, color: '#17161A' }} aria-label={'Readers’ rating ' + v + ' out of 5'}>{v.toFixed(1)}★</span>;
+};
 type BookItem = LibItem & { format?: string | null; progress?: number | null };
 /** books, second line in lists: author · year · reading time */
 const bookMeta = (it: LibItem) => {
@@ -331,7 +339,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
           <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? <><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}</> : isBook ? <><FormatIcon f={(it as BookItem).format} /><span className="dot-sep">·</span>{bookMeta(it)}</> : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <RewIcon />}</span>
-          <span className="row-meta"><Metascore v={it.title.metascore} size="sm" game={isGame} /></span>
+          <span className="row-meta">{isBook ? <BookRating t={it.title} /> : <Metascore v={it.title.metascore} size="sm" game={isGame} />}</span>
         </span>
       </button>
       {!edit && (() => {
@@ -435,7 +443,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     return (
     <div key={key} {...rowState(list, key)} className={rowState(list, key).className + ' tile'}>
       <button className="tile-main" {...longPress(list === 'w' ? key : it.id)} onClick={() => !edit && onOpen()} aria-label={it.title.title}>
-        <Poster t={it.title}>{(settings.listMetascore || list !== 'w') && <span className="tile-mc"><Metascore v={it.title.metascore} size="sm" game={isGame} /></span>}{list === 'w' && settings.posterScore && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
+        <Poster t={it.title}>{(settings.listMetascore || list !== 'w') && <span className="tile-mc">{isBook ? <BookRating t={it.title} /> : <Metascore v={it.title.metascore} size="sm" game={isGame} />}</span>}{list === 'w' && settings.posterScore && <span className="poster-ring"><ScoreRing value={score ?? null} scale={settings.scale} size={34} fontSize={12} /></span>}</Poster>
         {dropped ? <span className="tile-tier" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span> : tr && <span className="tile-tier" style={{ background: tr.color }}>{tr.label}</span>}
         {d && <span className="tile-date"><span className="tile-date-text">{d.day} {d.mon} <span>{d.year}</span></span>{rew && <RewIcon size={14} />}</span>}
       </button>
