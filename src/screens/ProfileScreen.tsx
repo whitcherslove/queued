@@ -1,3 +1,4 @@
+import { BAR_MAX, BAR_MIN, DEFAULT_NAV, NAV_LABEL, normNav, type NavId } from '../lib/nav';
 import { ALL_PLATFORMS, DEFAULT_RETRO, sectionOf } from '../lib/platforms';
 import { enrichGames, metascoreBackfill, resyncGameSections } from '../lib/remote';
 import { ChevBtn } from '../components/Icons';
@@ -17,6 +18,14 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
   const s = profile.settings;
   const set = (patch: Partial<Settings>) => onSettings({ ...s, ...patch });
   const [retroOpen, setRetroOpen] = useState(false);
+  const [navOpen, setNavOpen] = useState(false);
+  const nav = normNav(s.nav);
+  const saveNav = (n: { bar: NavId[]; side: NavId[] }) => set({ nav: normNav(n) });
+  const moveNav = (where: 'bar' | 'side', i: number, d: number) => {
+    const list = [...nav[where]]; const j = i + d; if (j < 0 || j >= list.length) return;
+    [list[i], list[j]] = [list[j], list[i]];
+    saveNav({ ...nav, [where]: list });
+  };
   const [retroDraft, setRetroDraft] = useState<string[] | null>(null);
   const [retroNote, setRetroNote] = useState('');
   const [mcBusy, setMcBusy] = useState(false);
@@ -73,6 +82,40 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             <span className="stack-sm grow"><strong>Metascore in Watched</strong><span className="muted small">Metascore in the Watched list and grid. Backlog always shows it</span></span>
             <span className={'switch' + (s.listMetascore ? ' on' : '')}><span /></span>
           </button>
+          {/* navigation: what's in the bottom bar (and in which order) and what's in the side menu */}
+          <button className="switch-row flat" onClick={() => setNavOpen(!navOpen)} aria-expanded={navOpen}>
+            <span className="stack-sm grow"><strong>Navigation</strong><span className="muted small">Bottom bar: {nav.bar.map((x) => NAV_LABEL[x]).join(' · ')}</span></span>
+            <ChevBtn open={navOpen} size={30} />
+          </button>
+          {navOpen && (
+            <div className="stack-sm nav-edit">
+              <span className="list-group-title">Bottom bar · the app opens on the first one</span>
+              <div className="list-group">
+                {nav.bar.map((id, i) => (
+                  <div key={id} className="list-row nav-row">
+                    <span className="li-label">{NAV_LABEL[id]}</span>
+                    <button className="nav-btn" aria-label={'Move ' + NAV_LABEL[id] + ' up'} disabled={i === 0} onClick={() => moveNav('bar', i, -1)}>↑</button>
+                    <button className="nav-btn" aria-label={'Move ' + NAV_LABEL[id] + ' down'} disabled={i === nav.bar.length - 1} onClick={() => moveNav('bar', i, 1)}>↓</button>
+                    <button className="nav-btn wide" disabled={nav.bar.length <= BAR_MIN} onClick={() => saveNav({ bar: nav.bar.filter((x) => x !== id), side: [id, ...nav.side] })}>To menu</button>
+                  </div>
+                ))}
+              </div>
+              <span className="list-group-title">Side menu</span>
+              <div className="list-group">
+                {nav.side.map((id, i) => (
+                  <div key={id} className="list-row nav-row">
+                    <span className="li-label">{NAV_LABEL[id]}</span>
+                    <button className="nav-btn" aria-label={'Move ' + NAV_LABEL[id] + ' up'} disabled={i === 0} onClick={() => moveNav('side', i, -1)}>↑</button>
+                    <button className="nav-btn" aria-label={'Move ' + NAV_LABEL[id] + ' down'} disabled={i === nav.side.length - 1} onClick={() => moveNav('side', i, 1)}>↓</button>
+                    <button className="nav-btn wide" disabled={nav.bar.length >= BAR_MAX} onClick={() => saveNav({ bar: [...nav.bar, id], side: nav.side.filter((x) => x !== id) })}>To bar</button>
+                  </div>
+                ))}
+              </div>
+              <span className="muted small">The bottom bar holds {BAR_MIN}–{BAR_MAX} sections. {nav.bar.length >= BAR_MAX ? 'It’s full — move one to the menu first.' : ''}</span>
+              <button className="link left" onClick={() => saveNav(DEFAULT_NAV)}>Reset to default</button>
+            </div>
+          )}
+
           {/* which platforms count as Retro (the rest of the consoles go to Console games) */}
           <button className="switch-row flat" onClick={() => setRetroOpen(!retroOpen)} aria-expanded={retroOpen}>
             <span className="stack-sm grow"><strong>Retro platforms</strong><span className="muted small">{(s.retroPlatforms ?? DEFAULT_RETRO).length} platforms go to Retro games — tap to change</span></span>

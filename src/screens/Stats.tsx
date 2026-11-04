@@ -5,7 +5,7 @@ import { merged } from '../lib/logic';
 import { logSeasons } from '../lib/tv';
 import { TIERS } from '../lib/scores';
 import { platformLabel } from '../lib/platforms';
-import { IconBack } from '../components/Icons';
+import { IconBack, IconMenu } from '../components/Icons';
 import { Poster } from '../components/Rows';
 
 type Period = 'year' | 'month' | 'all';
@@ -14,7 +14,7 @@ const dayKey = (iso: string) => { const d = new Date(iso); return `${d.getFullYe
 const WD = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 /** Stats: how much you watched and played, your ratings and when you were active. */
-export default function Stats({ onBack }: { onBack: () => void }) {
+export default function Stats({ onBack, onMenu }: { onBack?: () => void; onMenu?: () => void }) {
   const [items, setItems] = useState<LibItem[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [marks, setMarks] = useState<string[]>([]);
@@ -80,7 +80,7 @@ export default function Stats({ onBack }: { onBack: () => void }) {
     <div className="app section-in">
       <header className="top">
         <div className="title-row">
-          <button className="icon-btn" aria-label="Back" onClick={onBack}><IconBack /></button>
+          {onBack ? <button className="icon-btn" aria-label="Back" onClick={onBack}><IconBack /></button> : <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>}
           <div className="title-block">
             <h1 className="section-title">Stats</h1>
             <span className="muted small">{period === 'year' ? 'This year' : period === 'month' ? 'This month' : 'All time'}</span>

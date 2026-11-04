@@ -951,3 +951,9 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .scrub-fill { position: absolute; left: 0; top: 0; bottom: 0; background: #4C9BEA; border-radius: 999px; }
 .scrub-thumb { position: absolute; top: 50%; width: 22px; height: 22px; margin-left: -11px; transform: translateY(-50%); border-radius: 999px; background: #4C9BEA; border: 3px solid var(--surface); box-shadow: 0 1px 4px rgba(0,0,0,.35); pointer-events: none; }
 .scrub:focus-visible .scrub-thumb { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* navigation editor */
+.nav-row { gap: 6px; }
+.nav-btn { flex: none; min-width: 36px; height: 34px; padding: 0 8px; border-radius: 9px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font-weight: 800; }
+.nav-btn.wide { min-width: 78px; font-size: 12px; }
+.nav-btn:disabled { opacity: .35; }

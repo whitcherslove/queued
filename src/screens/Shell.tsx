@@ -4,6 +4,7 @@ import type { Profile } from '../lib/profile';
 import type { Settings } from '../lib/theme';
 import { DuoBook, DuoHome, DuoMovie, DuoPad, DuoPc, DuoRetro, DuoStats, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
 import Home from './Home';
+import { normNav } from '../lib/nav';
 import Stats from './Stats';
 import ProfileScreen from './ProfileScreen';
 import Avatar from '../components/Avatar';
@@ -23,15 +24,18 @@ const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element
   { id: 'stats', label: 'Stats', title: 'Stats', icon: <DuoStats />, color: '#9A8CF0', tabs: [], noun: '' }
 ];
 // Home is the first tab and where the app opens; Retro and Stats live in the side menu
-const BAR: SectionId[] = ['home', 'movies', 'tv', 'console', 'pc'];
-const SIDE = (id: SectionId) => id === 'retro' || id === 'stats' || id === 'books';
+
 const tick = () => { try { navigator.vibrate?.(10); } catch { /* not supported (iPhone) */ } };
 
 interface Props { profile: Profile; onProfile: (p: Profile) => void; onSettings: (s: Settings) => void }
 
 export default function Shell({ profile, onProfile, onSettings }: Props) {
-  const [section, setSection] = useState<SectionId>('home');
-  const [lastBar, setLastBar] = useState<SectionId>('home');
+  // your layout (Profile → Navigation): the bottom bar in its order, the rest in the side menu; the app opens on the first tab
+  const nav0 = normNav(profile.settings.nav);
+  const BAR = nav0.bar as SectionId[];
+  const SIDE = (id: SectionId) => !BAR.includes(id);
+  const [section, setSection] = useState<SectionId>(BAR[0]);
+  const [lastBar, setLastBar] = useState<SectionId>(BAR[0]);
   // Same soft transition as BarTab: the browser cross-fades the old and new screen (View Transitions);
   // the bottom bar stays put and its highlight glides to the new tab.
   const go = (id: SectionId) => {
@@ -75,15 +79,11 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         </button>
         <button className="drawer-item" onClick={() => { setDrawer(false); setProfileOpen(true); }}>Profile and settings</button>
         <span className="drawer-sec muted small">More</span>
-        <button className={'drawer-item with-icon' + (section === 'books' ? ' on' : '')} style={{ ['--sec' as string]: '#D98B5F' }} onClick={() => { setDrawer(false); go('books'); }}>
-          <span className="duo-icon drawer-duo"><DuoBook /></span>Books
-        </button>
-        <button className={'drawer-item with-icon' + (section === 'stats' ? ' on' : '')} style={{ ['--sec' as string]: '#9A8CF0' }} onClick={() => { setDrawer(false); go('stats'); }}>
-          <span className="duo-icon drawer-duo"><DuoStats /></span>Stats
-        </button>
-        <button className={'drawer-item with-icon' + (section === 'retro' ? ' on' : '')} style={{ ['--sec' as string]: '#E0A43A' }} onClick={() => { setDrawer(false); go('retro'); }}>
-          <span className="duo-icon drawer-duo"><DuoRetro /></span>Retro games
-        </button>
+        {nav0.side.map((id) => { const sx = SECTIONS.find((x) => x.id === id)!; return (
+          <button key={id} className={'drawer-item with-icon' + (section === id ? ' on' : '')} style={{ ['--sec' as string]: sx.color }} onClick={() => { setDrawer(false); go(id as SectionId); }}>
+            <span className="duo-icon drawer-duo">{sx.icon}</span>{sx.title}
+          </button>
+        ); })}
         <span className="muted small drawer-foot">Queued · v1.0</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
@@ -92,31 +92,31 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
 
   if (section === 'home') return (
     <div className="screen">
-      <Home settings={profile.settings} onMenu={() => setDrawer(true)} onStats={() => go('stats')} />
+      <Home settings={profile.settings} onBack={SIDE('home') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} onStats={() => go('stats')} />
       {nav}{drawerEl}
     </div>
   );
   if (section === 'books') return (
     <div className="screen">
-      <Movies key="books" kind="book" settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={() => go(lastBar)} />
+      <Movies key="books" kind="book" settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={SIDE('books') ? () => go(lastBar) : undefined} />
       {nav}{drawerEl}
     </div>
   );
   if (section === 'stats') return (
     <div className="screen">
-      <Stats onBack={() => go(lastBar)} />
+      <Stats onBack={SIDE('stats') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} />
       {nav}{drawerEl}
     </div>
   );
   if (section === 'console' || section === 'pc' || section === 'retro') return (
     <div className="screen">
-      <Movies key={section} kind="game" gameSection={section} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={section === 'retro' ? () => go(lastBar) : undefined} />
+      <Movies key={section} kind="game" gameSection={section} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={SIDE(section) ? () => go(lastBar) : undefined} />
       {nav}{drawerEl}
     </div>
   );
   if (section === 'movies' || section === 'tv') return (
     <div className="screen">
-      <Movies key={section} kind={section === 'tv' ? 'tv' : 'movie'} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} />
+      <Movies key={section} kind={section === 'tv' ? 'tv' : 'movie'} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={SIDE(section) ? () => go(lastBar) : undefined} />
       {nav}{drawerEl}
     </div>
   );

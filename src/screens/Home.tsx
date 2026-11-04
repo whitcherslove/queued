@@ -10,7 +10,7 @@ import { Poster } from '../components/Rows';
 import PlatformIcon from '../components/PlatformIcon';
 import FormatIcon from '../components/FormatIcon';
 import { readHours } from '../lib/formats';
-import { IconMenu } from '../components/Icons';
+import { IconBack, IconMenu } from '../components/Icons';
 import { Ico } from '../components/Rate';
 import MovieCard from './MovieCard';
 import ShowCard from './ShowCard';
@@ -21,7 +21,7 @@ const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
 const SEC_LABEL: Record<string, string> = { movies: 'Movie', tv: 'Show', console: 'Console', pc: 'PC', retro: 'Retro', books: 'Book' };
 
 /** Home: what's going on now — continue, coming up, recently finished, up next — and a way into Stats. */
-export default function Home({ settings, onMenu, onStats }: { settings: Settings; onMenu: () => void; onStats: () => void }) {
+export default function Home({ settings, onMenu, onStats, onBack }: { settings: Settings; onMenu: () => void; onStats: () => void; onBack?: () => void }) {
   const [items, setItems] = useState<LibItem[]>([]);
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [eps, setEps] = useState<SeasonEps[]>([]);
@@ -97,7 +97,7 @@ export default function Home({ settings, onMenu, onStats }: { settings: Settings
     <div className="app section-in">
       <header className="top">
         <div className="title-row">
-          <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>
+          {onBack ? <button className="icon-btn" aria-label="Back" onClick={onBack}><IconBack /></button> : <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>}
           <div className="title-block">
             <h1 className="section-title">{greeting}</h1>
             <span className="muted small">{dateLine}{nowCount ? ' · ' + nowCount + ' in progress' : ''}</span>
