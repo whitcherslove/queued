@@ -42,9 +42,10 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
       const its = all.items.map((i) => ({ ...i, title: merged(i.title, i.overrides) }));
       const byId = new Map(its.map((i) => [i.id, i]));
       setItems(its); setLogs(all.logs.map((l) => ({ ...l, library: byId.get(l.library_id) ?? l.library })));
-      const watching = its.filter((i) => i.section === 'tv' && i.status !== 'backlog' && i.status !== 'dropped');
-      const [e, m] = await Promise.all([loadEpisodes(watching.map((i) => i.title_id)), loadMarks(watching.map((i) => i.id))]);
-      setEps(e); setMarks(m);
+      const watching = its.filter((i) => i.section === 'tv' && i.status === 'playing');
+      // never let a failed episode load hide your shows
+      const [e, m] = await Promise.all([loadEpisodes(watching.map((i) => i.title_id)).catch(() => []), loadMarks(watching.map((i) => i.id)).catch(() => [])]);
+      setEps(e as SeasonEps[]); setMarks(m as Mark[]);
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -57,7 +58,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
     const p = progress(it, it.title, eps.filter((e) => e.title_id === it.title_id), marks.filter((m) => m.library_id === it.id), today);
     const st = showState(it, it.title, logs.filter((l) => l.library.id === it.id) as never, it.status === 'playing' ? p : null, today);
     return { it, p, st };
-  }).filter((x) => x.it.status === 'playing' || x.st.state in STATE_ORDER || isRecent(x.p.lastSeen))
+  }).filter((x) => x.it.status === 'playing' || x.st.state === 'newSeason' || x.st.state === 'lastChance')
     .sort((a, b) => Number(!!b.p?.nextEp) - Number(!!a.p?.nextEp) || STATE_ORDER[a.st.state] - STATE_ORDER[b.st.state] || (b.p?.lastSeen ?? '').localeCompare(a.p?.lastSeen ?? '')), [items, logs, eps, marks, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const games = useMemo(() => items.filter((i) => ['console', 'pc', 'retro', 'books'].includes(i.section) && i.status === 'playing')
     .sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')), [items]);
@@ -98,12 +99,12 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
     } finally { setBusy(null); }
   };
 
-  const nowCount = shows.filter((x) => x.it.status === 'playing' || isRecent(x.p.lastSeen)).length + games.length;
+  const nowCount = shows.filter((x) => x.it.status === 'playing').length + games.length;
   const dateLine = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   const hr = new Date().getHours();
   const greeting = hr < 5 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   // 1) top: the show you're watching now (latest watched first; one with a new episode wins), else the game / book you started last
-  const watchingNow = shows.filter((x) => x.it.status === 'playing' || isRecent(x.p.lastSeen))
+  const watchingNow = shows.filter((x) => x.it.status === 'playing')
     .sort((a, b) => Number(!!b.p.nextEp) - Number(!!a.p.nextEp) || (b.p.lastSeen ?? '').localeCompare(a.p.lastSeen ?? ''));
   const topShow = watchingNow.find((x) => x.p?.nextEp) ?? watchingNow[0] ?? null;
   const spot = topShow ? { it: topShow.it, show: topShow.p as ReturnType<typeof progress> | null } : games[0] ? { it: games[0], show: null } : null;
@@ -123,7 +124,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
       return (g.progress ?? 0) + '%' + (h ? ' · ~' + Math.max(0, Math.round(h * (1 - (g.progress ?? 0) / 100))) + ' h left' : '');
     }
     const ttb = ((it.overrides as { ttb_main?: number } | null)?.ttb_main) ?? d?.ttb?.main ?? null;
-    return (g.progress ?? 0) + '%' + (ttb ? ' · ~' + Math.max(0, Math.round(ttb * (1 - (g.progress ?? 0) / 100))) + ' h of ' + Math.round(ttb) + ' h left' : '');
+    return (g.progress ?? 0) + '%' + (ttb ? ' · ~' + Math.max(0, Math.round(ttb * (1 - (g.progress ?? 0) / 100))) + ' h left' : '');
   };
   // 3) Ready to start: shows you've seen before with new seasons out / unwatched seasons of finished shows
   const ready = shows.filter((x) => !watchingNow.includes(x) && (x.st.state === 'newSeason' || x.st.state === 'lastChance'))
@@ -261,7 +262,8 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
                   <span className="row-title ellipsis">{it.title.title}</span>
                   <span className="ticket-meta">
                     {it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : ['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} size={11} /> : null}
-                    <span className="ellipsis">{p?.nextEp ? 'Next: ' + epLabel(p.nextEp) + (p.nextEp.name ? ' — ' + p.nextEp.name : '') : p ? subOf(it, p) : extraOf(it, null)}</span>
+                    {p ? <span className="ellipsis">{p.nextEp ? 'Next: ' + epLabel(p.nextEp) + (p.nextEp.name ? ' — ' + p.nextEp.name : '') : subOf(it, p)}</span>
+                      : (() => { const [pct, ...rest] = extraOf(it, null).split(' · '); return <><b className="pct-big">{pct}</b>{rest.length > 0 && <span className="left-big">{rest.join(' · ')}</span>}</>; })()}
                   </span>
                   {p && <span className="muted tiny ellipsis">{extraOf(it, p)}</span>}
                   <span className="mini-bar wide"><span style={{ width: progressOf(it, p) + '%' }} /></span>
