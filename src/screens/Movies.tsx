@@ -86,7 +86,8 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   const [scopeAdd, setScopeAdd] = useState<Title | null>(null);
   const [addChoice, setAddChoice] = useState<Title | null>(null);
   const [gameAdd, setGameAdd] = useState<Title | null>(null);
-  const [bookAdd, setBookAdd] = useState<{ t: Title; shown: string } | null>(null);
+  const [bookAdd, setBookAdd] = useState<{ t: Title; shown: string; alt?: string | null } | null>(null);
+  const bookAlt = useRef(new Map<string, { alt: string | null }>());   // search result → its Russian twin (for author and description)
   const [allGames, setAllGames] = useState<LibItem[]>([]);
   const [cardPast, setCardPast] = useState(false);
   const warmed = useRef(false);
@@ -193,7 +194,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     const t = setTimeout(async () => {
       try {
         const r = isGame ? await searchGames(s)
-          : isBook ? (await searchBooks(s)).map((b) => ({ sourceId: b.ref, title: b.displayTitle ?? b.title, year: b.year, releaseDate: null, posterUrl: b.cover, platforms: b.authors.slice(0, 2), type: undefined, parent: b.series }))
+          : isBook ? (await searchBooks(s)).map((b) => { bookAlt.current.set(b.ref, { alt: b.altRef ?? null }); return { sourceId: b.ref, title: b.displayTitle ?? b.title, year: b.year, releaseDate: null, posterUrl: b.cover, platforms: (b.displayAuthors ?? b.authors).slice(0, 2), type: undefined, parent: b.series }; })
           : await searchTitles(s, kind as 'movie' | 'tv');
         if (my === seq.current) setHits(r);
       }
@@ -285,7 +286,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     setAdding(h.sourceId);
     try {
       if (isGame) { const t = await ensureGame(h.sourceId, false, true); if (items.some((i) => i.title_id === t.id)) setQ(''); else setGameAdd(t); }
-      else if (isBook) { const t = await ensureBook(h.sourceId); if (!items.some((i) => i.title_id === t.id)) setBookAdd({ t, shown: h.title }); }
+      else if (isBook) { const t = await ensureBook(h.sourceId); if (!items.some((i) => i.title_id === t.id)) setBookAdd({ t, shown: h.title, alt: bookAlt.current.get(h.sourceId)?.alt ?? null }); }
       else { const t = await ensureTitle(kind as 'movie' | 'tv', h.sourceId); await offerAdd(t); }
     }
     catch { setError('Couldn’t add “' + h.title + '”. Try again in a moment.'); }
@@ -746,10 +747,19 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         </div>
       )}
       {bookAdd && <BookAddSheet t={bookAdd.t} shown={bookAdd.shown} today={today} onCancel={() => setBookAdd(null)} onDone={async ({ format, mode }) => {
-        const { t, shown } = bookAdd; setBookAdd(null);
+        const { t, shown, alt } = bookAdd; setBookAdd(null);
         try {
-          // the title you searched in (e.g. Russian) wins over the source's (English) one
-          const extra = shown && shown !== t.title ? { overrides: { title: shown } } : {};
+          // searched in Russian: title, author and description in Russian (from the Russian edition), the rest (pages, series) from the main source
+          const ov: Record<string, unknown> = {};
+          if (shown && shown !== t.title) ov.title = shown;
+          if (alt) {
+            const ru = await ensureBook(alt).catch(() => null);
+            if (ru) {
+              if (ru.directors?.length && /[а-яё]/i.test(ru.directors[0])) ov.directors = ru.directors;
+              if (ru.overview && /[а-яё]/i.test(ru.overview)) ov.overview = ru.overview;
+            }
+          }
+          const extra = Object.keys(ov).length ? { overrides: ov } : {};
           const id = await addToBacklog(t.id, 'books', topPosition(items), { format, ...extra, ...(mode === 'playing' ? { status: 'playing', started_on: today, run_started_at: new Date().toISOString(), progress: 0 } : {}) } as never);
           await refresh();
           if (mode === 'past') { setCardSeq([id]); setCardTake(false); setCardEnter(null); setCardPast(true); setCardId(id); }

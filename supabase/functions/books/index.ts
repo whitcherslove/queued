@@ -44,7 +44,7 @@ const nearSame = (a: string, b: string) => {
 };
 const authorX = (a?: string | null) => translit(authorKey(a)).replace(/kh/g, 'h');
 
-interface Hit { ref: string; source: 'hardcover' | 'openlibrary' | 'google'; title: string; authors: string[]; year: number | null; cover: string | null; pages: number | null; series: string | null; editions: number | null; readers?: number | null; displayTitle?: string }
+interface Hit { ref: string; source: 'hardcover' | 'openlibrary' | 'google'; title: string; authors: string[]; year: number | null; cover: string | null; pages: number | null; series: string | null; editions: number | null; readers?: number | null; displayTitle?: string; displayAuthors?: string[]; altRef?: string }
 
 // ---------- Hardcover (GraphQL) ----------
 async function hc(query: string, variables: Record<string, unknown>): Promise<any> {
@@ -117,6 +117,11 @@ async function search(q: string) {
     if (twin) {
       // keep the richer source (Hardcover first), but show the title in the language you searched in
       if (ru && cyr(x.title) && !cyr(twin.displayTitle ?? twin.title)) twin.displayTitle = baseTitle(x.title);
+      // searched in Russian: remember the Russian twin (Google Books first — it has descriptions) for the author and description
+      if (ru && cyr(x.title + ' ' + (x.authors[0] ?? '')) && !cyr(twin.title)) {
+        if (!twin.altRef || (x.source === 'google' && !twin.altRef.startsWith('gb:'))) twin.altRef = x.ref;
+        if (x.authors.length && cyr(x.authors[0]) && !twin.displayAuthors) twin.displayAuthors = x.authors;
+      }
       twin.editions = Math.max(twin.editions ?? 0, x.editions ?? 0) || twin.editions;
       twin.cover = twin.cover ?? x.cover; twin.pages = twin.pages ?? x.pages;
       if (x.year && (!twin.year || x.year < twin.year)) twin.year = x.year;

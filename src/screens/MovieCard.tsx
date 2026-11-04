@@ -430,8 +430,10 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
           {isPlaying && (
             <div className="prog-row">
               {unitMax ? <>
-                <SafeRange className="range" label={bItem.format === 'audio' ? 'Minutes listened' : 'Page'} min={0} max={unitMax} value={unitPos ?? 0}
-                  onInput={(v) => setUnit(v, false)} onCommit={(v) => setUnit(v, true)} />
+                {/* the bar moves in percent (smooth); − + move one page (or 5 minutes); the page is kept underneath */}
+                <SafeRange className="range" label="Progress" min={0} max={100} value={gItem.progress ?? 0}
+                  onInput={(v) => setItem({ ...item, progress: v, position_at: Math.round((v * unitMax) / 100) } as never)}
+                  onCommit={(v) => setUnit(Math.round((v * unitMax) / 100), true)} />
                 <button className="step-btn" aria-label={bItem.format === 'audio' ? 'Back 5 minutes' : 'Previous page'} disabled={(unitPos ?? 0) <= 0} onClick={() => setUnit((unitPos ?? 0) - (bItem.format === 'audio' ? 5 : 1), true)}>−</button>
                 <strong className="prog-num">{gItem.progress ?? 0}%</strong>
                 <button className="step-btn" aria-label={bItem.format === 'audio' ? 'Forward 5 minutes' : 'Next page'} disabled={(unitPos ?? 0) >= unitMax} onClick={() => setUnit((unitPos ?? 0) + (bItem.format === 'audio' ? 5 : 1), true)}>+</button>

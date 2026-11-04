@@ -306,7 +306,7 @@ export async function loadMarkDates(since: string): Promise<string[]> {
 }
 
 // ---------- books (Hardcover + Open Library + Google Books via the "books" function) ----------
-export interface BookHit { ref: string; source: string; title: string; displayTitle?: string; authors: string[]; year: number | null; cover: string | null; pages: number | null; series: string | null; editions: number | null }
+export interface BookHit { ref: string; source: string; title: string; displayTitle?: string; displayAuthors?: string[]; altRef?: string; authors: string[]; year: number | null; cover: string | null; pages: number | null; series: string | null; editions: number | null }
 export async function searchBooks(q: string): Promise<BookHit[]> {
   const { data, error } = await supabase.functions.invoke('books', { body: { action: 'search', q } });
   if (error) throw await fnError(error);
