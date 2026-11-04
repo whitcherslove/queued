@@ -287,3 +287,20 @@ export async function gameIdBySlug(slug: string): Promise<string | null> {
   if (error) throw error;
   return data?.id ?? null;
 }
+
+// ---------- everything at once (Home and Stats) ----------
+export type Everything = { items: LibItem[]; logs: LogRow[] };
+/** Library and journal of all sections, journal rows with their library item attached. */
+export async function loadEverything(): Promise<Everything> {
+  const secs: Section[] = ['movies', 'tv', 'console', 'pc', 'retro'];
+  const [libs, logsLite] = await Promise.all([Promise.all(secs.map((x) => loadLibrary(x))), Promise.all(secs.map((x) => loadLogs(x)))]);
+  const items = libs.flat();
+  const byId = new Map(items.map((i) => [i.id, i]));
+  const logs = logsLite.flat().filter((l) => byId.has(l.library_id)).map((l) => ({ ...l, library: byId.get(l.library_id)! })) as LogRow[];
+  return { items, logs };
+}
+/** Dates of watched episodes since a day (for stats: episodes and the activity calendar). */
+export async function loadMarkDates(since: string): Promise<string[]> {
+  const rows = await allPages<{ watched_at: string }>((a, b) => supabase.from('episode_marks').select('watched_at').gte('watched_at', since).order('watched_at').range(a, b) as never);
+  return rows.map((r) => r.watched_at);
+}

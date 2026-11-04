@@ -2,44 +2,50 @@ import { useState, type CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import type { Profile } from '../lib/profile';
 import type { Settings } from '../lib/theme';
-import { DuoMovie, DuoPad, DuoPc, DuoRetro, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
+import { DuoHome, DuoMovie, DuoPad, DuoPc, DuoRetro, DuoStats, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
+import Home from './Home';
+import Stats from './Stats';
 import ProfileScreen from './ProfileScreen';
 import Avatar from '../components/Avatar';
 import Movies from './Movies';
 import { useBackLayer } from '../lib/back';
 
-type SectionId = 'movies' | 'tv' | 'console' | 'pc' | 'retro';
+type SectionId = 'home' | 'movies' | 'tv' | 'console' | 'pc' | 'retro' | 'stats';
 // Each section has its own color: it lights up the bottom-bar icon when the section is open
 const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element; color: string; tabs: string[]; noun: string }[] = [
+  { id: 'home', label: 'Home', title: 'Home', icon: <DuoHome />, color: '#E26FB0', tabs: [], noun: '' },
   { id: 'movies', label: 'Movies', title: 'Movies', icon: <DuoMovie />, color: '#E8714A', tabs: ['Watched', 'Backlog'], noun: 'a movie' },
   { id: 'tv', label: 'TV Shows', title: 'TV Shows', icon: <DuoTv />, color: '#9A8CF0', tabs: ['Watched', 'Watching', 'Backlog'], noun: 'a show' },
   { id: 'console', label: 'Console', title: 'Console games', icon: <DuoPad />, color: '#2FB98A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
   { id: 'pc', label: 'PC', title: 'PC games', icon: <DuoPc />, color: '#4C9BEA', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
-  { id: 'retro', label: 'Retro', title: 'Retro games', icon: <DuoRetro />, color: '#E0A43A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' }
+  { id: 'retro', label: 'Retro', title: 'Retro games', icon: <DuoRetro />, color: '#E0A43A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
+  { id: 'stats', label: 'Stats', title: 'Stats', icon: <DuoStats />, color: '#9A8CF0', tabs: [], noun: '' }
 ];
-const BAR: SectionId[] = ['movies', 'tv', 'console', 'pc'];
+// Home is the first tab and where the app opens; Retro and Stats live in the side menu
+const BAR: SectionId[] = ['home', 'movies', 'tv', 'console', 'pc'];
+const SIDE = (id: SectionId) => id === 'retro' || id === 'stats';
 const tick = () => { try { navigator.vibrate?.(10); } catch { /* not supported (iPhone) */ } };
 
 interface Props { profile: Profile; onProfile: (p: Profile) => void; onSettings: (s: Settings) => void }
 
 export default function Shell({ profile, onProfile, onSettings }: Props) {
-  const [section, setSection] = useState<SectionId>('movies');
-  const [lastBar, setLastBar] = useState<SectionId>('movies');
+  const [section, setSection] = useState<SectionId>('home');
+  const [lastBar, setLastBar] = useState<SectionId>('home');
   // Same soft transition as BarTab: the browser cross-fades the old and new screen (View Transitions);
   // the bottom bar stays put and its highlight glides to the new tab.
   const go = (id: SectionId) => {
     tick();
-    const apply = () => { if (id !== 'retro') setLastBar(id); setSection(id); setTab(0); };
+    const apply = () => { if (!SIDE(id)) setLastBar(id); setSection(id); setTab(0); };
     const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
     const calm = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     // direction follows the bar: a tab to the right slides in from the right, to the left — from the left
-    const from = BAR.indexOf(section === 'retro' ? lastBar : section), to = BAR.indexOf(id === 'retro' ? lastBar : id);
-    document.documentElement.dataset.nav = id === 'retro' ? 'up' : section === 'retro' ? 'down' : to > from ? 'forward' : 'back';
+    const from = BAR.indexOf(SIDE(section) ? lastBar : section), to = BAR.indexOf(SIDE(id) ? lastBar : id);
+    document.documentElement.dataset.nav = SIDE(id) ? 'up' : SIDE(section) ? 'down' : to > from ? 'forward' : 'back';
     if (doc.startViewTransition && !calm && id !== section) doc.startViewTransition(() => flushSync(apply));
     else apply();
   };
   // Retro lives in the side menu: back (arrow, gesture) returns to the tab you came from
-  useBackLayer(section === 'retro', () => setSection(lastBar));
+  useBackLayer(SIDE(section), () => setSection(lastBar));
   const [tab, setTab] = useState(0);
   const [drawer, setDrawer] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -68,15 +74,30 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         </button>
         <button className="drawer-item" onClick={() => { setDrawer(false); setProfileOpen(true); }}>Profile and settings</button>
         <span className="drawer-sec muted small">More</span>
+        <button className={'drawer-item with-icon' + (section === 'stats' ? ' on' : '')} style={{ ['--sec' as string]: '#9A8CF0' }} onClick={() => { setDrawer(false); go('stats'); }}>
+          <span className="duo-icon drawer-duo"><DuoStats /></span>Stats
+        </button>
         <button className={'drawer-item with-icon' + (section === 'retro' ? ' on' : '')} style={{ ['--sec' as string]: '#E0A43A' }} onClick={() => { setDrawer(false); go('retro'); }}>
           <span className="duo-icon drawer-duo"><DuoRetro /></span>Retro games
         </button>
-        <span className="muted small drawer-foot">Queued · v0.9</span>
+        <span className="muted small drawer-foot">Queued · v1.0</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
   );
 
+  if (section === 'home') return (
+    <div className="screen">
+      <Home settings={profile.settings} onMenu={() => setDrawer(true)} onStats={() => go('stats')} />
+      {nav}{drawerEl}
+    </div>
+  );
+  if (section === 'stats') return (
+    <div className="screen">
+      <Stats onBack={() => go(lastBar)} />
+      {nav}{drawerEl}
+    </div>
+  );
   if (section === 'console' || section === 'pc' || section === 'retro') return (
     <div className="screen">
       <Movies key={section} kind="game" gameSection={section} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={section === 'retro' ? () => go(lastBar) : undefined} />

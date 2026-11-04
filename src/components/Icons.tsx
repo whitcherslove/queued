@@ -38,3 +38,6 @@ export const ReplayIcon = ({ size = 15 }: { size?: number }) => (
     <path d="M9.1 10.2h5.8a2 2 0 0 1 1.9 2.4l-.3 1.3a1.1 1.1 0 0 1-1.9.5l-.8-.9h-3.6l-.8.9a1.1 1.1 0 0 1-1.9-.5l-.3-1.3a2 2 0 0 1 1.9-2.4z" strokeWidth="1.6" />
   </svg>
 );
+
+export const DuoHome = () => <svg {...d}><path {...body} d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z" /><path d="M4 10.5L12 4l8 6.5V20a1 1 0 0 1-1 1h-4.5v-6h-5v6H5a1 1 0 0 1-1-1z" /></svg>;
+export const DuoStats = () => <svg {...d}><rect {...body} x="4" y="12" width="4" height="8" rx="1" /><rect {...body} x="10" y="7" width="4" height="13" rx="1" /><rect {...body} x="16" y="4" width="4" height="16" rx="1" /><rect x="4" y="12" width="4" height="8" rx="1" /><rect x="10" y="7" width="4" height="13" rx="1" /><rect x="16" y="4" width="4" height="16" rx="1" /></svg>;
