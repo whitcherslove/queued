@@ -51,6 +51,24 @@ Deno.serve(async (req) => {
       let out: string; try { out = await gemini(m1, tBody); } catch { out = await gemini(m2, tBody); }
       return Response.json({ text: out }, { headers: CORS });
     }
+    // mode "tonight": pick one thing from your backlog for tonight (time, mood, what you've liked)
+    if (mode === 'tonight') {
+      const { data: who } = await createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } }).auth.getUser();
+      if (!who?.user) return Response.json({ error: 'Sign in first' }, { status: 401, headers: CORS });
+      const reqBody = text as { wish?: string; candidates?: unknown[]; liked?: unknown[]; skip?: string[] } | undefined;
+      const cands = (reqBody?.candidates ?? []).slice(0, 120);
+      if (!cands.length) return Response.json({ error: 'Your backlog is empty.' }, { status: 400, headers: CORS });
+      const tBody = {
+        systemInstruction: { parts: [{ text:
+          'You help someone pick ONE thing from their own backlog for tonight. Consider the time they have (runtime, episode length, time to beat / to read) and their mood. ' +
+          'Use what they rated highly as taste hints. Never pick an id from "skip". Reply ONLY with JSON: {"id": "<id from the list>", "why": "<one or two warm sentences, in the language of the wish>"}. No markdown.' }] },
+        contents: [{ role: 'user', parts: [{ text: JSON.stringify({ wish: reqBody?.wish ?? 'something good tonight', skip: reqBody?.skip ?? [], liked: (reqBody?.liked ?? []).slice(0, 30), backlog: cands }) }] }]
+      };
+      const m1 = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash', m2 = Deno.env.get('GEMINI_FALLBACK_MODEL') || 'gemini-3.5-flash-lite';
+      let raw: string; try { raw = await gemini(m1, tBody); } catch { raw = await gemini(m2, tBody); }
+      try { const j = JSON.parse(raw.match(/\{[\s\S]*\}/)?.[0] ?? raw); return Response.json({ id: String(j.id), why: String(j.why ?? '') }, { headers: CORS }); }
+      catch { return Response.json({ error: 'Couldn’t pick — try again.' }, { status: 502, headers: CORS }); }
+    }
     const q = String(question ?? '').trim();
     if (!libraryId || !q) return Response.json({ error: 'libraryId and question are required' }, { status: 400, headers: CORS });
 

@@ -346,3 +346,11 @@ export async function translateText(text: string, lang: 'ru' | 'en'): Promise<st
   if (error) throw await fnError(error);
   return String(data?.text ?? '');
 }
+
+/** "Tonight": the AI picks one item from your backlog for your time and mood. */
+export async function pickTonight(wish: string, candidates: unknown[], liked: unknown[], skip: string[]): Promise<{ id: string; why: string }> {
+  const { data, error } = await supabase.functions.invoke('ask', { body: { mode: 'tonight', text: { wish, candidates, liked, skip } } });
+  if (error) throw await fnError(error);
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
