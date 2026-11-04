@@ -1060,3 +1060,6 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .fin-body { display: flex; flex-direction: column; gap: 4px; padding: 8px 10px 10px 72px; min-height: 84px; min-width: 0; }
 .fin-rate { display: flex; align-items: center; gap: 6px; margin-top: 2px; }
 .fin-rate .tier-under { align-self: center; }
+
+.panel-head.as-btn { width: 100%; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.count-badge.green { background: color-mix(in srgb, #3FAF5A 22%, transparent); color: #3FAF5A; }

@@ -13,6 +13,7 @@ import { readHours } from '../lib/formats';
 import { ChevBtn, IconBack, IconMenu } from '../components/Icons';
 import ScoreRing from '../components/ScoreRing';
 import { Ico } from '../components/Rate';
+import { useBackLayer } from '../lib/back';
 import MovieCard from './MovieCard';
 import ShowCard from './ShowCard';
 
@@ -31,6 +32,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState<Open>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  useBackLayer(!!open, () => setOpen(null));
   const today = todayIso();
 
   const load = useCallback(async () => {
@@ -52,7 +54,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
     const p = it.status === 'playing' ? progress(it, it.title, eps.filter((e) => e.title_id === it.title_id), marks.filter((m) => m.library_id === it.id), today) : null;
     const st = showState(it, it.title, logs.filter((l) => l.library.id === it.id) as never, p, today);
     return { it, p, st };
-  }).filter((x) => x.st.state in STATE_ORDER)
+  }).filter((x) => x.it.status === 'playing' || x.st.state in STATE_ORDER)
     .sort((a, b) => Number(!!b.p?.nextEp) - Number(!!a.p?.nextEp) || STATE_ORDER[a.st.state] - STATE_ORDER[b.st.state] || (b.p?.lastSeen ?? '').localeCompare(a.p?.lastSeen ?? '')), [items, logs, eps, marks, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const games = useMemo(() => items.filter((i) => ['console', 'pc', 'retro', 'books'].includes(i.section) && i.status === 'playing')
     .sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')), [items]);
@@ -93,15 +95,22 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
     } finally { setBusy(null); }
   };
 
-  const nowCount = shows.length + games.length;
-  const readyShows = shows.filter((x) => x.p?.nextEp);
+  const nowCount = shows.filter((x) => x.it.status === 'playing').length + games.length;
   const dateLine = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
-  const h = new Date().getHours();
-  const greeting = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-
-  // ---- spotlight: the show with an episode ready that you watched last, otherwise the game / book you started last
-  const spot = readyShows[0] ? { it: readyShows[0].it, show: readyShows[0].p as ReturnType<typeof progress> | null } : games[0] ? { it: games[0], show: null } : null;
-  const shelf = [...shows.filter((x) => x.it.id !== spot?.it.id).map((x) => ({ it: x.it, show: x.p as ReturnType<typeof progress> | null, state: x.st.state as string, seasons: x.st.seasons as number[] })), ...games.filter((g) => g.id !== spot?.it.id).map((it) => ({ it, show: null, state: '', seasons: [] as number[] }))];
+  const hr = new Date().getHours();
+  const greeting = hr < 5 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+  // 1) top: the show you're watching now (latest watched first; one with a new episode wins), else the game / book you started last
+  const watchingNow = shows.filter((x) => x.it.status === 'playing');
+  const topShow = watchingNow.find((x) => x.p?.nextEp) ?? watchingNow[0] ?? null;
+  const spot = topShow ? { it: topShow.it, show: topShow.p as ReturnType<typeof progress> | null } : games[0] ? { it: games[0], show: null } : null;
+  // 2) In progress: everything else you're actually in the middle of (other shows you watch, games, books)
+  const shelf = [...watchingNow.filter((x) => x.it.id !== spot?.it.id).map((x) => ({ it: x.it, show: x.p as ReturnType<typeof progress> | null, state: '', seasons: [] as number[] })),
+    ...games.filter((g) => g.id !== spot?.it.id).map((it) => ({ it, show: null as ReturnType<typeof progress> | null, state: '', seasons: [] as number[] }))];
+  // 3) Ready to start: shows you've seen before with new seasons out / unwatched seasons of finished shows
+  const ready = shows.filter((x) => x.it.status !== 'playing' && (x.st.state === 'newSeason' || x.st.state === 'lastChance'))
+    .sort((a, b) => STATE_ORDER[a.st.state] - STATE_ORDER[b.st.state]);
+  const [readyOpen, setReadyOpen] = useState(false);
+  const featured = useMemo(() => { const fresh = ready.filter((x) => x.st.state === 'newSeason'); const pool = fresh.length ? fresh : ready; return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null; }, [ready.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ---- What tonight? — 🎲 random or ✦ AI, from your backlog, with filters that depend on the type
   type Kind = 'Any' | 'Movie' | 'Show' | 'Game' | 'Book';
@@ -220,6 +229,27 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
           </div>
         )}
 
+        {/* In progress */}
+        {!loading && shelf.length > 0 && <section className="panel">
+          <div className="panel-head"><span className="ph-icon">{Ico.play}</span><span>In progress</span><span className="count-badge">{shelf.length}</span></div>
+          {shelf.map(({ it, show, state, seasons }) => (
+            <button key={it.id} className="ticket" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })}>
+              <span className="ticket-img">{bg(it) ? <img className={it.title.backdrop_url ? '' : 'blur'} src={bg(it)!} alt="" /> : null}</span>
+              <span className="ticket-body">
+                <span className="row-title ellipsis">{it.title.title}</span>
+                <span className="ticket-meta">
+                  {it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : ['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} size={11} /> : null}
+                  {(state === 'newSeason' || state === 'lastChance' || state === 'caughtUp') && <span className="state-pill sm" data-state={state}>{state === 'newSeason' ? 'New season' : state === 'lastChance' ? 'Last chance' : 'Caught up'}</span>}
+                  <span className="ellipsis">{subOf(it, show)}</span>
+                </span>
+                {state !== 'newSeason' && state !== 'lastChance' && state !== 'caughtUp' && <span className="mini-bar wide"><span style={{ width: progressOf(it, show) + '%' }} /></span>}
+              </span>
+              {show?.nextEp && <span className="ticket-act" role="button" tabIndex={0} aria-label="Watched" onClick={(e) => { e.stopPropagation(); watchedEp(it, { season: show.nextEp!.season, episode: show.nextEp!.episode }); }}>{busy === it.id ? '…' : Ico.check}</span>}
+              {(state === 'newSeason' || state === 'lastChance') && <span className="ticket-act" role="button" tabIndex={0} aria-label="Start watching" onClick={(e) => { e.stopPropagation(); setBusy(it.id); startWatching(it, seasons).then(load).finally(() => setBusy(null)); }}>{busy === it.id ? '…' : Ico.play}</span>}
+            </button>
+          ))}
+        </section>}
+
         {/* What tonight? */}
         {!loading && (
           <section className="tonight">
@@ -249,25 +279,23 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
           </section>
         )}
 
-        {/* In progress */}
-        {!loading && shelf.length > 0 && <section className="panel">
-          <div className="panel-head"><span className="ph-icon">{Ico.play}</span><span>In progress</span><span className="count-badge">{shelf.length}</span></div>
-          {shelf.map(({ it, show, state, seasons }) => (
-            <button key={it.id} className="ticket" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })}>
-              <span className="ticket-img">{bg(it) ? <img className={it.title.backdrop_url ? '' : 'blur'} src={bg(it)!} alt="" /> : null}</span>
+        {/* Ready to start: new seasons out / last chance — folded; shows one new season when folded */}
+        {!loading && ready.length > 0 && <section className="panel ready-panel">
+          <button className="panel-head as-btn" aria-expanded={readyOpen} onClick={() => setReadyOpen(!readyOpen)}>
+            <span className="ph-icon">{Ico.seasons}</span><span>Ready to start</span><span className="count-badge green">{ready.length}</span><ChevBtn open={readyOpen} size={28} />
+          </button>
+          {(readyOpen ? ready : featured ? [featured] : []).map((x) => (
+            <button key={x.it.id} className="ticket" onClick={() => setOpen({ id: x.it.id, kind: 'tv' })}>
+              <span className="ticket-img">{bg(x.it) ? <img className={x.it.title.backdrop_url ? '' : 'blur'} src={bg(x.it)!} alt="" /> : null}</span>
               <span className="ticket-body">
-                <span className="row-title ellipsis">{it.title.title}</span>
-                <span className="ticket-meta">
-                  {it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : ['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} size={11} /> : null}
-                  {(state === 'newSeason' || state === 'lastChance' || state === 'caughtUp') && <span className="state-pill sm" data-state={state}>{state === 'newSeason' ? 'New season' : state === 'lastChance' ? 'Last chance' : 'Caught up'}</span>}
-                  <span className="ellipsis">{subOf(it, show)}</span>
-                </span>
-                {state !== 'newSeason' && state !== 'lastChance' && state !== 'caughtUp' && <span className="mini-bar wide"><span style={{ width: progressOf(it, show) + '%' }} /></span>}
+                <span className="row-title ellipsis">{x.it.title.title}</span>
+                <span className="ticket-meta"><span className="state-pill sm" data-state={x.st.state}>{x.st.state === 'newSeason' ? 'New season' : 'Last chance'}</span>
+                  <span className="ellipsis">{x.st.state === 'newSeason' ? seasonsName(x.st.seasons) + ' is out' : seasonsName(x.st.seasons) + ' left'}</span></span>
               </span>
-              {show?.nextEp && <span className="ticket-act" role="button" tabIndex={0} aria-label="Watched" onClick={(e) => { e.stopPropagation(); watchedEp(it, { season: show.nextEp!.season, episode: show.nextEp!.episode }); }}>{busy === it.id ? '…' : Ico.check}</span>}
-              {(state === 'newSeason' || state === 'lastChance') && <span className="ticket-act" role="button" tabIndex={0} aria-label="Start watching" onClick={(e) => { e.stopPropagation(); setBusy(it.id); startWatching(it, seasons).then(load).finally(() => setBusy(null)); }}>{busy === it.id ? '…' : Ico.play}</span>}
+              <span className="ticket-act" role="button" tabIndex={0} aria-label="Start watching" onClick={(e) => { e.stopPropagation(); setBusy(x.it.id); startWatching(x.it, x.st.seasons).then(load).finally(() => setBusy(null)); }}>{busy === x.it.id ? '…' : Ico.play}</span>
             </button>
           ))}
+          {!readyOpen && ready.length > 1 && <button className="link left" onClick={() => setReadyOpen(true)}>and {ready.length - 1} more</button>}
         </section>}
 
         {/* Recently finished: picture on top, the cover over it, your rating and when */}
