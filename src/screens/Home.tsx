@@ -86,6 +86,26 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
     return out.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 60);
   }, [items, logs, eps, marks, today]);
 
+  const justOut = useMemo(() => {
+    const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
+    const out: { it: LibItem; date: string; what: string }[] = [];
+    items.forEach((it) => {
+      if (it.section === 'tv') {
+        if (it.status === 'playing') {
+          const p = progress(it, it.title, eps.filter((e) => e.title_id === it.title_id), marks.filter((m) => m.library_id === it.id), today);
+          if (p.nextEp?.air_date && p.nextEp.air_date >= since) out.push({ it, date: p.nextEp.air_date, what: 'New episode · ' + epLabel(p.nextEp) });
+        } else if (it.status !== 'backlog' && it.status !== 'dropped') {
+          const st = showState(it, it.title, logs.filter((l) => l.library.id === it.id), null, today);
+          const d = st.state === 'newSeason' && st.seasons.length ? seasonAir(it.title, st.seasons[st.seasons.length - 1]) : null;
+          if (d && d >= since && d <= today) out.push({ it, date: d, what: seasonsName([st.seasons[st.seasons.length - 1]]) + ' premiered' });
+        }
+      } else if (it.status === 'backlog' && it.title.release_date && it.title.release_date >= since && it.title.release_date <= today) {
+        out.push({ it, date: it.title.release_date, what: 'Out now' });
+      }
+    });
+    return out.sort((a, b) => b.date.localeCompare(a.date));
+  }, [items, logs, eps, marks, today]);
+  const outLabel = (date: string) => { const d = Math.round((new Date(today).getTime() - new Date(date).getTime()) / 864e5); return d <= 0 ? 'Out today' : d === 1 ? 'Out yesterday' : 'Out ' + d + ' d ago'; };
   const recent = useMemo(() => logs.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at)).slice(0, 14), [logs]);
   const upNext = useMemo(() => items.filter((i) => i.status === 'backlog' && i.up_next).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)).slice(0, 10), [items]);
 
@@ -327,7 +347,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
               <span className="ticket-img">{bg(x.it) ? <img className={x.it.title.backdrop_url ? '' : 'blur'} src={bg(x.it)!} alt="" /> : null}</span>
               <span className="ticket-body">
                 <span className="row-title ellipsis">{x.it.title.title}</span>
-                <span className="ticket-meta"><span className="state-pill sm" data-state={x.state}>{x.label}</span><span className="muted">{x.kind === 'Shows' ? '' : x.kind.slice(0, -1) + ' ·'}</span><span className="ellipsis">{x.text}</span></span>
+                <span className="ticket-meta">{justOut.some((j) => j.it.id === x.it.id) && <span className="new-dot">New</span>}<span className="state-pill sm" data-state={x.state}>{x.label}</span><span className="muted">{x.kind === 'Shows' ? '' : x.kind.slice(0, -1) + ' ·'}</span><span className="ellipsis">{x.text}</span></span>
               </span>
               {x.kind === 'Shows' && <span className="ticket-act" role="button" tabIndex={0} aria-label="Start watching" onClick={(e) => { e.stopPropagation(); setBusy(x.it.id); startWatching(x.it, x.seasons).then(load).finally(() => setBusy(null)); }}>{busy === x.it.id ? '…' : Ico.play}</span>}
             </button>
@@ -369,8 +389,20 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
         </section>}
 
         {/* Coming up: what comes out in the next three months — shows, movies, games, books from your lists */}
-        {!loading && coming.length > 0 && <section className="panel">
+        {!loading && (coming.length > 0 || justOut.length > 0) && <section className="panel">
           <div className="panel-head"><span className="ph-icon">{Ico.date}</span><span>Coming up</span><span className="count-badge">{coming.length}</span></div>
+          {justOut.length > 0 && <>
+            <span className="cu-month just">Just out</span>
+            {justOut.map((c) => (
+              <button key={'j' + c.it.id + c.date} className="cu-row just" onClick={() => setOpen({ id: c.it.id, kind: kindOf(c.it) })}>
+                <span className="cu-date out"><b>{new Date(c.date).getDate()}</b><span>{new Date(c.date).toLocaleDateString('en-GB', { month: 'short' })}</span></span>
+                <Poster t={c.it.title} w={34} h={50} />
+                <span className="grow"><span className="row-title ellipsis">{c.it.title.title}</span><span className="muted small ellipsis">{SEC_LABEL[c.it.section]} · {c.what}</span></span>
+                <span className="cu-in out">{outLabel(c.date)}</span>
+              </button>
+            ))}
+            {coming.length > 0 && <span className="cu-month">Next</span>}
+          </>}
           {(comingAll ? coming : coming.slice(0, 5)).map((c, i, arr) => { const d = new Date(c.date); const mon = d.toLocaleDateString('en-GB', { month: 'long' });
             const prevMon = i > 0 ? new Date(arr[i - 1].date).toLocaleDateString('en-GB', { month: 'long' }) : '';
             const days = Math.round((new Date(c.date).getTime() - new Date(today).getTime()) / 864e5);
@@ -387,9 +419,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
           {coming.length > 5 && <button className="link left" onClick={() => setComingAll(!comingAll)}>{comingAll ? 'Show less' : 'Show all ' + coming.length}</button>}
         </section>}
 
-        {!loading && <button className="card home-stats" onClick={onStats}>
-          <span className="grow"><strong>Your stats</strong><span className="muted small">What you watched, played and read, ratings, activity</span></span><span aria-hidden="true">›</span>
-        </button>}
+
 
         {!loading && !nowCount && !coming.length && !recent.length && !upNext.length && <div className="empty">Add a movie, a show, a game or a book — your activity shows up here.</div>}
       </main>

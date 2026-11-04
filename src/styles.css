@@ -1102,3 +1102,9 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .cu-date span { font-size: 10px; font-weight: 800; text-transform: uppercase; color: var(--muted); }
 .cu-in { flex: none; font-size: 11px; font-weight: 800; color: var(--muted); }
 .cu-in.soon { color: var(--accent); }
+
+.cu-month.just { color: #3FAF5A; margin-top: 0; }
+.cu-date.out { background: color-mix(in srgb, #3FAF5A 22%, var(--surface2)); }
+.cu-date.out b { color: #3FAF5A; }
+.cu-in.out { color: #3FAF5A; }
+.new-dot { flex: none; font-size: 9px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; background: #3FAF5A; color: #0d1a10; }
