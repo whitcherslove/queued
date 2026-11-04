@@ -263,10 +263,10 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
                   <span className="ticket-meta">
                     {it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : ['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} size={11} /> : null}
                     {p ? <span className="ellipsis">{p.nextEp ? 'Next: ' + epLabel(p.nextEp) + (p.nextEp.name ? ' — ' + p.nextEp.name : '') : subOf(it, p)}</span>
-                      : (() => { const [pct, ...rest] = extraOf(it, null).split(' · '); return <><b className="pct-big">{pct}</b>{rest.length > 0 && <span className="left-big">{rest.join(' · ')}</span>}</>; })()}
+                      : (() => { const rest = extraOf(it, null).split(' · ').slice(1); return rest.length > 0 ? <span className="left-big">{rest.join(' · ')}</span> : null; })()}
                   </span>
                   {p && <span className="muted tiny ellipsis">{extraOf(it, p)}</span>}
-                  <span className="mini-bar wide"><span style={{ width: progressOf(it, p) + '%' }} /></span>
+                  <span className="bar-row"><span className="mini-bar wide"><span style={{ width: progressOf(it, p) + '%' }} /></span><strong className="tiny">{progressOf(it, p)}%</strong></span>
                 </span>
                 {p?.nextEp && <span className="ticket-act" role="button" tabIndex={0} aria-label="Watched" onClick={(e) => { e.stopPropagation(); watchedEp(it, { season: p.nextEp!.season, episode: p.nextEp!.episode }); }}>{busy === it.id ? '…' : Ico.check}</span>}
               </button>
@@ -358,6 +358,8 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
           <span className="grow"><strong>Your stats</strong><span className="muted small">What you watched, played and read, ratings, activity</span></span><span aria-hidden="true">›</span>
         </button>}
 
+        {/* TEMP diagnostics (to find why a show you're watching doesn't show up) — remove after */}
+        {!loading && <span className="muted tiny diag">tv items {items.filter((i) => i.section === 'tv').length} · playing {items.filter((i) => i.section === 'tv' && i.status === 'playing').map((i) => i.title.title + (shows.some((x) => x.it.id === i.id) ? '' : ' ✗')).join(', ') || '—'} · eps {eps.length} · marks {marks.length} · top: {spot ? spot.it.title.title : '—'}</span>}
         {!loading && !nowCount && !coming.length && !recent.length && !upNext.length && <div className="empty">Add a movie, a show, a game or a book — your activity shows up here.</div>}
       </main>
 
