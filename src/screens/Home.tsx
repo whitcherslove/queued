@@ -10,7 +10,8 @@ import { Poster } from '../components/Rows';
 import PlatformIcon from '../components/PlatformIcon';
 import FormatIcon from '../components/FormatIcon';
 import { readHours } from '../lib/formats';
-import { ChevBtn, IconBack, IconMenu } from '../components/Icons';
+import { ChevBtn, DuoTv, IconBack, IconMenu } from '../components/Icons';
+const DuoTvMini = DuoTv;
 import ScoreRing from '../components/ScoreRing';
 import { Ico } from '../components/Rate';
 import { useBackLayer } from '../lib/back';
@@ -41,7 +42,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
       const its = all.items.map((i) => ({ ...i, title: merged(i.title, i.overrides) }));
       const byId = new Map(its.map((i) => [i.id, i]));
       setItems(its); setLogs(all.logs.map((l) => ({ ...l, library: byId.get(l.library_id) ?? l.library })));
-      const watching = its.filter((i) => i.section === 'tv' && i.status === 'playing');
+      const watching = its.filter((i) => i.section === 'tv' && i.status !== 'backlog' && i.status !== 'dropped');
       const [e, m] = await Promise.all([loadEpisodes(watching.map((i) => i.title_id)), loadMarks(watching.map((i) => i.id))]);
       setEps(e); setMarks(m);
     } finally { setLoading(false); }
@@ -50,11 +51,13 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
 
   // --- Continue: shows with an episode ready, games in progress
   const STATE_ORDER: Record<string, number> = { progress: 0, newSeason: 1, lastChance: 2, caughtUp: 3 };
+  // watched an episode in the last three weeks = you're watching it, whatever its status (e.g. an ended show you're going through)
+  const isRecent = (iso: string | null | undefined) => !!iso && Date.now() - new Date(iso).getTime() < 21 * 864e5;
   const shows = useMemo(() => items.filter((i) => i.section === 'tv' && i.status !== 'backlog' && i.status !== 'dropped').map((it) => {
-    const p = it.status === 'playing' ? progress(it, it.title, eps.filter((e) => e.title_id === it.title_id), marks.filter((m) => m.library_id === it.id), today) : null;
-    const st = showState(it, it.title, logs.filter((l) => l.library.id === it.id) as never, p, today);
+    const p = progress(it, it.title, eps.filter((e) => e.title_id === it.title_id), marks.filter((m) => m.library_id === it.id), today);
+    const st = showState(it, it.title, logs.filter((l) => l.library.id === it.id) as never, it.status === 'playing' ? p : null, today);
     return { it, p, st };
-  }).filter((x) => x.it.status === 'playing' || x.st.state in STATE_ORDER)
+  }).filter((x) => x.it.status === 'playing' || x.st.state in STATE_ORDER || isRecent(x.p.lastSeen))
     .sort((a, b) => Number(!!b.p?.nextEp) - Number(!!a.p?.nextEp) || STATE_ORDER[a.st.state] - STATE_ORDER[b.st.state] || (b.p?.lastSeen ?? '').localeCompare(a.p?.lastSeen ?? '')), [items, logs, eps, marks, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const games = useMemo(() => items.filter((i) => ['console', 'pc', 'retro', 'books'].includes(i.section) && i.status === 'playing')
     .sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')), [items]);
@@ -95,19 +98,35 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
     } finally { setBusy(null); }
   };
 
-  const nowCount = shows.filter((x) => x.it.status === 'playing').length + games.length;
+  const nowCount = shows.filter((x) => x.it.status === 'playing' || isRecent(x.p.lastSeen)).length + games.length;
   const dateLine = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' });
   const hr = new Date().getHours();
   const greeting = hr < 5 ? 'Good night' : hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
   // 1) top: the show you're watching now (latest watched first; one with a new episode wins), else the game / book you started last
-  const watchingNow = shows.filter((x) => x.it.status === 'playing');
+  const watchingNow = shows.filter((x) => x.it.status === 'playing' || isRecent(x.p.lastSeen))
+    .sort((a, b) => Number(!!b.p.nextEp) - Number(!!a.p.nextEp) || (b.p.lastSeen ?? '').localeCompare(a.p.lastSeen ?? ''));
   const topShow = watchingNow.find((x) => x.p?.nextEp) ?? watchingNow[0] ?? null;
   const spot = topShow ? { it: topShow.it, show: topShow.p as ReturnType<typeof progress> | null } : games[0] ? { it: games[0], show: null } : null;
   // 2) In progress: everything else you're actually in the middle of (other shows you watch, games, books)
-  const shelf = [...watchingNow.filter((x) => x.it.id !== spot?.it.id).map((x) => ({ it: x.it, show: x.p as ReturnType<typeof progress> | null, state: '', seasons: [] as number[] })),
-    ...games.filter((g) => g.id !== spot?.it.id).map((it) => ({ it, show: null as ReturnType<typeof progress> | null, state: '', seasons: [] as number[] }))];
+  const showsNow = watchingNow.filter((x) => x.it.id !== spot?.it.id);
+  const gamesNow = games.filter((g) => g.id !== spot?.it.id && g.section !== 'books');
+  const booksNow = games.filter((g) => g.id !== spot?.it.id && g.section === 'books');
+  /** "4 of 10 left · ~3 h" for a show, "~15 h of 33 h left" for a game, "308 pages left · ~7 h" for a book */
+  const extraOf = (it: LibItem, p: ReturnType<typeof progress> | null) => {
+    if (p) { const left = Math.max(0, p.aired - p.seen); const hrs = left * (it.title.runtime ?? 30) / 60; return left ? left + (left === 1 ? ' episode left' : ' episodes left') + (hrs >= 1 ? ' · ~' + Math.round(hrs) + ' h' : '') : 'All aired episodes watched'; }
+    const g = it as LibItem & { progress?: number | null; format?: string | null; position_at?: number | null };
+    const d = it.title.data as { ttb?: { main?: number | null }; pages?: number | null; audio_min?: number | null } | null;
+    if (it.section === 'books') {
+      const pages = (it.overrides as { pages?: number } | null)?.pages ?? d?.pages ?? null;
+      const h = readHours(pages, d?.audio_min, g.format);
+      if (pages && g.format !== 'audio') { const at = g.position_at ?? Math.round(((g.progress ?? 0) * pages) / 100); return 'p. ' + at + ' / ' + pages + (h ? ' · ~' + Math.max(0, Math.round(h * (1 - (g.progress ?? 0) / 100))) + ' h left' : ''); }
+      return (g.progress ?? 0) + '%' + (h ? ' · ~' + Math.max(0, Math.round(h * (1 - (g.progress ?? 0) / 100))) + ' h left' : '');
+    }
+    const ttb = ((it.overrides as { ttb_main?: number } | null)?.ttb_main) ?? d?.ttb?.main ?? null;
+    return (g.progress ?? 0) + '%' + (ttb ? ' · ~' + Math.max(0, Math.round(ttb * (1 - (g.progress ?? 0) / 100))) + ' h of ' + Math.round(ttb) + ' h left' : '');
+  };
   // 3) Ready to start: shows you've seen before with new seasons out / unwatched seasons of finished shows
-  const ready = shows.filter((x) => x.it.status !== 'playing' && (x.st.state === 'newSeason' || x.st.state === 'lastChance'))
+  const ready = shows.filter((x) => !watchingNow.includes(x) && (x.st.state === 'newSeason' || x.st.state === 'lastChance'))
     .sort((a, b) => STATE_ORDER[a.st.state] - STATE_ORDER[b.st.state]);
   const [readyOpen, setReadyOpen] = useState(false);
   const featured = useMemo(() => { const fresh = ready.filter((x) => x.st.state === 'newSeason'); const pool = fresh.length ? fresh : ready; return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null; }, [ready.length]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -221,6 +240,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
               <span className="spot-kicker">{verb(spot.it)}</span>
               <strong className="spot-title">{spot.it.title.title}</strong>
               <span className="spot-sub">{subOf(spot.it, spot.show)}</span>
+              {spot.show && <span className="spot-sub dim">{extraOf(spot.it, spot.show)}</span>}
               <div className="spot-row">
                 {spot.show?.nextEp && <button className="spot-btn" disabled={busy === spot.it.id} onClick={(e) => { e.stopPropagation(); watchedEp(spot.it, { season: spot.show!.nextEp!.season, episode: spot.show!.nextEp!.episode }); }}>{busy === spot.it.id ? '…' : <>{Ico.check}Watched</>}</button>}
                 <span className="spot-bar"><i style={{ width: progressOf(spot.it, spot.show) + '%' }} /></span>
@@ -229,26 +249,28 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
           </div>
         )}
 
-        {/* In progress */}
-        {!loading && shelf.length > 0 && <section className="panel">
-          <div className="panel-head"><span className="ph-icon">{Ico.play}</span><span>In progress</span><span className="count-badge">{shelf.length}</span></div>
-          {shelf.map(({ it, show, state, seasons }) => (
-            <button key={it.id} className="ticket" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })}>
-              <span className="ticket-img">{bg(it) ? <img className={it.title.backdrop_url ? '' : 'blur'} src={bg(it)!} alt="" /> : null}</span>
-              <span className="ticket-body">
-                <span className="row-title ellipsis">{it.title.title}</span>
-                <span className="ticket-meta">
-                  {it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : ['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} size={11} /> : null}
-                  {(state === 'newSeason' || state === 'lastChance' || state === 'caughtUp') && <span className="state-pill sm" data-state={state}>{state === 'newSeason' ? 'New season' : state === 'lastChance' ? 'Last chance' : 'Caught up'}</span>}
-                  <span className="ellipsis">{subOf(it, show)}</span>
+        {/* In progress — one panel per kind, each with what's left */}
+        {!loading && ([['Shows', showsNow.map((x) => ({ it: x.it, p: x.p as ReturnType<typeof progress> | null }))], ['Games', gamesNow.map((it) => ({ it, p: null }))], ['Books', booksNow.map((it) => ({ it, p: null }))]] as [string, { it: LibItem; p: ReturnType<typeof progress> | null }[]][])
+          .filter(([, list]) => list.length > 0).map(([title, list]) => (
+          <section key={title} className={'panel kind-' + title.toLowerCase()}>
+            <div className="panel-head"><span className="ph-icon">{title === 'Shows' ? <DuoTvMini /> : title === 'Books' ? <FormatIcon f="paper" /> : Ico.play}</span><span>{title === 'Shows' ? 'Watching' : title === 'Games' ? 'Playing' : 'Reading'}</span><span className="count-badge">{list.length}</span></div>
+            {list.map(({ it, p }) => (
+              <button key={it.id} className="ticket" onClick={() => setOpen({ id: it.id, kind: kindOf(it) })}>
+                <span className="ticket-img">{bg(it) ? <img className={it.title.backdrop_url ? '' : 'blur'} src={bg(it)!} alt="" /> : null}</span>
+                <span className="ticket-body">
+                  <span className="row-title ellipsis">{it.title.title}</span>
+                  <span className="ticket-meta">
+                    {it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : ['console', 'pc', 'retro'].includes(it.section) ? <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} size={11} /> : null}
+                    <span className="ellipsis">{p?.nextEp ? 'Next: ' + epLabel(p.nextEp) + (p.nextEp.name ? ' — ' + p.nextEp.name : '') : p ? subOf(it, p) : extraOf(it, null)}</span>
+                  </span>
+                  {p && <span className="muted tiny ellipsis">{extraOf(it, p)}</span>}
+                  <span className="mini-bar wide"><span style={{ width: progressOf(it, p) + '%' }} /></span>
                 </span>
-                {state !== 'newSeason' && state !== 'lastChance' && state !== 'caughtUp' && <span className="mini-bar wide"><span style={{ width: progressOf(it, show) + '%' }} /></span>}
-              </span>
-              {show?.nextEp && <span className="ticket-act" role="button" tabIndex={0} aria-label="Watched" onClick={(e) => { e.stopPropagation(); watchedEp(it, { season: show.nextEp!.season, episode: show.nextEp!.episode }); }}>{busy === it.id ? '…' : Ico.check}</span>}
-              {(state === 'newSeason' || state === 'lastChance') && <span className="ticket-act" role="button" tabIndex={0} aria-label="Start watching" onClick={(e) => { e.stopPropagation(); setBusy(it.id); startWatching(it, seasons).then(load).finally(() => setBusy(null)); }}>{busy === it.id ? '…' : Ico.play}</span>}
-            </button>
-          ))}
-        </section>}
+                {p?.nextEp && <span className="ticket-act" role="button" tabIndex={0} aria-label="Watched" onClick={(e) => { e.stopPropagation(); watchedEp(it, { season: p.nextEp!.season, episode: p.nextEp!.episode }); }}>{busy === it.id ? '…' : Ico.check}</span>}
+              </button>
+            ))}
+          </section>
+        ))}
 
         {/* What tonight? */}
         {!loading && (

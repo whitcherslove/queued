@@ -317,7 +317,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
     await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
     setJustWatched(true);
   })();
-  const markDidntFinish = guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: null, rewatch: !!item.rewatch, watched_at: new Date().toISOString() }); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); });
+  const markDidntFinish = guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: null, rewatch: !!item.rewatch, watched_at: new Date().toISOString(), ...(game ? { platform: gItem.platform ?? null, coop: !!gItem.coop } : {}), ...(book ? { format: bItem.format ?? null } : {}) } as never); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); });
   const toggleDidntFinish = () => { if (!last) return; const l = last, v = !l.dropped; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: !v } : x))), () => updateLog(l.id, { dropped: v })); };
   const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: backlogCount })); };
 
@@ -521,14 +521,15 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
               </>}
             </div>
           )}
-          {takeOpen && (canWatchNow || mState === 'dropped') && (confirmDrop ? (
+          {takeOpen && (canWatchNow || isPlaying || mState === 'dropped') && (confirmDrop ? (
             <div className="quiet-row"><span className="small grow">{book ? 'Started it but didn’t finish? It goes to Read marked Dropped.' : game ? 'Started it but didn’t finish? It goes to Finished marked Dropped.' : 'Started it but didn’t finish? It goes to Watched marked Dropped.'}</span>
               <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
           ) : (
             <div className="quiet-row">
-              {canWatchNow && <button className="link" onClick={() => setPastOpen(true)}>{W.before}</button>}
+              {(canWatchNow || isPlaying) && <button className="link" onClick={() => setPastOpen(true)}>{W.before}</button>}
+              {isPlaying && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: 'backlog', position: backlogCount, started_on: null, run_started_at: null } as never); })}>Move to Backlog</button>}
               {mState === 'dropped' && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
-              {canWatchNow && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
+              {(canWatchNow || isPlaying) && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
             </div>
           ))}
         </section>

@@ -1063,3 +1063,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 
 .panel-head.as-btn { width: 100%; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
 .count-badge.green { background: color-mix(in srgb, #3FAF5A 22%, transparent); color: #3FAF5A; }
+
+.spot-sub.dim { opacity: .65; font-size: 12px; }
+.ph-icon svg { width: 15px !important; height: 15px !important; }
+.kind-shows .ph-icon { background: color-mix(in srgb, #9A8CF0 22%, transparent); color: #9A8CF0; }
+.kind-games .ph-icon { background: color-mix(in srgb, #2FB98A 22%, transparent); color: #2FB98A; }
+.kind-books .ph-icon { background: color-mix(in srgb, #D98B5F 22%, transparent); color: #D98B5F; }
+.kind-books .ph-icon .fmt-icon { color: inherit; margin: 0; }
