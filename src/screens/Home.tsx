@@ -127,10 +127,25 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
     return (g.progress ?? 0) + '%' + (ttb ? ' · ~' + Math.max(0, Math.round(ttb * (1 - (g.progress ?? 0) / 100))) + ' h left' : '');
   };
   // 3) Ready to start: shows you've seen before with new seasons out / unwatched seasons of finished shows
-  const ready = shows.filter((x) => !watchingNow.includes(x) && (x.st.state === 'newSeason' || x.st.state === 'lastChance'))
-    .sort((a, b) => STATE_ORDER[a.st.state] - STATE_ORDER[b.st.state]);
+  type ReadyRow = { it: LibItem; kind: 'Shows' | 'Movies' | 'Games' | 'Books'; label: string; state: string; text: string; seasons: number[] };
+  const ready: ReadyRow[] = useMemo(() => {
+    const out: ReadyRow[] = shows.filter((x) => !watchingNow.includes(x) && (x.st.state === 'newSeason' || x.st.state === 'lastChance'))
+      .map((x) => ({ it: x.it, kind: 'Shows' as const, label: x.st.state === 'newSeason' ? 'New season' : 'Last chance', state: x.st.state, text: x.st.state === 'newSeason' ? seasonsName(x.st.seasons) + ' is out' : seasonsName(x.st.seasons) + ' left', seasons: x.st.seasons }));
+    // out now: in your backlog, released within the last ~4 months
+    const since = new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10);
+    items.filter((i) => i.status === 'backlog' && i.section !== 'tv' && i.title.release_date && i.title.release_date <= today && i.title.release_date >= since)
+      .sort((a, b) => (b.title.release_date ?? '').localeCompare(a.title.release_date ?? ''))
+      .forEach((i) => out.push({ it: i, kind: i.section === 'movies' ? 'Movies' : i.section === 'books' ? 'Books' : 'Games', label: 'Out now', state: 'outNow',
+        text: 'Released ' + new Date(i.title.release_date!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), seasons: [] }));
+    return out;
+  }, [shows, watchingNow.length, items, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const [readyOpen, setReadyOpen] = useState(false);
-  const featured = useMemo(() => { const fresh = ready.filter((x) => x.st.state === 'newSeason'); const pool = fresh.length ? fresh : ready; return pool.length ? pool[Math.floor(Math.random() * pool.length)] : null; }, [ready.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [readyKind, setReadyKind] = useState<'All' | ReadyRow['kind']>('All');
+  const [readyAll, setReadyAll] = useState(false);
+  // folded: one thing — a fresh season if there is one, otherwise the newest release
+  const featured = useMemo(() => { const fresh = ready.filter((x) => x.state === 'newSeason'); const pool = fresh.length ? fresh : ready; return pool.length ? pool[Math.floor(Math.random() * Math.min(pool.length, 4))] : null; }, [ready.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  const readyKinds = (['Shows', 'Movies', 'Games', 'Books'] as const).filter((k) => ready.some((r) => r.kind === k));
+  const readyList = ready.filter((r) => readyKind === 'All' || r.kind === readyKind);
 
   // ---- What tonight? — 🎲 random or ✦ AI, from your backlog, with filters that depend on the type
   type Kind = 'Any' | 'Movie' | 'Show' | 'Game' | 'Book';
@@ -246,8 +261,8 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
                   <span className="spot-sub">{p ? subOf(it, p) : <>{it.section === 'books' ? <FormatIcon f={(it as LibItem & { format?: string | null }).format} /> : <PlatformIcon k={(it as LibItem & { platform?: string | null }).platform} size={12} />} {extraOf(it, null).split(' · ').slice(1).join(' · ')}</>}</span>
                   {p && <span className="spot-sub dim">{extraOf(it, p)}</span>}
                   <div className="spot-row">
-                    {p?.nextEp && <button className="spot-btn" disabled={busy === it.id} onClick={(e) => { e.stopPropagation(); watchedEp(it, { season: p.nextEp!.season, episode: p.nextEp!.episode }); }}>{busy === it.id ? '…' : <>{Ico.check}Watched</>}</button>}
                     <span className="spot-bar"><i style={{ width: progressOf(it, p) + '%' }} /></span><strong className="spot-pct">{progressOf(it, p)}%</strong>
+                    {p?.nextEp && <button className="btn primary spot-watched" disabled={busy === it.id} onClick={(e) => { e.stopPropagation(); watchedEp(it, { season: p.nextEp!.season, episode: p.nextEp!.episode }); }}>{busy === it.id ? '…' : <>{Ico.check}Watched</>}</button>}
                   </div>
                 </div>
               </div>
@@ -300,23 +315,24 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
           </section>
         )}
 
-        {/* Ready to start: new seasons out / last chance — folded; shows one new season when folded */}
+        {/* Ready to start: new seasons, last chances, and what just came out from your backlog — folded */}
         {!loading && ready.length > 0 && <section className="panel ready-panel">
           <button className="panel-head as-btn" aria-expanded={readyOpen} onClick={() => setReadyOpen(!readyOpen)}>
-            <span className="ph-icon">{Ico.seasons}</span><span>Ready to start</span><span className="count-badge green">{ready.length}</span><ChevBtn open={readyOpen} size={28} />
+            <span className="ph-icon">{Ico.seasons}</span><span>Ready to start</span><span className="count-badge">{ready.length}</span><ChevBtn open={readyOpen} size={28} />
           </button>
-          {(readyOpen ? ready : featured ? [featured] : []).map((x) => (
-            <button key={x.it.id} className="ticket" onClick={() => setOpen({ id: x.it.id, kind: 'tv' })}>
+          {readyOpen && readyKinds.length > 1 && <div className="seg">{(['All', ...readyKinds] as ('All' | ReadyRow['kind'])[]).map((k) => <button key={k} className={readyKind === k ? 'on' : ''} onClick={() => { setReadyKind(k); setReadyAll(false); }}>{k}{k !== 'All' ? ' ' + ready.filter((r) => r.kind === k).length : ''}</button>)}</div>}
+          {(readyOpen ? (readyAll ? readyList : readyList.slice(0, 5)) : featured ? [featured] : []).map((x) => (
+            <button key={x.it.id} className="ticket" onClick={() => setOpen({ id: x.it.id, kind: kindOf(x.it) })}>
               <span className="ticket-img">{bg(x.it) ? <img className={x.it.title.backdrop_url ? '' : 'blur'} src={bg(x.it)!} alt="" /> : null}</span>
               <span className="ticket-body">
                 <span className="row-title ellipsis">{x.it.title.title}</span>
-                <span className="ticket-meta"><span className="state-pill sm" data-state={x.st.state}>{x.st.state === 'newSeason' ? 'New season' : 'Last chance'}</span>
-                  <span className="ellipsis">{x.st.state === 'newSeason' ? seasonsName(x.st.seasons) + ' is out' : seasonsName(x.st.seasons) + ' left'}</span></span>
+                <span className="ticket-meta"><span className="state-pill sm" data-state={x.state}>{x.label}</span><span className="muted">{x.kind === 'Shows' ? '' : x.kind.slice(0, -1) + ' ·'}</span><span className="ellipsis">{x.text}</span></span>
               </span>
-              <span className="ticket-act" role="button" tabIndex={0} aria-label="Start watching" onClick={(e) => { e.stopPropagation(); setBusy(x.it.id); startWatching(x.it, x.st.seasons).then(load).finally(() => setBusy(null)); }}>{busy === x.it.id ? '…' : Ico.play}</span>
+              {x.kind === 'Shows' && <span className="ticket-act" role="button" tabIndex={0} aria-label="Start watching" onClick={(e) => { e.stopPropagation(); setBusy(x.it.id); startWatching(x.it, x.seasons).then(load).finally(() => setBusy(null)); }}>{busy === x.it.id ? '…' : Ico.play}</span>}
             </button>
           ))}
           {!readyOpen && ready.length > 1 && <button className="link left" onClick={() => setReadyOpen(true)}>and {ready.length - 1} more</button>}
+          {readyOpen && !readyAll && readyList.length > 5 && <button className="link left" onClick={() => setReadyAll(true)}>Show all {readyList.length}</button>}
         </section>}
 
         {/* Recently finished: picture on top, the cover over it, your rating and when */}

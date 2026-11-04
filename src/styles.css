@@ -1084,3 +1084,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .spot-pct { color: #fff; font-size: 12px; min-width: 34px; text-align: right; }
 .spot .plat-logo { filter: none !important; margin: 0 4px 0 0 !important; vertical-align: -1px; }
 .spot .fmt-icon { color: #fff; margin: 0 4px 0 0; }
+
+/* big card: the platform logo is an inline image (not the full-bleed picture rule) */
+.spot .plat-logo { position: static !important; inset: auto !important; width: auto !important; height: 12px !important; object-fit: contain !important; display: inline-block; vertical-align: -1px; }
+.spot-sub { display: flex; align-items: center; gap: 6px; }
+.spot-watched { flex: none; height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; }
+.ready-panel .seg { margin-top: 0; }
+.ready-panel .seg button { font-size: 12px; }
