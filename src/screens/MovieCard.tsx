@@ -5,7 +5,7 @@ import { DROPPED_COLOR, PICK_TIERS, TIERS, displayScore, imdbColor, metascoreCol
 import { needsRefresh, diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
 import { shortCountries } from '../lib/logic';
 import {
-  type Owned, ensureBook, findOwnedBooks, estimateProgress, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
+  type Owned, bookImages, ensureBook, findOwnedBooks, estimateProgress, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
 } from '../lib/remote';
 import ScoreRing from '../components/ScoreRing';
 import DateField from '../components/DateField';
@@ -813,7 +813,7 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
   const tmdbStatus = String((item.title.data as { status?: string } | null)?.status ?? '');
   const [showStatus, setShowStatus] = useState<string>((item.overrides as { status?: string })?.status ?? '');
   const endedNow = ['Ended', 'Canceled'].includes(showStatus || tmdbStatus);
-  const isTmdb = item.title.source === 'tmdb' || kind === 'game';   // games pick from IGDB / RAWG
+  const isTmdb = item.title.source === 'tmdb' || kind === 'game' || kind === 'book';   // games pick from IGDB / RAWG, books from their editions
   const openPicker = async (k: 'poster' | 'backdrop') => {
     setPicker(picker === k ? '' : k);
     if (pics) return;
@@ -821,7 +821,11 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
       // box art for the platform you play on first (TheGamesDB / SteamGridDB), then IGDB; backgrounds RAWG first, then IGDB
       const g = await gameImages(item.title.id).catch(() => ({ posters: [], backdrops: [] }));
       setPics({ posters: g.posters.map((x) => ({ thumb: x.url, full: x.url, label: x.label })), backdrops: g.backdrops.map((x) => ({ thumb: x.url, full: x.url, label: x.label })) } as never);
-    } else if (kind !== 'book') setPics(await loadImages(item.title.source_id, kind));
+    } else if (kind === 'book') {
+      // covers of the book's editions (yours first: the original title you searched for is used to find them)
+      const b = await bookImages(bookRef(item.title), (item.overrides as { title?: string } | null)?.title ?? item.title.title, item.title.directors?.[0] ?? '', item.title.title).catch(() => ({ posters: [], backdrops: [] }));
+      setPics({ posters: b.posters.map((x) => ({ thumb: x.url, full: x.url, label: x.label })), backdrops: [] } as never);
+    } else setPics(await loadImages(item.title.source_id, kind));
   };
   const upload = (k: 'poster' | 'backdrop') => async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; e.target.value = ''; if (!file) return;
@@ -880,7 +884,7 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
         <button className="btn wide" onClick={refresh} disabled={busy}>↻ Update the info</button>
         {note && <p className="muted small">{note}</p>}
         {imageBlock('poster')}
-        {imageBlock('backdrop')}
+        {kind !== 'book' && imageBlock('backdrop')}
         {kind === 'tv' && (
           <button className="switch-row flat" role="switch" aria-checked={endedNow} onClick={() => setShowStatus(endedNow ? 'Returning Series' : 'Ended')}>
             <span className="stack-sm grow"><strong>The show has ended</strong><span className="muted small">{'TMDB says: ' + (tmdbStatus || 'unknown') + '. Turn on if it’s actually over — it then leaves Caught up / Up to date.'}</span></span>

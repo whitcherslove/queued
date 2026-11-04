@@ -198,6 +198,43 @@ async function details(db: any, ref: string, force = false) {
   return data;
 }
 
+/** Every cover we can find for a book: its Hardcover editions, Open Library editions, Google Books editions. */
+async function images(ref: string, title: string, author: string, alt = '') {
+  const [p, id] = [ref.slice(0, 2), ref.slice(3)];
+  const out: { url: string; label: string }[] = [];
+  const add = (url: string | null | undefined, label: string) => { if (url && !out.some((x) => x.url === url)) out.push({ url, label }); };
+  await Promise.all([
+    // Hardcover: covers of the book's editions, most read first
+    (async () => {
+      if (p !== 'hc' || !env('HARDCOVER_TOKEN')) return;
+      const d = await hc(`query E($id: Int!) { editions(where: {book_id: {_eq: $id}}, order_by: {users_count: desc}, limit: 40) { image { url } release_date language { language } } }`, { id: Number(id) }).catch(() => null);
+      (d?.editions ?? []).forEach((e: any) => add(e.image?.url, ['Hardcover', e.release_date?.slice(0, 4), e.language?.language].filter(Boolean).join(' · ')));
+    })(),
+    // Open Library: the work's covers, or the work found by title + author
+    (async () => {
+      let work = p === 'ol' ? id : null;
+      if (!work) {
+        const r = await fetchT(`https://openlibrary.org/search.json?title=${encodeURIComponent(title)}&author=${encodeURIComponent(author)}&fields=key&limit=1`, { headers: { 'user-agent': 'Queued/1.0 (personal reading log)' } });
+        work = r.ok ? String((await r.json()).docs?.[0]?.key ?? '').replace('/works/', '') || null : null;
+      }
+      if (!work) return;
+      const ed = await fetchT(`https://openlibrary.org/works/${work}/editions.json?limit=60`, { headers: { 'user-agent': 'Queued/1.0 (personal reading log)' } });
+      const list: any[] = ed.ok ? (await ed.json()).entries ?? [] : [];
+      list.forEach((e) => { const c = e.covers?.find((x: number) => x > 0); if (c) add(`https://covers.openlibrary.org/b/id/${c}-L.jpg`, ['Open Library', String(e.publish_date ?? '').match(/\d{4}/)?.[0]].filter(Boolean).join(' · ')); });
+    })(),
+    // Google Books: editions with the same title and author (bigger images) — under the title you see and the source's one
+    ...[...new Set([title, alt].filter(Boolean))].map((title) => (async () => {
+      const k = env('GOOGLE_BOOKS_KEY');
+      const q = `intitle:${baseTitle(title)}${author ? ' inauthor:' + authorKey(author) : ''}`;
+      const r = await fetchT(`https://www.googleapis.com/books/v1/volumes?q=${encodeURIComponent(q)}&maxResults=30&printType=books${k ? '&key=' + k : ''}`);
+      const items: any[] = r.ok ? (await r.json()).items ?? [] : [];
+      items.filter((v) => key(v.volumeInfo?.title ?? '') === key(title) || crossKey(v.volumeInfo?.title ?? '') === crossKey(title))
+        .forEach((v) => { const c = gbCover(v); if (c) add(c.replace(/&zoom=\d/, '') + '&fife=w600', ['Google Books', String(v.volumeInfo?.publishedDate ?? '').slice(0, 4)].filter(Boolean).join(' · ')); });
+    })())
+  ]);
+  return { posters: out.slice(0, 60), backdrops: [] };
+}
+
 /** A pasted link → a book reference. */
 async function fromLink(url: string): Promise<string | null> {
   const ol = url.match(/openlibrary\.org\/works\/(OL\d+W)/i)?.[1]; if (ol) return 'ol:' + ol;
@@ -215,6 +252,7 @@ Deno.serve(async (req) => {
     if (body.action === 'search') { const q = String(body.q ?? '').trim(); return json({ results: q ? await search(q) : [] }); }
     if (body.action === 'details') return json({ title: await details(db, String(body.ref), !!body.force) });
     if (body.action === 'link') return json({ ref: await fromLink(String(body.url ?? '')) });
+    if (body.action === 'images') return json(await images(String(body.ref), String(body.title ?? ''), String(body.author ?? ''), String(body.alt ?? '')));
     return json({ error: 'Unknown action' }, 400);
   } catch (e) {
     return json({ error: String((e as Error).message ?? e) }, 500);

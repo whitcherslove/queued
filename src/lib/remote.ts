@@ -332,3 +332,10 @@ export async function findOwnedBooks(hcIds: string[]): Promise<Record<string, Ow
   (data ?? []).forEach((r: any) => { out[r.title.source_id] = { id: r.id, status: r.status, up_next: r.up_next }; });
   return out;
 }
+
+/** Covers of a book's editions (Hardcover, Open Library, Google Books) for "Edit details". */
+export async function bookImages(ref: string, title: string, author: string, alt = ''): Promise<{ posters: { url: string; label: string }[]; backdrops: { url: string; label: string }[] }> {
+  const { data, error } = await supabase.functions.invoke('books', { body: { action: 'images', ref, title, author, alt } });
+  if (error) throw await fnError(error);
+  return data ?? { posters: [], backdrops: [] };
+}
