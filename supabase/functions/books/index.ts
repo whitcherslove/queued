@@ -154,7 +154,7 @@ const surname5 = (a: string) => translit(authorKey(a)).replace(/w/g, 'v').replac
 async function findOnHardcover(title: string, author: string, year: number | null): Promise<string | null> {
   if (!env('HARDCOVER_TOKEN') || !title) return null;
   const tries: { title: string; author: string }[] = [{ title, author }];
-  if (cyr(title + author)) { const en = await englishName(title, author).catch(() => null); if (en) tries.unshift(en); }
+  // (no AI lookup of the English title — it made adding slow; the title as found is tried as is)
   for (const t of tries) {
     const hits = await hcSearch(`${baseTitle(t.title)} ${authorKey(t.author)}`.trim()).catch(() => [] as Hit[]);
     const want = surname5(t.author || author);

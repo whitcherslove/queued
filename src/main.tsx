@@ -16,3 +16,8 @@ document.addEventListener('touchend', (e) => { const now = Date.now(); if (now -
 const so = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
 if (window.matchMedia('(display-mode: standalone)').matches && so?.lock) so.lock('portrait').catch(() => undefined);
 createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictMode>);
+
+// splash: fade out after the first screen is up (but let the Q draw and the dots drip first)
+const t0 = performance.now();
+const hideSplash = () => { const el = document.getElementById('splash'); if (!el) return; el.classList.add('gone'); setTimeout(() => el.remove(), 400); };
+requestAnimationFrame(() => setTimeout(hideSplash, Math.max(0, 2200 - (performance.now() - t0))));

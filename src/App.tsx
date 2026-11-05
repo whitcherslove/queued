@@ -1,3 +1,4 @@
+import { Brand } from './components/Logo';
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase, supabaseConfigured } from './lib/supabase';
@@ -73,13 +74,13 @@ export default function App() {
   if (!supabaseConfigured) {
     return (
       <main className="center-screen">
-        <h1 className="wordmark">Queued</h1>
+        <Brand size={84} />
         <p className="muted">Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to .env.local (or to Vercel) and reload.</p>
       </main>
     );
   }
-  if (!ready) return <main className="center-screen"><h1 className="wordmark">Queued</h1></main>;
+  if (!ready) return <main className="center-screen"><Brand size={132} animated /></main>;
   if (!session) return <Login />;
-  if (!profile) return <main className="center-screen"><h1 className="wordmark">Queued</h1></main>;
+  if (!profile) return <main className="center-screen"><Brand size={132} animated /></main>;
   return <>{claiming && <div className="toast" role="status">{claiming}</div>}{friendNote && <div className="toast" role="status" onClick={() => setFriendNote('')}>{friendNote}</div>}<Shell profile={profile} onProfile={setProfile} onSettings={updateSettings} /></>;
 }

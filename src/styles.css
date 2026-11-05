@@ -1184,3 +1184,18 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .feed-meta.as-btn { padding: 0; border: 0; background: none; color: inherit; }
 .feed-who.tappable { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 55%, transparent); }
 .feed-hint { margin-bottom: 2px; }
+
+/* brand: the QD tile with a smile + the word with a smile under it (Montserrat, like the icon) */
+.brand { display: flex; flex-direction: column; align-items: center; gap: 18px; color: var(--ink); }
+.qdmark { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: .14em; background: linear-gradient(#2E2D34, #212026);
+  font-family: 'Montserrat', sans-serif; font-weight: 800; line-height: 1; box-sizing: border-box; padding-top: .1em; }
+.qdmark b { font-weight: 800; background: linear-gradient(#fff 35%, #DED6FF); -webkit-background-clip: text; background-clip: text; color: transparent; letter-spacing: .01em; }
+.qdmark svg { width: 64%; height: .34em; overflow: visible; }
+.brand-word { display: flex; flex-direction: column; align-items: center; }
+.brand-text { font-family: 'Montserrat', sans-serif; font-weight: 800; font-size: 34px; letter-spacing: 1px; line-height: 1; }
+.brand-smile { width: 80%; height: 16px; overflow: visible; margin-top: 6px; }
+.brand-smile .track { stroke: color-mix(in srgb, #8B7BF0 25%, transparent); }
+.brand-smile .fill { stroke-dasharray: 100; stroke-dashoffset: 0; }
+.brand-anim .brand-smile .fill { animation: brand-load 1.4s cubic-bezier(.4,0,.2,1) infinite; }
+@keyframes brand-load { 0% { stroke-dashoffset: 100; } 70%, 100% { stroke-dashoffset: 0; } }
+@media (prefers-reduced-motion: reduce) { .brand-anim .brand-smile .fill { animation: none; } }
