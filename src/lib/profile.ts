@@ -20,11 +20,25 @@ export async function saveSettings(userId: string, settings: Settings) {
   if (error) throw error;
 }
 
+/** Any photo → a square-ish 512 px JPEG (small, and iPhone HEIC photos become JPEG too). Falls back to the original file. */
+async function shrink(file: File): Promise<Blob> {
+  try {
+    const bmp = await createImageBitmap(file);
+    const k = Math.min(1, 512 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * k); c.height = Math.round(bmp.height * k);
+    c.getContext('2d')!.drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise<Blob>((ok, no) => c.toBlob((b) => (b ? ok(b) : no(new Error('toBlob'))), 'image/jpeg', 0.86));
+  } catch { return file; }
+}
+
 export async function uploadAvatar(userId: string, file: File): Promise<string> {
-  const ext = (file.name.split('.').pop() || 'jpg').toLowerCase();
+  const blob = await shrink(file);
+  const jpeg = blob.type === 'image/jpeg';
+  const ext = jpeg ? 'jpg' : (file.name.split('.').pop() || 'jpg').toLowerCase();
   const path = `${userId}/avatar-${Date.now()}.${ext}`;
-  const up = await supabase.storage.from('avatars').upload(path, file, { upsert: true, contentType: file.type });
-  if (up.error) throw up.error;
+  // a new file name every time, so no "upsert" (that needs extra storage permissions and was failing)
+  const up = await supabase.storage.from('avatars').upload(path, blob, { contentType: jpeg ? 'image/jpeg' : file.type || 'image/jpeg' });
+  if (up.error) throw new Error(up.error.message);
   const url = supabase.storage.from('avatars').getPublicUrl(path).data.publicUrl;
   const { error } = await supabase.from('profiles').upsert({ id: userId, avatar_url: url, updated_at: new Date().toISOString() });
   if (error) throw error;

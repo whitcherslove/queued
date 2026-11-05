@@ -40,7 +40,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
     const f = e.target.files?.[0]; if (!f) return;
     setBusy(true); setError('');
     try { onProfile({ ...profile, avatar_url: await uploadAvatar(profile.id, f) }); }
-    catch { setError('Couldn’t upload the photo. Try a smaller image.'); }
+    catch (err) { setError('Couldn’t upload the photo: ' + ((err as Error).message || 'try another image.')); }
     setBusy(false);
   };
 
