@@ -1132,3 +1132,17 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .year-chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .year-chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 12px; border-radius: 12px; background: var(--surface2); font-weight: 700; }
 .year-chip b { font-size: 20px; }
+
+/* friend page v2 */
+.match-compact { padding: 10px 12px; }
+.match-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.match-pct { font-family: 'Oswald', sans-serif; font-size: 26px; color: var(--accent); min-width: 58px; }
+.both-row { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.both-row .both-tiers { flex-direction: row; gap: 4px; }
+.now-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 2px 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.now-kind { display: inline-flex; align-items: center; gap: 6px; }
+.now-kind .plat-logo, .now-kind .fmt-icon { margin: 0; }
+.year-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: 8px; }
+.year-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 6px; border-radius: 14px; background: var(--surface2); }
+.year-tile b { font-size: 26px; line-height: 1.1; }
+.yt-icon svg { width: 22px; height: 22px; }
