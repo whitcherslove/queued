@@ -5,5 +5,5 @@ export default function PlatformIcon({ k, size = 14 }: { k: string | null | unde
   if (!k) return null;
   const label = platformLabel(k);
   if (!PLATFORM_ICONS.has(k)) return <span className="plat-text" title={label}>{label}</span>;
-  return <img className="plat-logo" src={'/plogos/' + k + '.png'} style={{ height: size }} alt={label} title={label} loading="lazy" />;
+  return <img className="plat-logo" src={'/plogos/' + k + '.png'} style={{ height: size }} alt={label} title={label} decoding="async" />;
 }

@@ -137,13 +137,44 @@ async function search(q: string) {
   return out.sort((a, b) => score(b) - score(a)).slice(0, 20);
 }
 
+// ---------- Hardcover first: find the same book there (one book = one entry, with rating, pages, series) ----------
+/** Ask the AI for the original/English title and author ("Сезон гроз", "Анджей Сапковский" → "Season of Storms", "Andrzej Sapkowski"). */
+async function englishName(title: string, author: string): Promise<{ title: string; author: string } | null> {
+  const key = env('GEMINI_API_KEY'); if (!key) return null;
+  const model = env('GEMINI_MODEL') || 'gemini-3.5-flash';
+  const body = { systemInstruction: { parts: [{ text: 'Give the title under which this book is best known in English (the published English title, or the original title if it was written in English) and the author name in Latin letters. Reply ONLY with JSON: {"title": "...", "author": "..."}' }] },
+    contents: [{ role: 'user', parts: [{ text: `Title: ${title}\nAuthor: ${author}` }] }] };
+  const r = await fetchT(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }, 9000);
+  if (!r.ok) return null;
+  const txt = ((await r.json()).candidates?.[0]?.content?.parts ?? []).map((x: any) => x.text ?? '').join('');
+  try { const j = JSON.parse(txt.match(/\{[\s\S]*\}/)?.[0] ?? txt); return j.title ? { title: String(j.title), author: String(j.author ?? '') } : null; } catch { return null; }
+}
+/** surname shape that survives transliteration: "Сапковский" ≈ "Sapkowski" (first 5 letters, w = v) */
+const surname5 = (a: string) => translit(authorKey(a)).replace(/w/g, 'v').replace(/kh/g, 'h').slice(0, 5);
+async function findOnHardcover(title: string, author: string, year: number | null): Promise<string | null> {
+  if (!env('HARDCOVER_TOKEN') || !title) return null;
+  const tries: { title: string; author: string }[] = [{ title, author }];
+  if (cyr(title + author)) { const en = await englishName(title, author).catch(() => null); if (en) tries.unshift(en); }
+  for (const t of tries) {
+    const hits = await hcSearch(`${baseTitle(t.title)} ${authorKey(t.author)}`.trim()).catch(() => [] as Hit[]);
+    const want = surname5(t.author || author);
+    const ok = hits.filter((h) => !want || h.authors.some((a) => surname5(a) === want));
+    const pick = ok.find((h) => crossKey(h.title) === crossKey(t.title) || nearSame(crossKey(h.title), crossKey(t.title)))
+      ?? ok.find((h) => year && h.year && Math.abs(h.year - year) <= 1 && ok.filter((x) => x.year && Math.abs(x.year - year) <= 1).length === 1);
+    if (pick) return pick.ref;
+  }
+  return null;
+}
+
 // ---------- details → titles ----------
 const SRC: Record<string, string> = { hc: 'hardcover', ol: 'openlibrary', gb: 'google' };
-async function details(db: any, ref: string, force = false) {
+async function details(db: any, ref: string, force = false, raw = false): Promise<any> {
   const [p, id] = [ref.slice(0, 2), ref.slice(3)];
   const source = SRC[p]; if (!source || !id) throw new Error('Unknown book reference ' + ref);
   const { data: cached } = await db.from('titles').select('*').eq('kind', 'book').eq('source', source).eq('source_id', id).maybeSingle();
-  if (cached && !force && Date.now() - new Date(cached.fetched_at).getTime() < FRESH) return cached;
+  // Open Library / Google Books entry we already matched to Hardcover → the Hardcover one
+  if (!raw && p !== 'hc' && cached?.data?.hc_ref) return details(db, cached.data.hc_ref, force);
+  if (cached && !force && Date.now() - new Date(cached.fetched_at).getTime() < FRESH && (raw || p === 'hc' || cached.data?.hc_checked)) return cached;
   let row: any;
   if (p === 'hc') {
     const d = await hc(`query B($id: Int!) { books_by_pk(id: $id) { id title subtitle description release_date release_year pages audio_seconds slug rating ratings_count
@@ -198,6 +229,13 @@ async function details(db: any, ref: string, force = false) {
     directors: row.authors, genres: row.genres, overview: row.overview, poster_url: row.poster, backdrop_url: null, metascore: null, imdb_rating: null,
     data: row.data, fetched_at: new Date().toISOString()
   };
+  // found in Open Library / Google Books: try to find the same book in Hardcover and use that (remembered for next time)
+  if (p !== 'hc' && !raw) {
+    const hcRef = await findOnHardcover(row.title, row.authors?.[0] ?? '', row.year).catch(() => null);
+    full.data = { ...full.data, hc_checked: true, ...(hcRef ? { hc_ref: hcRef } : {}) };
+    await db.from('titles').upsert(full, { onConflict: 'kind,source,source_id' });
+    if (hcRef) return details(db, hcRef, force);
+  }
   const { data, error } = await db.from('titles').upsert(full, { onConflict: 'kind,source,source_id' }).select('*').single();
   if (error) throw error;
   return data;
@@ -255,7 +293,7 @@ Deno.serve(async (req) => {
     const db = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'));
     const body = await req.json().catch(() => ({}));
     if (body.action === 'search') { const q = String(body.q ?? '').trim(); return json({ results: q ? await search(q) : [] }); }
-    if (body.action === 'details') return json({ title: await details(db, String(body.ref), !!body.force) });
+    if (body.action === 'details') return json({ title: await details(db, String(body.ref), !!body.force, !!body.raw) });
     if (body.action === 'link') return json({ ref: await fromLink(String(body.url ?? '')) });
     if (body.action === 'images') return json(await images(String(body.ref), String(body.title ?? ''), String(body.author ?? ''), String(body.alt ?? '')));
     return json({ error: 'Unknown action' }, 400);

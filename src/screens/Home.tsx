@@ -18,6 +18,9 @@ import { useBackLayer } from '../lib/back';
 import MovieCard from './MovieCard';
 import ShowCard from './ShowCard';
 
+/** last Home data, so coming back shows it at once while fresh data loads */
+let homeCache: { items: LibItem[]; logs: LogRow[]; eps: SeasonEps[]; marks: Mark[] } | null = null;
+
 type Open = { id: string; kind: 'movie' | 'tv' | 'game' | 'book' } | null;
 const kindOf = (i: LibItem): 'movie' | 'tv' | 'game' | 'book' => (i.section === 'movies' ? 'movie' : i.section === 'tv' ? 'tv' : i.section === 'books' ? 'book' : 'game');
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
@@ -26,11 +29,11 @@ const SEC_LABEL: Record<string, string> = { movies: 'Movie', tv: 'Show', console
 
 /** Home: what's going on now — continue, coming up, recently finished, up next — and a way into Stats. */
 export default function Home({ settings, onMenu, onStats, onBack }: { settings: Settings; onMenu: () => void; onStats: () => void; onBack?: () => void }) {
-  const [items, setItems] = useState<LibItem[]>([]);
-  const [logs, setLogs] = useState<LogRow[]>([]);
-  const [eps, setEps] = useState<SeasonEps[]>([]);
-  const [marks, setMarks] = useState<Mark[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState<LibItem[]>(homeCache?.items ?? []);
+  const [logs, setLogs] = useState<LogRow[]>(homeCache?.logs ?? []);
+  const [eps, setEps] = useState<SeasonEps[]>(homeCache?.eps ?? []);
+  const [marks, setMarks] = useState<Mark[]>(homeCache?.marks ?? []);
+  const [loading, setLoading] = useState(!homeCache);
   const [open, setOpen] = useState<Open>(null);
   const [busy, setBusy] = useState<string | null>(null);
   useBackLayer(!!open, () => setOpen(null));
@@ -46,6 +49,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
       // never let a failed episode load hide your shows
       const [e, m] = await Promise.all([loadEpisodes(watching.map((i) => i.title_id)).catch(() => []), loadMarks(watching.map((i) => i.id)).catch(() => [])]);
       setEps(e as SeasonEps[]); setMarks(m as Mark[]);
+      homeCache = { items: its, logs: all.logs.map((l) => ({ ...l, library: byId.get(l.library_id) ?? l.library })), eps: e as SeasonEps[], marks: m as Mark[] };
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
@@ -61,7 +65,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   }).filter((x) => x.it.status === 'playing' || x.st.state === 'newSeason' || x.st.state === 'lastChance')
     .sort((a, b) => Number(!!b.p?.nextEp) - Number(!!a.p?.nextEp) || STATE_ORDER[a.st.state] - STATE_ORDER[b.st.state] || (b.p?.lastSeen ?? '').localeCompare(a.p?.lastSeen ?? '')), [items, logs, eps, marks, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const games = useMemo(() => items.filter((i) => ['console', 'pc', 'retro', 'books'].includes(i.section) && i.status === 'playing')
-    .sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')), [items]);
+    .sort((a, b) => String((b as LibItem & { updated_at?: string }).updated_at ?? b.started_on ?? '').localeCompare(String((a as LibItem & { updated_at?: string }).updated_at ?? a.started_on ?? ''))), [items]);
 
   // --- Coming up (next 30 days): new episodes, season premieres, releases from Backlog
   const coming = useMemo(() => {

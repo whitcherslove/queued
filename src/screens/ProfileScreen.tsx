@@ -19,6 +19,9 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
   const set = (patch: Partial<Settings>) => onSettings({ ...s, ...patch });
   const [retroOpen, setRetroOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [tabsOpen, setTabsOpen] = useState(false);
+  const tabs = s.tabs ?? { order: ['watched', 'playing', 'backlog'], def: 'watched' };
+  const TAB_LABEL: Record<string, string> = { watched: 'Watched / Finished', playing: 'Watching / Playing', backlog: 'Backlog' };
   const nav = normNav(s.nav);
   const saveNav = (n: { bar: NavId[]; side: NavId[] }) => set({ nav: normNav(n) });
   const moveNav = (where: 'bar' | 'side', i: number, d: number) => {
@@ -112,7 +115,32 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
                 ))}
               </div>
               <span className="muted small">The bottom bar holds {BAR_MIN}–{BAR_MAX} sections. {nav.bar.length >= BAR_MAX ? 'It’s full — move one to the menu first.' : ''}</span>
+              <span className="list-group-title">Open the app on</span>
+              <div className="tn-chips">{[...nav.bar, ...nav.side].map((id) => <button key={id} className={'chip' + ((s.nav?.start ?? nav.bar[0]) === id ? ' on' : '')} onClick={() => set({ nav: { ...normNav(s.nav), start: id } })}>{NAV_LABEL[id]}</button>)}</div>
               <button className="link left" onClick={() => saveNav(DEFAULT_NAV)}>Reset to default</button>
+            </div>
+          )}
+
+          {/* tabs inside a section: their order and which one opens first */}
+          <button className="switch-row flat" onClick={() => setTabsOpen(!tabsOpen)} aria-expanded={tabsOpen}>
+            <span className="stack-sm grow"><strong>Tabs</strong><span className="muted small">{tabs.order.map((t) => TAB_LABEL[t]).join(' · ')} · opens on {TAB_LABEL[tabs.def]}</span></span>
+            <ChevBtn open={tabsOpen} size={30} />
+          </button>
+          {tabsOpen && (
+            <div className="stack-sm nav-edit">
+              <span className="list-group-title">Order</span>
+              <div className="list-group">
+                {tabs.order.map((t, i) => (
+                  <div key={t} className="list-row nav-row">
+                    <span className="li-label">{TAB_LABEL[t]}</span>
+                    <button className="nav-btn" aria-label={'Move ' + TAB_LABEL[t] + ' left'} disabled={i === 0} onClick={() => { const o = [...tabs.order]; [o[i - 1], o[i]] = [o[i], o[i - 1]]; set({ tabs: { ...tabs, order: o } }); }}>↑</button>
+                    <button className="nav-btn" aria-label={'Move ' + TAB_LABEL[t] + ' right'} disabled={i === tabs.order.length - 1} onClick={() => { const o = [...tabs.order]; [o[i + 1], o[i]] = [o[i], o[i + 1]]; set({ tabs: { ...tabs, order: o } }); }}>↓</button>
+                  </div>
+                ))}
+              </div>
+              <span className="list-group-title">Opens on</span>
+              <div className="tn-chips">{tabs.order.map((t) => <button key={t} className={'chip' + (tabs.def === t ? ' on' : '')} onClick={() => set({ tabs: { ...tabs, def: t } })}>{TAB_LABEL[t]}</button>)}</div>
+              <span className="muted small">“Watching” means Playing for games and Reading for books. Movies have no such tab and open on the next one.</span>
             </div>
           )}
 

@@ -34,8 +34,10 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   const nav0 = normNav(profile.settings.nav);
   const BAR = nav0.bar as SectionId[];
   const SIDE = (id: SectionId) => !BAR.includes(id);
-  const [section, setSection] = useState<SectionId>(BAR[0]);
-  const [lastBar, setLastBar] = useState<SectionId>(BAR[0]);
+  // where the app opens: your choice (Profile → Navigation), otherwise the first tab of the bottom bar
+  const startId = (profile.settings.nav?.start && (SECTIONS as { id: string }[]).some((x) => x.id === profile.settings.nav!.start) ? profile.settings.nav.start : BAR[0]) as SectionId;
+  const [section, setSection] = useState<SectionId>(startId);
+  const [lastBar, setLastBar] = useState<SectionId>(SIDE(startId) ? BAR[0] : startId);
   // Same soft transition as BarTab: the browser cross-fades the old and new screen (View Transitions);
   // the bottom bar stays put and its highlight glides to the new tab.
   const go = (id: SectionId) => {
@@ -84,7 +86,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
             <span className="duo-icon drawer-duo">{sx.icon}</span>{sx.title}
           </button>
         ); })}
-        <span className="muted small drawer-foot">Queued · v1.8</span>
+        <span className="muted small drawer-foot">Queued · v1.9</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>

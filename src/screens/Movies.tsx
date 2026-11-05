@@ -88,7 +88,11 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   const noun = isTv ? 'show' : isGame ? 'game' : isBook ? 'book' : 'movie';
   const retro = settings.retroPlatforms ?? DEFAULT_RETRO;
   const cached = listCache.get(section);
-  const [tab, setTab] = useState<Tab>(cached?.tab ?? 'watched');
+  // your tab order and the tab a section opens on (Profile → Tabs)
+  const tabPref = settings.tabs ?? { order: ['watched', 'playing', 'backlog'], def: 'watched' };
+  const hasPlaying = isTv || isGame || isBook;
+  const firstTab = (tabPref.def === 'playing' && !hasPlaying ? tabPref.order.find((x) => x !== 'playing') ?? 'watched' : tabPref.def) as Tab;
+  const [tab, setTab] = useState<Tab>(cached?.tab ?? firstTab);
   const [tvEps, setTvEps] = useState<SeasonEps[]>(cached?.eps ?? []);
   const [tvMarks, setTvMarks] = useState<Mark[]>(cached?.marks ?? []);
   const [scopeAdd, setScopeAdd] = useState<Title | null>(null);
@@ -452,7 +456,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   ); };
 
   const searchingMode = q.trim().length >= 1;
-  const TABS: Tab[] = isTv || isPlay ? ['watched', 'playing', 'backlog'] : ['watched', 'backlog'];
+  const TABS: Tab[] = (tabPref.order.filter((x) => x === 'watched' || x === 'backlog' || (x === 'playing' && (isTv || isPlay))) as Tab[]);
   const gamePlaying = useMemo(() => (isPlay ? items.filter((i) => i.status === 'playing').sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')) : []), [items, isPlay]);
   const tabIndex = TABS.indexOf(tab);
   // Swipe between tabs. While the finger moves we write transforms straight to the DOM (no React re-render) so it stays smooth.
@@ -762,7 +766,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           if (shown && shown !== t.title) ov.title = shown;
           const searchedRu = /[а-яё]/i.test(shown);
           if (alt) {
-            const ru = await ensureBook(alt).catch(() => null);
+            const ru = await ensureBook(alt, false, true).catch(() => null);
             if (ru?.directors?.length && /[а-яё]/i.test(ru.directors[0])) ov.directors = ru.directors;
           }
           // the description: the main source's (usually the good one), translated into Russian if you searched in Russian

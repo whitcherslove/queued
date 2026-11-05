@@ -14,7 +14,7 @@ export async function ensureTitle(kind: 'movie' | 'tv', sourceId: string, force 
   return data.title as Title;
 }
 
-const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop, progress, format, position_at';
+const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop, progress, format, position_at, updated_at';
 const LIB_FIELDS = LIB_BASE + ', title:titles(*)';
 // Lists only need what the rows show. Movies skip the heavy "data" (cast, collection, budget…) — the card loads it when opened.
 // Shows keep "data": seasons and status drive Watching / Caught up.
@@ -312,8 +312,9 @@ export async function searchBooks(q: string): Promise<BookHit[]> {
   if (error) throw await fnError(error);
   return (data?.results ?? []) as BookHit[];
 }
-export async function ensureBook(ref: string, force = false): Promise<Title> {
-  const { data, error } = await supabase.functions.invoke('books', { body: { action: 'details', ref, force } });
+/** raw = this exact entry (no switching to the Hardcover twin) — used for the Russian author */
+export async function ensureBook(ref: string, force = false, raw = false): Promise<Title> {
+  const { data, error } = await supabase.functions.invoke('books', { body: { action: 'details', ref, force, raw } });
   if (error) throw await fnError(error);
   if (data?.error) throw new Error(data.error);
   return data.title as Title;
