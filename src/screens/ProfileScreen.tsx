@@ -1,8 +1,9 @@
+import { disablePush, enablePush, pushEnabled } from '../lib/push';
 import { BAR_MAX, BAR_MIN, DEFAULT_NAV, NAV_LABEL, normNav, type NavId } from '../lib/nav';
 import { ALL_PLATFORMS, DEFAULT_RETRO, sectionOf } from '../lib/platforms';
 import { enrichGames, metascoreBackfill, resyncGameSections } from '../lib/remote';
 import { ChevBtn } from '../components/Icons';
-import { ChangeEvent, useState } from 'react';
+import { ChangeEvent, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { ACCENTS, Settings } from '../lib/theme';
 import { Profile, removeAvatar, uploadAvatar } from '../lib/profile';
@@ -19,6 +20,10 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
   const set = (patch: Partial<Settings>) => onSettings({ ...s, ...patch });
   const [retroOpen, setRetroOpen] = useState(false);
   const [navOpen, setNavOpen] = useState(false);
+  const [pushOn, setPushOn] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+  const [pushNote, setPushNote] = useState('');
+  useEffect(() => { pushEnabled().then(setPushOn).catch(() => undefined); }, []);
   const [tabsOpen, setTabsOpen] = useState(false);
   const tabs = s.tabs ?? { order: ['watched', 'playing', 'backlog'], def: 'watched' };
   const TAB_LABEL: Record<string, string> = { watched: 'Watched / Finished', playing: 'Watching / Playing', backlog: 'Backlog' };
@@ -85,6 +90,18 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             <span className="stack-sm grow"><strong>Metascore in Watched</strong><span className="muted small">Metascore in the Watched list and grid. Backlog always shows it</span></span>
             <span className={'switch' + (s.listMetascore ? ' on' : '')}><span /></span>
           </button>
+          {/* push notifications on this phone */}
+          <button className="switch-row flat" role="switch" aria-checked={pushOn} disabled={pushBusy} onClick={async () => {
+            setPushBusy(true); setPushNote('');
+            try { if (pushOn) { await disablePush(); setPushOn(false); } else { await enablePush(); setPushOn(true); setPushNote('Notifications are on for this device.'); } }
+            catch (e) { setPushNote((e as Error).message); }
+            setPushBusy(false);
+          }}>
+            <span className="stack-sm grow"><strong>Notifications</strong><span className="muted small">Friend requests, your friends’ activity, and what comes out today from your lists</span></span>
+            <span className={'switch' + (pushOn ? ' on' : '')}><span /></span>
+          </button>
+          {pushNote && <span className="muted small">{pushNote}</span>}
+
           {/* navigation: what's in the bottom bar (and in which order) and what's in the side menu */}
           <button className="switch-row flat" onClick={() => setNavOpen(!navOpen)} aria-expanded={navOpen}>
             <span className="stack-sm grow"><strong>Navigation</strong><span className="muted small">Bottom bar: {nav.bar.map((x) => NAV_LABEL[x]).join(' · ')}</span></span>

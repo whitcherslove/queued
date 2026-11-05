@@ -12,6 +12,7 @@ export default defineConfig({
       // posters / backgrounds from TMDB, IGDB, Hardcover… are kept in a cache after the first view
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,woff2}', 'plogos/*.png', 'icons/*.png'],
+        importScripts: ['push-sw.js'],   // push notifications (public/push-sw.js)
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [{
           urlPattern: ({ request }: { request: Request }) => request.destination === 'image',

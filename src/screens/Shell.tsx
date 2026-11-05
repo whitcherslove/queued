@@ -38,7 +38,9 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   const SIDE = (id: SectionId) => !BAR.includes(id);
   // where the app opens: your choice (Profile → Navigation), otherwise the first tab of the bottom bar
   const startId = (profile.settings.nav?.start && (SECTIONS as { id: string }[]).some((x) => x.id === profile.settings.nav!.start) ? profile.settings.nav.start : BAR[0]) as SectionId;
-  const [section, setSection] = useState<SectionId>(startId);
+  // a notification opens Queued at /?open=friends (or home): start there
+  const opened = (() => { const o = new URLSearchParams(window.location.search).get('open'); if (o) window.history.replaceState(null, '', window.location.pathname); return o && (SECTIONS as { id: string }[]).some((x) => x.id === o) ? (o as SectionId) : null; })();
+  const [section, setSection] = useState<SectionId>(opened ?? startId);
   const [lastBar, setLastBar] = useState<SectionId>(SIDE(startId) ? BAR[0] : startId);
   // Same soft transition as BarTab: the browser cross-fades the old and new screen (View Transitions);
   // the bottom bar stays put and its highlight glides to the new tab.
@@ -88,7 +90,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
             <span className="duo-icon drawer-duo">{sx.icon}</span>{sx.title}
           </button>
         ); })}
-        <span className="muted small drawer-foot">Queued · v2.5</span>
+        <span className="muted small drawer-foot">Queued · v2.6</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
