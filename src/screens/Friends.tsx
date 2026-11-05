@@ -84,17 +84,20 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
         {tab === 'activity' && <>
           {feedLoading ? <div className="card-wait"><span className="spinner" aria-hidden="true" /></div>
             : !feed.length ? <div className="empty">{friends.length ? 'Nothing from your friends yet. When they start, finish or rate something, it shows up here.' : 'Add friends to see what they watch, play and read.'}</div>
-            : <section className="panel feed">{feed.map((a) => { const tr = tierOf(a.tier); return (
+            : <section className="panel feed"><span className="muted tiny feed-hint">Tap a name to see their page</span>{feed.map((a) => { const tr = tierOf(a.tier); return (
               <div key={a.id} className="feed-row"
                 onPointerDown={() => { if (!a.can_delete) return; press.current = window.setTimeout(() => setDelAsk(a), 550); }}
                 onPointerUp={() => { if (press.current) clearTimeout(press.current); }} onPointerLeave={() => { if (press.current) clearTimeout(press.current); }}
                 onContextMenu={(e) => { if (a.can_delete) { e.preventDefault(); setDelAsk(a); } }}>
-                <button className="feed-who" onClick={() => setFriendOpen(a.user_id)} aria-label={a.name ?? a.handle ?? 'Friend'}><Avatar url={a.avatar_url} email={a.handle ?? a.name ?? '?'} size={36} /></button>
-                <button className="feed-body" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>
-                  <span className="feed-line"><strong>{a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend'))}</strong> {verb(a)} <strong>{a.title}</strong>{a.kind === 'finished' && a.seasons_label ? ' · ' + a.seasons_label : ''}{a.kind === 'show_rated' ? ' (the whole show)' : ''}{a.coop_names?.filter(Boolean).length ? ' with ' + a.coop_names.filter(Boolean).join(', ') : ''}</span>
-                  <span className="feed-meta">{tr && <span className="tier-under" style={{ background: tr.color }}>{tr.label}</span>}{a.score != null && <ScoreRing value={Number(a.score)} scale={profile.settings.scale ?? 5} size={22} fontSize={9} />}{a.kind === 'dropped' && <span className="tier-under none">Dropped</span>}
-                    {a.platform && ['console', 'pc', 'retro'].includes(a.section) && <PlatformIcon k={a.platform} size={10} />}<span className="muted tiny">{ago(a.created_at)}</span></span>
-                </button>
+                <button className={'feed-who' + (a.mine ? '' : ' tappable')} disabled={!!a.mine} onClick={() => setFriendOpen(a.user_id)} aria-label={(a.name ?? a.handle ?? 'Friend') + ' — open their page'}><Avatar url={a.avatar_url} email={a.handle ?? a.name ?? '?'} size={36} /></button>
+                <div className="feed-body">
+                  <span className="feed-line">
+                    {a.mine ? <strong>You</strong> : <button className="who-link" onClick={() => setFriendOpen(a.user_id)}>{a.name || (a.handle ? '@' + a.handle : 'Friend')}</button>}{' '}
+                    <button className="what-link" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{verb(a)} <strong>{a.title}</strong>{a.kind === 'finished' && a.seasons_label ? ' · ' + a.seasons_label : ''}{a.kind === 'show_rated' ? ' (the whole show)' : ''}{a.coop_names?.filter(Boolean).length ? ' with ' + a.coop_names.filter(Boolean).join(', ') : ''}</button>
+                  </span>
+                  <button className="feed-meta as-btn" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{tierOf(a.tier) && <span className="tier-under" style={{ background: tierOf(a.tier)!.color }}>{tierOf(a.tier)!.label}</span>}{a.score != null && <ScoreRing value={Number(a.score)} scale={profile.settings.scale ?? 5} size={22} fontSize={9} />}{a.kind === 'dropped' && <span className="tier-under none">Dropped</span>}
+                    {a.platform && ['console', 'pc', 'retro'].includes(a.section) && <PlatformIcon k={a.platform} size={10} />}<span className="muted tiny">{ago(a.created_at)}</span></button>
+                </div>
                 <Poster t={{ title: a.title, poster_url: a.poster_url }} w={40} h={58} />
               </div>
             ); })}</section>}

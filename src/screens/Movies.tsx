@@ -3,7 +3,7 @@ import type { Section, LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from
 import type { Settings } from '../lib/theme';
 import { localDay, needsRefresh, topPosition, merged, dateParts, matchLibrary, moveBy, moveId, newHits, nextPosition, releaseText, runtimeText, sortLogs, splitBacklog } from '../lib/logic';
 import { bookRefFromLink, ensureBook, searchBooks, translateText, ensureGame, gameIdBySlug, gameImages, searchGames, addToBacklog, deleteLog, ensureTitle, ensureTitleByImdb, loadEpisodes, loadLibrary, loadLogs, loadMarks, loadShowTitles, refreshEpisodes, removeFromLibrary, resetLogOrder, saveLibraryOrder, saveLogOrder, searchTitles, setUpNext, updateItem } from '../lib/remote';
-import ShowCard from './ShowCard';
+import ShowCard, { prefetchShowCard } from './ShowCard';
 import ScopeSheet from '../components/ScopeSheet';
 import { epLabel, epRuntime, isEnded, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, showState, todayIso, type ShowState } from '../lib/tv';
 import { bringBack, dropShow, moveToBacklog, startWatching } from '../lib/tvActions';
@@ -338,7 +338,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
 
   const backlogRow = (it: LibItem, list: string) => (
     <div key={it.id} {...rowState(list, it.id)}>
-      <button className="row-main" {...longPress(it.id)} onClick={() => !edit && setSheet(it)}>
+      <button className="row-main" {...longPress(it.id)} onPointerDown={() => { if (isTv) prefetchShowCard(it.id, it.title_id); }} onClick={() => !edit && setSheet(it)}>
         <Poster t={it.title} w={56} h={84}></Poster>
         <span className="row-text">
           <span className="row-title">{it.title.title}</span>
@@ -544,7 +544,6 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
             : <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>}
           <div className="title-block">
             <h1 className="section-title">{isGame ? { console: 'Console games', pc: 'PC games', retro: 'Retro games' }[gameSection] : isBook ? 'Books' : isTv ? 'TV Shows' : 'Movies'}</h1>
-            <span className="muted small">{isBook ? `${watched.length} read · ${gamePlaying.length} reading · ${next.length + rest.length} in backlog` : isGame ? `${watched.length} finished · ${gamePlaying.length} playing · ${next.length + rest.length} in backlog` : isTv ? `${watched.length} logged · ${playingCount} watching · ${next.length + rest.length} in backlog` : `${watched.length} watched · ${next.length + rest.length} in backlog`}</span>
           </div>
           <button className="icon-btn boxed" aria-label={view === 'list' ? 'Show as grid' : 'Show as list'} onClick={() => onSettings({ ...settings, view: view === 'list' ? 'grid' : 'list' })}>
             {view === 'list'
@@ -576,7 +575,14 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         )}
       </header>
 
-      <main className="content swipe-area" {...swipeHandlers}>
+      <main className="content swipe-area" {...swipeHandlers}
+        onPointerDownCapture={(e) => {
+          // shows: start loading the card the moment a row is touched, so it opens complete
+          if (!isTv) return;
+          const id = (e.target as HTMLElement).closest('[data-rowid]')?.getAttribute('data-rowid'); if (!id) return;
+          const it = items.find((i) => i.id === id) ?? logs.find((l) => l.id === id)?.library;
+          if (it) prefetchShowCard(it.id, it.title_id);
+        }}>
         <div ref={paneRef} className={'swipe-pane' + (anim ? ' ' + anim : '')}>
         {error && <p className="error" role="alert">{error}</p>}
         {notice && <p className="notice" role="status">{notice}</p>}

@@ -543,10 +543,10 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
               <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); markDidntFinish(); }}>Drop</button></div>
           ) : (
             <div className="quiet-row">
-              {(canWatchNow || isPlaying) && <button className="link" onClick={() => setPastOpen(true)}>{W.before}</button>}
-              {isPlaying && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: 'backlog', position: backlogCount, started_on: null, run_started_at: null } as never); })}>Move to Backlog</button>}
-              {mState === 'dropped' && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>Bring back</button>}
-              {(canWatchNow || isPlaying) && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
+              {(canWatchNow || isPlaying) && <button className="link" onClick={() => setPastOpen(true)}>⟲ Before</button>}
+              {isPlaying && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: 'backlog', position: backlogCount, started_on: null, run_started_at: null } as never); })}>↩ Backlog</button>}
+              {mState === 'dropped' && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>↺ Bring back</button>}
+              {(canWatchNow || isPlaying) && <button className="link danger end" onClick={() => setConfirmDrop(true)}>✕ Drop</button>}
             </div>
           ))}
         </section>

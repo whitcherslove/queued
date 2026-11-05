@@ -22,6 +22,21 @@ import { usePress } from '../lib/press';
 import { useLongPress } from '../lib/longpress';
 import { EditDetails, QuickNumber, EYE_PLUS_ICON as EYE_PLUS, EXT_ICON as EXT, tierOfId as tierOf } from './MovieCard';
 
+type ShowCardData = { it: LibItem; lg: ItemLog[]; ch: ChatMsg[]; ep: SeasonEps[]; mk: Mark[]; rt: SeasonRating[] };
+const showCardCache = new Map<string, ShowCardData>();
+const showCardLoading = new Map<string, Promise<ShowCardData>>();
+async function fetchShowCard(itemId: string, titleId?: string): Promise<ShowCardData> {
+  const [it, lg, ch, ep0, mk, rt] = await Promise.all([loadItem(itemId), loadItemLogs(itemId), loadChat(itemId), titleId ? loadEpisodes([titleId]) : Promise.resolve(null), loadMarks([itemId]), loadSeasonRatings(itemId)]);
+  const ep = ep0 ?? await loadEpisodes([it.title_id]);
+  const d = { it, lg, ch, ep, mk, rt }; showCardCache.set(itemId, d); return d;
+}
+/** Start loading a show's card as soon as your finger touches its row — by the time it opens, it's there. */
+export function prefetchShowCard(itemId: string, titleId?: string) {
+  if (showCardCache.has(itemId) || showCardLoading.has(itemId)) return;
+  const p = fetchShowCard(itemId, titleId).finally(() => showCardLoading.delete(itemId));
+  showCardLoading.set(itemId, p); p.catch(() => undefined);
+}
+
 interface Props {
   openPast?: boolean;
   itemId: string; initial?: LibItem | null; initialLogs?: ItemLog[] | null; settings: Settings; openTake?: boolean;
@@ -35,13 +50,14 @@ const scopeShort = (l: { scope?: string; season_from?: number | null; season_to?
 const PIN = <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4.5l4.5 4.5-3 1.5-3.5 3.5.5 4-1.5 1.5-3.5-3.5L4 20M8.5 11.5L12.5 15.5M15 4.5L12 7.5 8.5 7 7 8.5l3.5 3.5" /></svg>;
 
 export default function ShowCard({ openPast, itemId, initial, initialLogs, settings, openTake, onPrev, onNext, enterFrom, onClose, onChanged, topPos }: Props) {
-  const [item, setItem] = useState<LibItem | null>(initial ?? null);
-  const [logs, setLogs] = useState<ItemLog[]>(initialLogs ?? []);
-  const [eps, setEps] = useState<SeasonEps[]>([]);
-  const [marks, setMarksState] = useState<Mark[]>([]);
-  const [ratings, setRatings] = useState<SeasonRating[]>([]);
-  const [chat, setChat] = useState<ChatMsg[]>([]);
-  const [ready, setReady] = useState(false);
+  const cached0 = showCardCache.get(itemId);
+  const [item, setItem] = useState<LibItem | null>(cached0?.it ?? initial ?? null);
+  const [logs, setLogs] = useState<ItemLog[]>(cached0?.lg ?? initialLogs ?? []);
+  const [eps, setEps] = useState<SeasonEps[]>(cached0?.ep ?? []);
+  const [marks, setMarksState] = useState<Mark[]>(cached0?.mk ?? []);
+  const [ratings, setRatings] = useState<SeasonRating[]>(cached0?.rt ?? []);
+  const [chat, setChat] = useState<ChatMsg[]>(cached0?.ch ?? []);
+  const [ready, setReady] = useState(!!cached0);
   const [takeOpen, setTakeOpen] = useState(!!openTake);
   const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress(), statusPress = usePress();
   const [confirmDrop, setConfirmDrop] = useState(false);
@@ -100,9 +116,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
 
   const reload = useCallback(async () => {
     // everything in parallel (we already know the show from the list), so the card appears in one go
-    const tid = initial?.title_id;
-    const [it, lg, ch, ep0, mk, rt] = await Promise.all([loadItem(itemId), loadItemLogs(itemId), loadChat(itemId), tid ? loadEpisodes([tid]) : Promise.resolve(null), loadMarks([itemId]), loadSeasonRatings(itemId)]);
-    const ep = ep0 ?? await loadEpisodes([it.title_id]);
+    const { it, lg, ch, ep, mk, rt } = await (showCardLoading.get(itemId) ?? fetchShowCard(itemId, initial?.title_id));
     setItem(it); setLogs(lg); setChat(ch); setEps(ep); setMarksState(mk); setRatings(rt); setReady(true);
     return { it, ep };
   }, [itemId]);
@@ -385,11 +399,11 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                   <button className="link" onClick={() => setConfirmAll(false)}>Cancel</button>
                   <button className="link strong" onClick={() => { setConfirmAll(false); applyMarks(unwatchedAired, true); }}>Mark all</button></div>
                 ) : <div className="quiet-row">
-                  {st.state !== 'dropped' && <button className="link" onClick={() => { setPastMode('past'); setPastStep('seasons'); }}>Watched before</button>}
-                  {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="link" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>Move to Backlog</button>}
-                  {st.state === 'dropped' && <button className="link" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>Bring back</button>}
-                  {unwatchedAired.length > 0 && <button className="link" onClick={() => setConfirmAll(true)}>All watched</button>}
-                  {canDrop && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
+                  {st.state !== 'dropped' && <button className="link" onClick={() => { setPastMode('past'); setPastStep('seasons'); }}>⟲ Before</button>}
+                  {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="link" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>↩ Backlog</button>}
+                  {st.state === 'dropped' && <button className="link" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>↺ Bring back</button>}
+                  {unwatchedAired.length > 0 && <button className="link" onClick={() => setConfirmAll(true)}>✓ All watched</button>}
+                  {canDrop && <button className="link danger end" onClick={() => setConfirmDrop(true)}>✕ Drop</button>}
                 </div>
               ))}
             </section>
