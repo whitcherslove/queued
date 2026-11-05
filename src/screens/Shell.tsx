@@ -88,7 +88,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
             <span className="duo-icon drawer-duo">{sx.icon}</span>{sx.title}
           </button>
         ); })}
-        <span className="muted small drawer-foot">Queued · v2.4</span>
+        <span className="muted small drawer-foot">Queued · v2.5</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>

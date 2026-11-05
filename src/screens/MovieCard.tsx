@@ -219,7 +219,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
       case 'outNow': return 'Released on ' + (rel ? longDate(rel) : 'this year');
       case 'backlog': return item.rewatch ? W.rewatch + ' planned' : 'In your Backlog';
       case 'watched': return W.doneOn + ' ' + (last ? longDate(last.watched_at) : '');
-      case 'playing': { const t2 = [book ? '' : platformLabel(gItem.platform), item.started_on ? 'started on ' + longDate(item.started_on) : ''].filter(Boolean).join(' · '); return t2 ? t2[0].toUpperCase() + t2.slice(1) : ''; }
+      case 'playing': { const t2 = [book ? '' : platformLabel(gItem.platform), item.started_on ? 'Started on ' + longDate(item.started_on) : ''].filter(Boolean).join(' · '); return t2 ? t2[0].toUpperCase() + t2.slice(1) : ''; }
       case 'didntFinish': return 'Didn’t finish · stopped on ' + (last ? longDate(last.watched_at) : '');
       default: return 'Hidden from your lists · search still finds it';
     }
