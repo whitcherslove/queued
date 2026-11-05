@@ -1146,3 +1146,26 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .year-tile { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 12px 6px; border-radius: 14px; background: var(--surface2); }
 .year-tile b { font-size: 26px; line-height: 1.1; }
 .yt-icon svg { width: 22px; height: 22px; }
+
+/* state card actions on one line (scroll if a phone is really narrow) */
+.quiet-row { flex-wrap: nowrap; gap: 14px; overflow-x: auto; scrollbar-width: none; }
+.quiet-row::-webkit-scrollbar { display: none; }
+.quiet-row .link { font-size: 13px; white-space: nowrap; }
+.quiet-row .link.strong { font-weight: 800; }
+
+/* panel heads: the title takes the space, the count stays a small badge */
+.panel-head > .count-badge { flex: none !important; }
+.panel-head > span:first-child:not(.ph-icon) { flex: 1; }
+.their-rate { align-items: center; gap: 8px; }
+.feed-row { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.feed-meta .ring { flex: none; }
+
+/* Home: the cover on the right of a big card without a picture (books) */
+.spot img.spot-book { position: absolute; inset: auto; right: 14px; top: 14px; bottom: auto; width: auto; height: calc(100% - 28px); max-width: 34%; object-fit: contain; border-radius: 6px; box-shadow: 0 10px 24px rgba(0,0,0,.5); z-index: 1; }
+.spot .spot-text { z-index: 2; }
+.spot:has(.spot-book) .spot-text { padding-right: 38%; }
+/* Home: friends */
+.fr-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 4px 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.fr-line { font-size: 13px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.fr-meta { display: flex; align-items: center; gap: 6px; margin-top: 3px; }
+.panel-head .link { font-size: 13px; }

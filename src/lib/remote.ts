@@ -14,7 +14,7 @@ export async function ensureTitle(kind: 'movie' | 'tv', sourceId: string, force 
   return data.title as Title;
 }
 
-const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop, progress, format, position_at, updated_at, private';
+const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop, progress, format, position_at, updated_at, private, coop_with';
 const LIB_FIELDS = LIB_BASE + ', title:titles(*)';
 // Lists only need what the rows show. Movies skip the heavy "data" (cast, collection, budget…) — the card loads it when opened.
 // Shows keep "data": seasons and status drive Watching / Caught up.
@@ -95,7 +95,7 @@ export async function loadItem(id: string): Promise<LibItem> {
 }
 
 export async function loadItemLogs(libraryId: string): Promise<ItemLog[]> {
-  const { data, error } = await supabase.from('logs').select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons, platform, coop, format').eq('library_id', libraryId).order('watched_at', { ascending: false });
+  const { data, error } = await supabase.from('logs').select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons, platform, coop, coop_with, format').eq('library_id', libraryId).order('watched_at', { ascending: false });
   if (error) throw error;
   return (data ?? []) as ItemLog[];
 }
@@ -106,7 +106,7 @@ export async function updateItem(id: string, patch: Partial<{ status: Status; up
 }
 
 export async function insertLog(libraryId: string, log: Partial<ItemLog>): Promise<ItemLog> {
-  const { data, error } = await supabase.from('logs').insert({ library_id: libraryId, ...log }).select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons, platform, coop, format').single();
+  const { data, error } = await supabase.from('logs').insert({ library_id: libraryId, ...log }).select('id, watched_at, tier, score, rewatch, dropped, scope, season_from, season_to, seasons, platform, coop, coop_with, format').single();
   if (error) throw error;
   return data as ItemLog;
 }

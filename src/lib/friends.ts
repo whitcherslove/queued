@@ -36,9 +36,9 @@ export async function dismissSuggestion(me: string, from: string): Promise<void>
 export const inviteUrl = (code: string) => `${window.location.origin}/?invite=${code}`;
 
 // ---------- activity feed and a friend's summary (never their lists) ----------
-export interface Activity { id: string; user_id: string; name: string | null; handle: string | null; avatar_url: string | null; kind: 'started' | 'finished' | 'dropped' | 'season_rated';
+export interface Activity { id: string; user_id: string; name: string | null; handle: string | null; avatar_url: string | null; kind: 'started' | 'finished' | 'dropped' | 'season_rated' | 'show_rated';
   section: string; seasons_label: string | null; season: number | null; tier: string | null; score: number | null; platform: string | null; format: string | null; created_at: string;
-  title_id: string; title: string; poster_url: string | null; year: number | null }
+  title_id: string; title: string; poster_url: string | null; year: number | null; mine?: boolean; coop_names?: string[] | null; can_delete?: boolean }
 export async function activityFeed(before?: string): Promise<Activity[]> {
   const { data, error } = await supabase.rpc('activity_feed', { lim: 40, before: before ?? null });
   if (error) throw error;
@@ -59,4 +59,9 @@ export async function friendSummary(friend: string): Promise<FriendSummary> {
 export async function myTitleIds(): Promise<Set<string>> {
   const { data } = await supabase.from('library').select('title_id');
   return new Set((data ?? []).map((r: { title_id: string }) => r.title_id));
+}
+
+export async function deleteActivity(id: string): Promise<void> {
+  const { error } = await supabase.from('activity').delete().eq('id', id);
+  if (error) throw error;
 }

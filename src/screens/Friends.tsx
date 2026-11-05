@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import type { Profile } from '../lib/profile';
 import { saveIdentity } from '../lib/profile';
-import { activityFeed, answerRequest, dismissSuggestion, findByHandle, friendList, inviteUrl, myTitleIds, removeFriend, requestFriend, type Activity, type FriendRow, type MiniTitle } from '../lib/friends';
+import { activityFeed, deleteActivity, answerRequest, dismissSuggestion, findByHandle, friendList, inviteUrl, myTitleIds, removeFriend, requestFriend, type Activity, type FriendRow, type MiniTitle } from '../lib/friends';
 import { addToBacklog } from '../lib/remote';
 import { TIERS } from '../lib/scores';
 import { Poster } from '../components/Rows';
+import ScoreRing from '../components/ScoreRing';
 import PlatformIcon from '../components/PlatformIcon';
 import FriendPage from './FriendPage';
 import { useBackLayer } from '../lib/back';
@@ -32,8 +33,11 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
   const [feedLoading, setFeedLoading] = useState(true);
   const [mine, setMine] = useState<Set<string>>(new Set());
   const [friendOpen, setFriendOpen] = useState<string | null>(null);
-  const [titleOpen, setTitleOpen] = useState<(MiniTitle & { section?: string; platform?: string | null }) | null>(null);
+  const [titleOpen, setTitleOpen] = useState<(MiniTitle & { section?: string; platform?: string | null; who?: string; label?: string | null }) | null>(null);
+  const [delAsk, setDelAsk] = useState<Activity | null>(null);
+  const press = useRef<number | null>(null);
   useBackLayer(!!titleOpen, () => setTitleOpen(null));
+  useBackLayer(!!delAsk, () => setDelAsk(null));
   useEffect(() => { activityFeed().then(setFeed).catch(() => undefined).finally(() => setFeedLoading(false)); myTitleIds().then(setMine).catch(() => undefined); }, []);
   const tierOf = (id?: string | null) => TIERS.find((t) => t.id === id) ?? null;
   const ago = (iso: string) => { const m = Math.floor((Date.now() - new Date(iso).getTime()) / 60000); return m < 60 ? Math.max(1, m) + ' min' : m < 1440 ? Math.floor(m / 60) + ' h' : m < 10080 ? Math.floor(m / 1440) + ' d' : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
@@ -42,6 +46,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
     if (a.kind === 'started') return 'started ' + what;
     if (a.kind === 'dropped') return 'dropped';
     if (a.kind === 'season_rated') return 'rated ' + (a.seasons_label ?? 'a season') + ' of';
+    if (a.kind === 'show_rated') return 'rated';
     return a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : a.section === 'tv' ? 'finished' : 'finished';
   };
   const addTitle = async (t: MiniTitle & { section?: string; platform?: string | null }) => {
@@ -80,11 +85,14 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
           {feedLoading ? <div className="card-wait"><span className="spinner" aria-hidden="true" /></div>
             : !feed.length ? <div className="empty">{friends.length ? 'Nothing from your friends yet. When they start, finish or rate something, it shows up here.' : 'Add friends to see what they watch, play and read.'}</div>
             : <section className="panel feed">{feed.map((a) => { const tr = tierOf(a.tier); return (
-              <div key={a.id} className="feed-row">
+              <div key={a.id} className="feed-row"
+                onPointerDown={() => { if (!a.can_delete) return; press.current = window.setTimeout(() => setDelAsk(a), 550); }}
+                onPointerUp={() => { if (press.current) clearTimeout(press.current); }} onPointerLeave={() => { if (press.current) clearTimeout(press.current); }}
+                onContextMenu={(e) => { if (a.can_delete) { e.preventDefault(); setDelAsk(a); } }}>
                 <button className="feed-who" onClick={() => setFriendOpen(a.user_id)} aria-label={a.name ?? a.handle ?? 'Friend'}><Avatar url={a.avatar_url} email={a.handle ?? a.name ?? '?'} size={36} /></button>
-                <button className="feed-body" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform })}>
-                  <span className="feed-line"><strong>{a.name || (a.handle ? '@' + a.handle : 'Friend')}</strong> {verb(a)} <strong>{a.title}</strong>{a.kind === 'finished' && a.seasons_label ? ' · ' + a.seasons_label : ''}</span>
-                  <span className="feed-meta">{tr && <span className="tier-under" style={{ background: tr.color }}>{tr.label}</span>}{a.kind === 'dropped' && <span className="tier-under none">Dropped</span>}
+                <button className="feed-body" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>
+                  <span className="feed-line"><strong>{a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend'))}</strong> {verb(a)} <strong>{a.title}</strong>{a.kind === 'finished' && a.seasons_label ? ' · ' + a.seasons_label : ''}{a.kind === 'show_rated' ? ' (the whole show)' : ''}{a.coop_names?.filter(Boolean).length ? ' with ' + a.coop_names.filter(Boolean).join(', ') : ''}</span>
+                  <span className="feed-meta">{tr && <span className="tier-under" style={{ background: tr.color }}>{tr.label}</span>}{a.score != null && <ScoreRing value={Number(a.score)} scale={profile.settings.scale ?? 5} size={22} fontSize={9} />}{a.kind === 'dropped' && <span className="tier-under none">Dropped</span>}
                     {a.platform && ['console', 'pc', 'retro'].includes(a.section) && <PlatformIcon k={a.platform} size={10} />}<span className="muted tiny">{ago(a.created_at)}</span></span>
                 </button>
                 <Poster t={{ title: a.title, poster_url: a.poster_url }} w={40} h={58} />
@@ -162,11 +170,23 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
         </section>
         </>}
       </main>
+      {delAsk && <div className="sheet-wrap">
+        <button className="sheet-scrim" aria-label="Close" onClick={() => setDelAsk(null)} />
+        <div className="sheet" role="dialog" aria-label="Delete from the feed">
+          <strong className="sheet-title">Delete from the feed?</strong>
+          <span className="muted small">{(delAsk.mine ? 'Your' : (delAsk.name || 'This')) + ' “' + delAsk.title + '” event disappears from everyone’s feed. Nothing in the lists changes.'}</span>
+          <div className="row nowrap"><button className="btn grow" onClick={() => setDelAsk(null)}>Cancel</button>
+            <button className="btn danger grow" onClick={async () => { const d = delAsk; setDelAsk(null); try { await deleteActivity(d.id); setFeed((f) => f.filter((x) => x.id !== d.id)); } catch { setNote('Couldn’t delete it.'); } }}>Delete</button></div>
+        </div>
+      </div>}
       {friendOpen && <FriendPage id={friendOpen} onClose={() => setFriendOpen(null)} onTitle={(t) => setTitleOpen(t)} />}
       {titleOpen && <div className="sheet-wrap">
         <button className="sheet-scrim" aria-label="Close" onClick={() => setTitleOpen(null)} />
         <div className="sheet" role="dialog" aria-label={titleOpen.title}>
-          <div className="action-head"><Poster t={{ title: titleOpen.title, poster_url: titleOpen.poster_url }} w={52} h={76} /><strong>{titleOpen.title}</strong></div>
+          <div className="action-head"><Poster t={{ title: titleOpen.title, poster_url: titleOpen.poster_url }} w={52} h={76} /><span className="stack-sm"><strong>{titleOpen.title}</strong>{titleOpen.label && <span className="muted small">{titleOpen.label}</span>}</span></div>
+          {(titleOpen.tier || titleOpen.score != null) && <div className="row nowrap their-rate"><span className="muted small grow">{titleOpen.who ?? 'Their'} rating</span>
+            {tierOf(titleOpen.tier) && <span className="tier-under" style={{ background: tierOf(titleOpen.tier)!.color }}>{tierOf(titleOpen.tier)!.label}</span>}
+            {titleOpen.score != null && <ScoreRing value={Number(titleOpen.score)} scale={profile.settings.scale ?? 5} size={34} fontSize={12} />}</div>}
           {titleOpen.title_id && mine.has(titleOpen.title_id) ? <span className="muted small">Already in your lists.</span>
             : titleOpen.title_id && titleOpen.section ? <button className="btn primary" onClick={() => addTitle(titleOpen)}>Add to Backlog</button> : null}
           <button className="btn" onClick={() => setTitleOpen(null)}>Close</button>

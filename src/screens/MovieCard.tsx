@@ -16,6 +16,8 @@ import { platformChoices, platformLabel, sectionOf, type IgdbPlatform } from '..
 import { PlatformSheet } from '../components/GameAddSheet';
 import ProgressRing from '../components/ProgressRing';
 import PlatformIcon from '../components/PlatformIcon';
+import FriendPicker from '../components/FriendPicker';
+import { friendList } from '../lib/friends';
 import FormatIcon from '../components/FormatIcon';
 import { FORMATS, formatLabel, positionMinutes, readHours } from '../lib/formats';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
@@ -67,6 +69,9 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
   useEffect(() => { if (!needsEnrich || !item) return; (game ? ensureGame(item.title.source_id, !!(item.title.data as { needs_enrich?: boolean } | null)?.needs_enrich) : book ? ensureBook(bookRef(item.title), oldSeries) : item.title.source === 'tmdb' ? ensureTitle('movie', item.title.source_id) : Promise.resolve(null)).then(() => reload()).catch(() => undefined); }, [needsEnrich]); // eslint-disable-line react-hooks/exhaustive-deps
   const [platAsk, setPlatAsk] = useState<'' | 'start' | 'replay'>('');
   const [platPick, setPlatPick] = useState<string | null>(null);   // log id, or 'item'
+  const [coopPick, setCoopPick] = useState<{ log: string | null; ids: string[] } | null>(null);
+  const [coopNames, setCoopNames] = useState<Record<string, string>>({});
+  useEffect(() => { if (game) friendList().then((r) => setCoopNames(Object.fromEntries(r.filter((x) => x.kind === 'friend').map((x) => [x.other, x.name || (x.handle ? '@' + x.handle : 'friend')])))).catch(() => undefined); }, [game]);
   const [progAsk, setProgAsk] = useState(false);
   const [progText, setProgText] = useState('');
   const [progBusy, setProgBusy] = useState(false);
@@ -231,7 +236,12 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
         <span className="li-value plat-value"><PlatformIcon k={cur} size={14} />{cur ? platformLabel(cur) : 'Pick'} ›</span>
       </ListRow>
     );
-    return <ListRow icon={Ico.coop} label="Co-op" onClick={guard(async () => { if (lp) await updateLog(lp.id, { coop: !coopOn } as never); else await updateItem(item.id, { coop: !coopOn } as never); })}><span className={'switch' + (coopOn ? ' on-green' : '')}><span /></span></ListRow>;
+    const withIds = ((lp ? (lp as { coop_with?: string[] | null }).coop_with : (gItem as { coop_with?: string[] | null }).coop_with) ?? []) as string[];
+    return <>
+      <ListRow icon={Ico.coop} label="Co-op" onClick={guard(async () => { if (lp) await updateLog(lp.id, { coop: !coopOn } as never); else await updateItem(item.id, { coop: !coopOn } as never); })}><span className={'switch' + (coopOn ? ' on-green' : '')}><span /></span></ListRow>
+      {coopOn && <ListRow icon={<span className="coop-icon">{Ico.coop}</span>} label="With" onClick={() => setCoopPick({ log: lp ? lp.id : null, ids: withIds })}>
+        <span className="li-value ellipsis">{withIds.length ? withIds.map((id) => coopNames[id] ?? 'friend').join(', ') : 'Pick friends'} ›</span></ListRow>}
+    </>;
   };
   const sectionOfKey = (k: string) => sectionOf(k, settings.retroPlatforms ?? undefined);
   /** books: the format of the latest reading (or of the book you haven't read yet) */
@@ -306,7 +316,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
   /** "Watched": logs the viewing with today's date (it shows up in Watched) and opens My take to rate it */
   const watchedIt = guard(async () => {
     // a rewatch starts from what you thought last time — adjust it if your opinion changed
-    await insertLog(item.id, { watched_at: new Date().toISOString(), tier: item.rewatch ? last?.tier ?? null : null, score: item.rewatch ? last?.score ?? null : null, rewatch: !!item.rewatch, ...(game ? { platform: gItem.platform ?? null, coop: !!gItem.coop } : {}), ...(book ? { format: bItem.format ?? null } : {}) } as never);
+    await insertLog(item.id, { watched_at: new Date().toISOString(), tier: item.rewatch ? last?.tier ?? null : null, score: item.rewatch ? last?.score ?? null : null, rewatch: !!item.rewatch, ...(game ? { platform: gItem.platform ?? null, coop: !!gItem.coop, coop_with: (gItem as { coop_with?: string[] | null }).coop_with ?? null } : {}), ...(book ? { format: bItem.format ?? null } : {}) } as never);
     await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
     setJustWatched(true); setTakeOpen(true);
     window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
@@ -317,7 +327,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
     await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
     setJustWatched(true);
   })();
-  const markDidntFinish = guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: null, rewatch: !!item.rewatch, watched_at: new Date().toISOString(), ...(game ? { platform: gItem.platform ?? null, coop: !!gItem.coop } : {}), ...(book ? { format: bItem.format ?? null } : {}) } as never); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); });
+  const markDidntFinish = guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: null, rewatch: !!item.rewatch, watched_at: new Date().toISOString(), ...(game ? { platform: gItem.platform ?? null, coop: !!gItem.coop, coop_with: (gItem as { coop_with?: string[] | null }).coop_with ?? null } : {}), ...(book ? { format: bItem.format ?? null } : {}) } as never); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); });
   const toggleDidntFinish = () => { if (!last) return; const l = last, v = !l.dropped; optimistic(() => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: v } : x))), () => setLogs((ls) => ls.map((x) => (x.id === l.id ? { ...x, dropped: !v } : x))), () => updateLog(l.id, { dropped: v })); };
   const toggleNext = () => { const v = !item.up_next; optimistic(() => setItem({ ...item, up_next: v }), () => setItem({ ...item, up_next: !v }), () => updateItem(item.id, { up_next: v, position: backlogCount })); };
 
@@ -765,6 +775,9 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
           </div>
         </div>
       )}
+      {coopPick && item && <FriendPicker selected={coopPick.ids} onCancel={() => setCoopPick(null)} onDone={(ids) => { const c = coopPick; setCoopPick(null); guard(async () => {
+        if (c.log) await updateLog(c.log, { coop_with: ids, coop: true } as never); else await updateItem(item.id, { coop_with: ids, coop: true } as never);
+      })(); }} />}
       {platPick && item && <PlatformSheet t={t} retro={settings.retroPlatforms ?? []} title="Platform" confirm="Save" noCoop
         initial={platPick === 'item' ? gItem.platform : ((logs.find((x) => x.id === platPick) as { platform?: string | null } | undefined)?.platform ?? gItem.platform)}
         onCancel={() => setPlatPick(null)}

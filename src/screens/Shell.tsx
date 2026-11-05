@@ -88,7 +88,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
             <span className="duo-icon drawer-duo">{sx.icon}</span>{sx.title}
           </button>
         ); })}
-        <span className="muted small drawer-foot">Queued · v2.3</span>
+        <span className="muted small drawer-foot">Queued · v2.4</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
@@ -96,7 +96,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
 
   if (section === 'home') return (
     <div className="screen">
-      <Home settings={profile.settings} onBack={SIDE('home') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} onStats={() => go('stats')} />
+      <Home settings={profile.settings} onFriends={() => go('friends')} onBack={SIDE('home') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} onStats={() => go('stats')} />
       {nav}{drawerEl}
     </div>
   );

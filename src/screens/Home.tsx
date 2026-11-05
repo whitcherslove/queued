@@ -10,15 +10,19 @@ import { Poster } from '../components/Rows';
 import PlatformIcon from '../components/PlatformIcon';
 import FormatIcon from '../components/FormatIcon';
 import { readHours } from '../lib/formats';
-import { ChevBtn, DuoTv, IconBack, IconMenu } from '../components/Icons';
+import { ChevBtn, DuoFriends, DuoTv, IconBack, IconMenu } from '../components/Icons';
+const DuoFriendsMini = DuoFriends;
 const DuoTvMini = DuoTv;
 import ScoreRing from '../components/ScoreRing';
 import { Ico } from '../components/Rate';
 import { useBackLayer } from '../lib/back';
+import { activityFeed, type Activity } from '../lib/friends';
+import Avatar from '../components/Avatar';
 import MovieCard from './MovieCard';
 import ShowCard from './ShowCard';
 
 /** last Home data, so coming back shows it at once while fresh data loads */
+let friendsCache: Activity[] | null = null;
 let homeCache: { items: LibItem[]; logs: LogRow[]; eps: SeasonEps[]; marks: Mark[] } | null = null;
 
 type Open = { id: string; kind: 'movie' | 'tv' | 'game' | 'book' } | null;
@@ -28,7 +32,7 @@ const SEC_COLOR: Record<string, string> = { movies: '#E8714A', tv: '#9A8CF0', co
 const SEC_LABEL: Record<string, string> = { movies: 'Movie', tv: 'Show', console: 'Console', pc: 'PC', retro: 'Retro', books: 'Book' };
 
 /** Home: what's going on now — continue, coming up, recently finished, up next — and a way into Stats. */
-export default function Home({ settings, onMenu, onStats, onBack }: { settings: Settings; onMenu: () => void; onStats: () => void; onBack?: () => void }) {
+export default function Home({ settings, onMenu, onStats, onBack, onFriends }: { settings: Settings; onMenu: () => void; onStats: () => void; onBack?: () => void; onFriends?: () => void }) {
   const [items, setItems] = useState<LibItem[]>(homeCache?.items ?? []);
   const [logs, setLogs] = useState<LogRow[]>(homeCache?.logs ?? []);
   const [eps, setEps] = useState<SeasonEps[]>(homeCache?.eps ?? []);
@@ -53,6 +57,8 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  const [fEvents, setFEvents] = useState<Activity[]>(friendsCache ?? []);
+  useEffect(() => { activityFeed().then((a) => { const x = a.filter((e) => !e.mine).slice(0, 4); friendsCache = x; setFEvents(x); }).catch(() => undefined); }, []);
 
   // --- Continue: shows with an episode ready, games in progress
   const STATE_ORDER: Record<string, number> = { progress: 0, newSeason: 1, lastChance: 2, caughtUp: 3 };
@@ -252,7 +258,8 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
   };
   /** "today", "yesterday", "3 days ago", "2 weeks ago", "12 Oct" */
   const ago = (iso: string) => {
-    const d = Math.floor((Date.now() - new Date(iso).getTime()) / 864e5);
+    const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+    const d = Math.round((day(new Date()) - day(new Date(iso))) / 864e5);
     return d <= 0 ? 'Today' : d === 1 ? 'Yesterday' : d < 7 ? d + ' days ago' : d < 28 ? Math.floor(d / 7) + (d < 14 ? ' week ago' : ' weeks ago') : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   };
   const pickItem = pick ? items.find((i) => i.id === pick.id) ?? null : null;
@@ -297,6 +304,7 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
             {list.slice(0, 1).map(({ it, p }) => (
               <div key={it.id} className="spot in-panel" role="button" tabIndex={0} onClick={() => setOpen({ id: it.id, kind: kindOf(it) })} onKeyDown={(e) => { if (e.key === 'Enter') setOpen({ id: it.id, kind: kindOf(it) }); }}>
                 {bg(it) && <img className={it.title.backdrop_url ? '' : 'blur'} src={bg(it)!} alt="" />}
+                {!it.title.backdrop_url && it.title.poster_url && <img className="spot-book" src={it.title.poster_url} alt="" />}
                 <div className="spot-shade" />
                 <div className="spot-text">
                   <strong className="spot-title">{it.title.title}</strong>
@@ -392,6 +400,22 @@ export default function Home({ settings, onMenu, onStats, onBack }: { settings: 
               </button>
             ); })}
           </div>
+        </section>}
+
+        {/* Friends: the latest few events */}
+        {!loading && fEvents.length > 0 && <section className="panel">
+          <div className="panel-head"><span className="ph-icon"><DuoFriendsMini /></span><span>Friends</span>{onFriends && <button className="link" onClick={onFriends}>See all ›</button>}</div>
+          {fEvents.map((a) => { const tr = tierOf(a.tier); const who = a.name || (a.handle ? '@' + a.handle : 'Friend');
+            const verb = a.kind === 'started' ? (a.section === 'books' ? 'started reading' : a.section === 'tv' || a.section === 'movies' ? 'started watching' : 'started playing')
+              : a.kind === 'dropped' ? 'dropped' : a.kind === 'season_rated' ? 'rated ' + (a.seasons_label ?? 'a season') + ' of' : a.kind === 'show_rated' ? 'rated' : a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : 'finished';
+            return (
+              <button key={a.id} className="fr-row" onClick={onFriends}>
+                <Avatar url={a.avatar_url} email={a.handle ?? who} size={34} />
+                <span className="grow stack-0"><span className="fr-line"><strong>{who}</strong> {verb} <strong>{a.title}</strong></span>
+                  <span className="fr-meta">{tr && <span className="tier-under" style={{ background: tr.color }}>{tr.label}</span>}<span className="muted tiny">{ago(a.created_at)}</span></span></span>
+                <Poster t={{ title: a.title, poster_url: a.poster_url }} w={34} h={50} />
+              </button>
+            ); })}
         </section>}
 
         {/* Coming up: what comes out in the next three months — shows, movies, games, books from your lists */}

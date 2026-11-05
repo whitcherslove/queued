@@ -45,6 +45,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const [takeOpen, setTakeOpen] = useState(!!openTake);
   const takePress = usePress(), aiPress = usePress(), seasonsPress = usePress(), statusPress = usePress();
   const [confirmDrop, setConfirmDrop] = useState(false);
+  const [confirmAll, setConfirmAll] = useState(false);
   const [justFinished, setJustFinished] = useState(false);
   const [rateFocus, setRateFocus] = useState<number | null>(null);
   const [openS, setOpenS] = useState<Record<number, boolean>>({});
@@ -240,6 +241,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const stSeasons = st.seasons.length ? st.seasons : plan;
   const stAir = st.seasons.length ? seasonAir(t, st.seasons[0]) : null;
   const act = (fn: () => Promise<unknown>) => { guard(async () => { await fn(); })(); };
+  const unwatchedAired = eps.flatMap((se) => se.episodes.filter((e) => e.air_date && e.air_date <= todayIso() && !marks.some((m) => m.season === se.season && m.episode === e.n)).map((e) => ({ season: se.season, episode: e.n })));
   const canStart = st.state === 'backlog' || st.state === 'newSeason' || st.state === 'lastChance';
   // what the floating bar at the bottom offers: the next episode while watching, Start when there's something to start
   const barKind: 'episode' | 'start' | null = isPlaying && p.nextEp ? 'episode' : canStart ? 'start' : null;
@@ -378,10 +380,15 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                 <div className="quiet-row"><span className="small grow">Drop {t.title}? It disappears from your lists; entries stay in Watched.</span>
                   <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
               ) : (
-                <div className="quiet-row">
+                confirmAll ? (
+                <div className="quiet-row"><span className="small grow">Mark all {unwatchedAired.length} aired {unwatchedAired.length === 1 ? 'episode' : 'episodes'} as watched today?</span>
+                  <button className="link" onClick={() => setConfirmAll(false)}>Cancel</button>
+                  <button className="link strong" onClick={() => { setConfirmAll(false); applyMarks(unwatchedAired, true); }}>Mark all</button></div>
+                ) : <div className="quiet-row">
                   {st.state !== 'dropped' && <button className="link" onClick={() => { setPastMode('past'); setPastStep('seasons'); }}>Watched before</button>}
                   {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="link" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>Move to Backlog</button>}
                   {st.state === 'dropped' && <button className="link" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>Bring back</button>}
+                  {unwatchedAired.length > 0 && <button className="link" onClick={() => setConfirmAll(true)}>All watched</button>}
                   {canDrop && <button className="link danger end" onClick={() => setConfirmDrop(true)}>Drop</button>}
                 </div>
               ))}

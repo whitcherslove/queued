@@ -22,7 +22,7 @@ export default function FriendPage({ id, onClose, onTitle }: { id: string; onClo
   Object.entries(s?.year ?? {}).forEach(([k, n]) => { const key = SEC[k] ?? k; const f = year.find((x) => x[0] === key); if (f) f[1] += n; else year.push([key, n]); });
   const [bothOpen, setBothOpen] = useState(false);
   const first = name.split(' ')[0];
-  const ago = (iso: string) => { const d = Math.floor((Date.now() - new Date(iso).getTime()) / 864e5); return d <= 0 ? 'Today' : d === 1 ? 'Yesterday' : d < 7 ? d + ' days ago' : d < 28 ? Math.floor(d / 7) + (d < 14 ? ' week ago' : ' weeks ago') : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
+  const ago = (iso: string) => { const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime(); const d = Math.round((day(new Date()) - day(new Date(iso))) / 864e5); return d <= 0 ? 'Today' : d === 1 ? 'Yesterday' : d < 7 ? d + ' days ago' : d < 28 ? Math.floor(d / 7) + (d < 14 ? ' week ago' : ' weeks ago') : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }); };
   const SEC_ONE: Record<string, string> = { movies: 'Movie', tv: 'Show', console: 'Game', pc: 'Game', retro: 'Game', books: 'Book' };
   const ICON: Record<string, JSX.Element> = { Movies: <DuoMovie />, Shows: <DuoTv />, Games: <DuoPad />, Books: <DuoBook /> };
   return (
