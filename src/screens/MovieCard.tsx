@@ -519,6 +519,13 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
                   {game && gameRow('coop', null)}
                 </div>
               </>}
+              {/* friends see everything except titles you lock */}
+              <div className="list-group">
+                <ListRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>} label="Only me"
+                  onClick={() => { const v = !(item as { private?: boolean }).private; setItem({ ...item, private: v } as never); updateItem(item.id, { private: v } as never).catch(() => undefined); }}>
+                  <span className="muted small">{(item as { private?: boolean }).private ? 'hidden from friends' : ''}</span><span className={'switch' + ((item as { private?: boolean }).private ? ' on-green' : '')}><span /></span>
+                </ListRow>
+              </div>
             </div>
           )}
           {takeOpen && (canWatchNow || isPlaying || mState === 'dropped') && (confirmDrop ? (

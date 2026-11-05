@@ -5,6 +5,7 @@ import { applyTheme, DEFAULT_SETTINGS, Settings } from './lib/theme';
 import { loadProfile, Profile, saveSettings } from './lib/profile';
 import Login from './screens/Login';
 import Shell from './screens/Shell';
+import { acceptInvite } from './lib/friends';
 import { ackPending, claimPending, groupGameRows, groupRows, groupTvRows, importGroups } from './lib/importer';
 
 export default function App() {
@@ -12,6 +13,23 @@ export default function App() {
   const [ready, setReady] = useState(false);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [claiming, setClaiming] = useState('');
+  const [friendNote, setFriendNote] = useState('');
+
+  // an invite link (…/?invite=CODE): remember the code (also through signing in), then clean the address
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('invite');
+    if (code) { try { localStorage.setItem('queued.invite', code); } catch { /* ignore */ } window.history.replaceState(null, '', window.location.pathname); }
+  }, []);
+  // signed in with an invite waiting → become friends
+  useEffect(() => {
+    if (!profile) return;
+    let code: string | null = null; try { code = localStorage.getItem('queued.invite'); } catch { /* ignore */ }
+    if (!code) return;
+    try { localStorage.removeItem('queued.invite'); } catch { /* ignore */ }
+    acceptInvite(code).then((who) => setFriendNote('You and ' + (who.name || (who.handle ? '@' + who.handle : 'your friend')) + ' are friends now.'))
+      .catch((e) => setFriendNote((e as Error).message || 'Couldn’t use that invite.'));
+  }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!friendNote) return; const t = setTimeout(() => setFriendNote(''), 5000); return () => clearTimeout(t); }, [friendNote]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
@@ -63,5 +81,5 @@ export default function App() {
   if (!ready) return <main className="center-screen"><h1 className="wordmark">Queued</h1></main>;
   if (!session) return <Login />;
   if (!profile) return <main className="center-screen"><h1 className="wordmark">Queued</h1></main>;
-  return <>{claiming && <div className="toast" role="status">{claiming}</div>}<Shell profile={profile} onProfile={setProfile} onSettings={updateSettings} /></>;
+  return <>{claiming && <div className="toast" role="status">{claiming}</div>}{friendNote && <div className="toast" role="status" onClick={() => setFriendNote('')}>{friendNote}</div>}<Shell profile={profile} onProfile={setProfile} onSettings={updateSettings} /></>;
 }

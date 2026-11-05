@@ -14,7 +14,7 @@ export async function ensureTitle(kind: 'movie' | 'tv', sourceId: string, force 
   return data.title as Title;
 }
 
-const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop, progress, format, position_at, updated_at';
+const LIB_BASE = 'id, title_id, section, status, up_next, position, tier, score, rewatch, overrides, plan_from, plan_to, plan_seasons, run_started_at, started_on, platform, coop, progress, format, position_at, updated_at, private';
 const LIB_FIELDS = LIB_BASE + ', title:titles(*)';
 // Lists only need what the rows show. Movies skip the heavy "data" (cast, collection, budget…) — the card loads it when opened.
 // Shows keep "data": seasons and status drive Watching / Caught up.

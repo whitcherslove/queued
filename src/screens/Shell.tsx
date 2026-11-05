@@ -2,8 +2,9 @@ import { useState, type CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import type { Profile } from '../lib/profile';
 import type { Settings } from '../lib/theme';
-import { DuoBook, DuoHome, DuoMovie, DuoPad, DuoPc, DuoRetro, DuoStats, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
+import { DuoBook, DuoFriends, DuoHome, DuoMovie, DuoPad, DuoPc, DuoRetro, DuoStats, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
 import Home from './Home';
+import Friends from './Friends';
 import { normNav } from '../lib/nav';
 import Stats from './Stats';
 import ProfileScreen from './ProfileScreen';
@@ -11,7 +12,7 @@ import Avatar from '../components/Avatar';
 import Movies from './Movies';
 import { useBackLayer } from '../lib/back';
 
-type SectionId = 'home' | 'movies' | 'tv' | 'console' | 'pc' | 'retro' | 'books' | 'stats';
+type SectionId = 'home' | 'movies' | 'tv' | 'console' | 'pc' | 'retro' | 'books' | 'stats' | 'friends';
 // Each section has its own color: it lights up the bottom-bar icon when the section is open
 const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element; color: string; tabs: string[]; noun: string }[] = [
   { id: 'home', label: 'Home', title: 'Home', icon: <DuoHome />, color: '#E26FB0', tabs: [], noun: '' },
@@ -21,6 +22,7 @@ const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element
   { id: 'pc', label: 'PC', title: 'PC games', icon: <DuoPc />, color: '#4C9BEA', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
   { id: 'retro', label: 'Retro', title: 'Retro games', icon: <DuoRetro />, color: '#E0A43A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
   { id: 'books', label: 'Books', title: 'Books', icon: <DuoBook />, color: '#D98B5F', tabs: [], noun: 'a book' },
+  { id: 'friends', label: 'Friends', title: 'Friends', icon: <DuoFriends />, color: '#4C9BEA', tabs: [], noun: '' },
   { id: 'stats', label: 'Stats', title: 'Stats', icon: <DuoStats />, color: '#9A8CF0', tabs: [], noun: '' }
 ];
 // Home is the first tab and where the app opens; Retro and Stats live in the side menu
@@ -86,7 +88,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
             <span className="duo-icon drawer-duo">{sx.icon}</span>{sx.title}
           </button>
         ); })}
-        <span className="muted small drawer-foot">Queued · v1.9</span>
+        <span className="muted small drawer-foot">Queued · v2.1</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
@@ -101,6 +103,12 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   if (section === 'books') return (
     <div className="screen">
       <Movies key="books" kind="book" settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={SIDE('books') ? () => go(lastBar) : undefined} />
+      {nav}{drawerEl}
+    </div>
+  );
+  if (section === 'friends') return (
+    <div className="screen">
+      <Friends profile={profile} onProfile={onProfile} onBack={SIDE('friends') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} />
       {nav}{drawerEl}
     </div>
   );

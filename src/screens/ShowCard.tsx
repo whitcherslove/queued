@@ -365,6 +365,13 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                 {currentLog && <ListRow icon={Ico.date} label="Finished on"><DateField label="Finished on" value={localDay(currentLog.watched_at)} onChange={(d) => { const l = currentLog; guard(async () => { await updateLog(l.id, { watched_at: withLocalDay(l.watched_at, d) }); })(); }} /></ListRow>}
                 <ListRow icon={Ico.rewatch} label="Rewatch" onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
               </div>
+              {/* friends see everything except titles you lock */}
+              <div className="list-group">
+                <ListRow icon={<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V8a4 4 0 0 1 8 0v3" /></svg>} label="Only me"
+                  onClick={() => { const v = !(item as { private?: boolean }).private; setItem({ ...item, private: v } as never); updateItem(item.id, { private: v } as never).catch(() => undefined); }}>
+                  <span className="muted small">{(item as { private?: boolean }).private ? 'hidden from friends' : ''}</span><span className={'switch' + ((item as { private?: boolean }).private ? ' on-green' : '')}><span /></span>
+                </ListRow>
+              </div>
             </div>
           )}
               {takeOpen && (confirmDrop ? (

@@ -6,7 +6,7 @@ describe('navigation layout', () => {
     const n = normNav({ bar: ['books', 'books', 'x', 'movies'], side: ['movies', 'stats'] });
     expect(n.bar).toEqual(['books', 'movies']);
     expect(n.side.slice(0, 1)).toEqual(['stats']);
-    expect([...n.bar, ...n.side].sort()).toEqual(['books', 'console', 'home', 'movies', 'pc', 'retro', 'stats', 'tv']);
+    expect([...n.bar, ...n.side].sort()).toEqual(['books', 'console', 'friends', 'home', 'movies', 'pc', 'retro', 'stats', 'tv']);
   });
   it('keeps at least two in the bar', () => { expect(normNav({ bar: [], side: [] }).bar.length).toBe(2); });
 });

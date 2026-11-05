@@ -1108,3 +1108,27 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .cu-date.out b { color: #3FAF5A; }
 .cu-in.out { color: #3FAF5A; }
 .new-dot { flex: none; font-size: 9px; font-weight: 800; letter-spacing: .5px; text-transform: uppercase; padding: 1px 6px; border-radius: 999px; background: #3FAF5A; color: #0d1a10; }
+
+/* friends */
+.friend-row { display: flex; align-items: center; gap: 10px; }
+.friend-open { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.qr-img { width: 220px; max-width: 70%; align-self: center; border-radius: 14px; background: #fff; padding: 8px; }
+.text-input { height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font: inherit; min-width: 0; }
+
+/* friends: feed and friend page */
+.feed { gap: 4px; }
+.feed-row { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); }
+.feed-row:first-child { border-top: 0; }
+.feed-who { flex: none; padding: 0; border: 0; background: transparent; border-radius: 999px; }
+.feed-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 0; border: 0; background: transparent; color: var(--ink); text-align: left; }
+.feed-line { font-size: 13px; line-height: 1.35; }
+.feed-meta { display: flex; align-items: center; gap: 6px; }
+.feed-meta .tier-under { align-self: center; }
+.friend-page { z-index: 22; overflow-y: auto; background: var(--bg); }
+.match-big { display: flex; align-items: baseline; gap: 10px; }
+.match-big b { font-size: 34px; font-family: 'Oswald', sans-serif; color: var(--accent); }
+.both-tiers { display: flex; flex-direction: column; gap: 3px; align-items: center; }
+.both-tiers .tier-under { font-size: 9px; }
+.year-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.year-chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 12px; border-radius: 12px; background: var(--surface2); font-weight: 700; }
+.year-chip b { font-size: 20px; }

@@ -478,7 +478,10 @@ Deno.serve(async (req) => {
       return Response.json({ stored: rows.length }, { headers: CORS });
     }
     if (body.action === 'claim') {
-      const { data } = await admin.from('pending_imports').select('id, payload, section').eq('email', email);
+      const { data } = await admin.from('pending_imports').select('id, payload, section, created_by').eq('email', email);
+      // whoever uploaded your AppSheet rows is suggested as a friend (you decide; nothing is added automatically)
+      const from = [...new Set((data ?? []).map((d: any) => d.created_by).filter((x: string | null) => x && x !== uid))];
+      if (from.length) await admin.from('friend_suggestions').upsert(from.map((f) => ({ user_id: uid, from_user: f })), { onConflict: 'user_id,from_user', ignoreDuplicates: true });
       const ids = (data ?? []).map((d: any) => d.id);
       // rows are NOT deleted here any more — the app confirms with "ack" once they're really imported,
       // so an interrupted import (app closed, no network) simply continues next time

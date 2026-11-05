@@ -43,3 +43,5 @@ export const DuoHome = () => <svg {...d}><path {...body} d="M4 10.5L12 4l8 6.5V2
 export const DuoStats = () => <svg {...d}><rect {...body} x="4" y="12" width="4" height="8" rx="1" /><rect {...body} x="10" y="7" width="4" height="13" rx="1" /><rect {...body} x="16" y="4" width="4" height="16" rx="1" /><rect x="4" y="12" width="4" height="8" rx="1" /><rect x="10" y="7" width="4" height="13" rx="1" /><rect x="16" y="4" width="4" height="16" rx="1" /></svg>;
 
 export const DuoBook = () => <svg {...d}><path {...body} d="M4 5.5c2.7-1.2 5.3-1.2 8 .4 2.7-1.6 5.3-1.6 8-.4v13c-2.7-1.2-5.3-1.2-8 .4-2.7-1.6-5.3-1.6-8-.4z" /><path d="M4 5.5c2.7-1.2 5.3-1.2 8 .4 2.7-1.6 5.3-1.6 8-.4v13c-2.7-1.2-5.3-1.2-8 .4-2.7-1.6-5.3-1.6-8-.4z" /><path d="M12 6v12.5" /></svg>;
+
+export const DuoFriends = () => <svg {...d}><circle {...body} cx="9" cy="8" r="3.4" /><path {...body} d="M3 19.5a6 6 0 0 1 12 0z" /><circle cx="9" cy="8" r="3.4" /><path d="M3 19.5a6 6 0 0 1 12 0" /><circle cx="17" cy="9" r="2.6" /><path d="M15.4 14.3A4.8 4.8 0 0 1 21 19" /></svg>;

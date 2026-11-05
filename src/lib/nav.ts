@@ -1,8 +1,8 @@
 /** Which sections sit in the bottom bar (in what order) and which in the side menu. Saved in your settings. */
-export type NavId = 'home' | 'movies' | 'tv' | 'console' | 'pc' | 'retro' | 'books' | 'stats';
-export const ALL_NAV: NavId[] = ['home', 'movies', 'tv', 'console', 'pc', 'books', 'stats', 'retro'];
-export const NAV_LABEL: Record<NavId, string> = { home: 'Home', movies: 'Movies', tv: 'TV Shows', console: 'Console games', pc: 'PC games', retro: 'Retro games', books: 'Books', stats: 'Stats' };
-export const DEFAULT_NAV = { bar: ['home', 'movies', 'tv', 'console', 'pc'] as NavId[], side: ['books', 'stats', 'retro'] as NavId[] };
+export type NavId = 'home' | 'movies' | 'tv' | 'console' | 'pc' | 'retro' | 'books' | 'stats' | 'friends';
+export const ALL_NAV: NavId[] = ['home', 'movies', 'tv', 'console', 'pc', 'books', 'friends', 'stats', 'retro'];
+export const NAV_LABEL: Record<NavId, string> = { home: 'Home', movies: 'Movies', tv: 'TV Shows', console: 'Console games', pc: 'PC games', retro: 'Retro games', books: 'Books', stats: 'Stats', friends: 'Friends' };
+export const DEFAULT_NAV = { bar: ['home', 'movies', 'tv', 'console', 'pc'] as NavId[], side: ['books', 'friends', 'stats', 'retro'] as NavId[] };
 export const BAR_MAX = 5, BAR_MIN = 2;
 
 /** Clean up a saved layout: known ids only, nothing twice, anything new goes to the side menu, bar between 2 and 5. */
