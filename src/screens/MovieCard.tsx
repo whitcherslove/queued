@@ -17,7 +17,7 @@ import { PlatformSheet } from '../components/GameAddSheet';
 import ProgressRing from '../components/ProgressRing';
 import PlatformIcon from '../components/PlatformIcon';
 import FriendPicker from '../components/FriendPicker';
-import { friendList } from '../lib/friends';
+import { friendList, sentCoopInvites } from '../lib/friends';
 import FormatIcon from '../components/FormatIcon';
 import { FORMATS, formatLabel, positionMinutes, readHours } from '../lib/formats';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
@@ -71,6 +71,10 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
   const [platPick, setPlatPick] = useState<string | null>(null);   // log id, or 'item'
   const [coopPick, setCoopPick] = useState<{ log: string | null; ids: string[] } | null>(null);
   const [coopNames, setCoopNames] = useState<Record<string, string>>({});
+  const [coopSent, setCoopSent] = useState<Record<string, string>>({});   // friend id → invite status
+  const loadCoopSent = () => { if (game && item?.title_id) sentCoopInvites(item.title_id).then((r) => setCoopSent(Object.fromEntries(r.map((x) => [x.to_user, x.status])))).catch(() => undefined); };
+  useEffect(loadCoopSent, [game, item?.title_id]); // eslint-disable-line react-hooks/exhaustive-deps
+  const [coopNote, setCoopNote] = useState('');
   useEffect(() => { if (game) friendList().then((r) => setCoopNames(Object.fromEntries(r.filter((x) => x.kind === 'friend').map((x) => [x.other, x.name || (x.handle ? '@' + x.handle : 'friend')])))).catch(() => undefined); }, [game]);
   const [progAsk, setProgAsk] = useState(false);
   const [progText, setProgText] = useState('');
@@ -243,6 +247,11 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
       <ListRow icon={Ico.coop} label="Co-op" onClick={guard(async () => { if (lp) await updateLog(lp.id, { coop: !coopOn } as never); else await updateItem(item.id, { coop: !coopOn } as never); })}><span className={'switch' + (coopOn ? ' on-green' : '')}><span /></span></ListRow>
       {coopOn && <ListRow icon={<span className="coop-icon">{Ico.coop}</span>} label="With" onClick={() => setCoopPick({ log: lp ? lp.id : null, ids: withIds })}>
         <span className="li-value ellipsis">{withIds.length ? withIds.map((id) => coopNames[id] ?? 'friend').join(', ') : 'Pick friends'} ›</span></ListRow>}
+      {coopOn && withIds.length > 0 && <div className="coop-status">{withIds.map((id) => {
+        const st = coopSent[id];
+        return <span key={id} className={'coop-chip ' + (st ?? 'none')}>{coopNames[id] ?? 'friend'} · {st === 'accepted' ? 'added it ✓' : st === 'declined' ? 'said not them' : st === 'pending' ? 'invite sent' : 'not invited'}</span>;
+      })}</div>}
+      {coopNote && <span className="muted small coop-note">{coopNote}</span>}
     </>;
   };
   const sectionOfKey = (k: string) => sectionOf(k, settings.retroPlatforms ?? undefined);
@@ -780,6 +789,9 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
       )}
       {coopPick && item && <FriendPicker selected={coopPick.ids} onCancel={() => setCoopPick(null)} onDone={(ids) => { const c = coopPick; setCoopPick(null); guard(async () => {
         if (c.log) await updateLog(c.log, { coop_with: ids, coop: true } as never); else await updateItem(item.id, { coop_with: ids, coop: true } as never);
+        const added = ids.filter((x) => !c.ids.includes(x));
+        setCoopNote(added.length ? 'Invite sent to ' + added.map((x) => coopNames[x] ?? 'friend').join(', ') + ' — it shows up in their Friends → People.' : 'Saved.');
+        setTimeout(loadCoopSent, 800);
       })(); }} />}
       {platPick && item && <PlatformSheet t={t} retro={settings.retroPlatforms ?? []} title="Platform" confirm="Save" noCoop
         initial={platPick === 'item' ? gItem.platform : ((logs.find((x) => x.id === platPick) as { platform?: string | null } | undefined)?.platform ?? gItem.platform)}

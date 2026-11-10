@@ -130,6 +130,11 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
                         <span className="feed-strip">{b.items.slice(0, 6).map((x) => <Poster key={x.id} t={{ title: x.title, poster_url: x.poster_url }} w={26} h={38} />)}{b.items.length > 6 && <span className="muted tiny">+{b.items.length - 6}</span>}</span></span>
                       <span className="link">Show</span>
                     </button>
+                  ) : b.items.length >= 3 ? (
+                    <div key={b.key} className="feed-open">
+                      {b.items.map((a) => feedRow(a))}
+                      <button className="link left feed-fold" onClick={() => { const n = new Set(openGroups); n.delete(b.key); setOpenGroups(n); }}>Show less</button>
+                    </div>
                   ) : b.items.map((a) => feedRow(a)))}
                 </div>
               ))}</section>}

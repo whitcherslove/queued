@@ -70,3 +70,10 @@ export async function deleteActivity(id: string): Promise<void> {
 export interface CoopInvite { id: string; from_name: string | null; from_avatar: string | null; title: string; poster_url: string | null; platform: string | null; playing: boolean; finished_at: string | null }
 export async function myCoopInvites(): Promise<CoopInvite[]> { const { data, error } = await supabase.rpc('my_coop_invites'); if (error) throw error; return (data ?? []) as CoopInvite[]; }
 export async function answerCoop(id: string, accept: boolean) { const { error } = await supabase.rpc('answer_coop', { inv: id, accept }); if (error) throw new Error(error.message); }
+
+/** Co-op invites I sent for a title: who, and whether they added it ("accepted"), said not me ("declined") or haven't answered yet. */
+export async function sentCoopInvites(titleId: string): Promise<{ to_user: string; status: 'pending' | 'accepted' | 'declined' }[]> {
+  const { data: me } = await supabase.auth.getUser();
+  const { data } = await supabase.from('coop_invites').select('to_user, status').eq('title_id', titleId).eq('from_user', me.user?.id ?? '');
+  return (data ?? []) as { to_user: string; status: 'pending' | 'accepted' | 'declined' }[];
+}

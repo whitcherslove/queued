@@ -1258,3 +1258,12 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .feed-row.big { padding: 10px 0; }
 .feed-row.big .feed-line { font-size: 14px; }
 .feed-row.ten { background: linear-gradient(90deg, color-mix(in srgb, #5FD6A0 12%, transparent), transparent 70%); border-radius: 12px; padding-left: 6px; padding-right: 6px; }
+
+.feed-open { display: flex; flex-direction: column; }
+.feed-fold { align-self: flex-start; margin: 2px 0 6px 46px; }
+.coop-status { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 10px 46px; }
+.coop-chip { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; background: var(--surface2); color: var(--muted); }
+.coop-chip.pending { color: #A6D8FF; background: color-mix(in srgb, #A6D8FF 14%, var(--surface2)); }
+.coop-chip.accepted { color: #5FD6A0; background: color-mix(in srgb, #5FD6A0 14%, var(--surface2)); }
+.coop-chip.declined { color: var(--muted); }
+.coop-note { padding: 0 14px 10px 46px; display: block; }
