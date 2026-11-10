@@ -28,8 +28,10 @@ export function RatingTiles({ value, onPick, label = 'Rating' }: { value: string
  */
 export function ScoreStepper({ value, scale, onChange, label = 'My score', size = 'md' }: { value: number | null; scale: 5 | 10; onChange: (v: number | null) => void; label?: string; size?: 'md' | 'sm' }) {
   const step = (dir: 1 | -1) => {
-    const cur = value ?? (dir > 0 ? 2.5 : 3);              // first tap starts from the middle
-    const next = Math.min(5, Math.max(0, Math.round((cur + dir * 0.5) * 2) / 2));
+    // 5 points: steps of 0.5; 10 points: steps of 0.5 on screen too (0.25 inside)
+    const inc = scale === 10 ? 0.25 : 0.5, grid = 1 / inc;
+    const cur = value ?? (dir > 0 ? 2.5 - inc : 2.5 + inc);   // first tap starts from the middle
+    const next = Math.min(5, Math.max(0, Math.round((cur + dir * inc) * grid) / grid));
     onChange(next);
   };
   const shown = value === null ? 'no score' : displayScore(value, scale) + ' out of ' + scale;

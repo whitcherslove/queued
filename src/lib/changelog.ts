@@ -1,9 +1,16 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.7';
+export const APP_VERSION = '4.8';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.8',
+    title: 'Half points on the 10-point scale',
+    items: [
+      { icon: '🔢', title: 'Scores like 6.5', text: 'On the 10-point scale, − and + now move by 0.5. Imported scores keep their halves too.' }
+    ]
+  },
   {
     version: '4.7',
     title: 'Coming up and rewatches',

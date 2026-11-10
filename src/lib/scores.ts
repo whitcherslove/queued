@@ -26,7 +26,7 @@ export function myScoreColor(v: number | null | undefined): string | null {
 }
 
 export function displayScore(v: number, scale: 5 | 10): number {
-  return scale === 10 ? +(v * 2).toFixed(1) : Math.round(v * 2) / 2;
+  return scale === 10 ? Math.round(v * 4) / 2 : Math.round(v * 2) / 2;   // 10 points: halves (6.5); 5 points: halves (3.5)
 }
 
 export const TIERS = [

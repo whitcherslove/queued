@@ -150,7 +150,18 @@ export async function parseFile(file: File): Promise<Parsed> { return (await par
 
 export interface ImportResult { ok: number; review: number; errors: string[] }
 
-export async function importGroups(groups: (ImportGroup | TvGroup | GameGroup)[], onProgress?: (done: number, total: number) => void): Promise<ImportResult> {
+/**
+ * Scores are kept on a 0–5 scale. AppSheet sheets can be on 5 or on 10 points (it depends on the person):
+ * if any score in this import is above 5, the whole import is read as a 10-point sheet and halved.
+ */
+export function normalizeScores<T extends { rows: { score: number | null }[] }>(groups: T[]): T[] {
+  const ten = groups.some((g) => g.rows.some((r) => r.score !== null && r.score > 5));
+  if (!ten) return groups;
+  return groups.map((g) => ({ ...g, rows: g.rows.map((r) => ({ ...r, score: r.score === null ? null : Math.max(0, Math.min(5, Math.round(r.score * 2) / 4)) })) }));
+}
+
+export async function importGroups(groups0: (ImportGroup | TvGroup | GameGroup)[], onProgress?: (done: number, total: number) => void): Promise<ImportResult> {
+  const groups = normalizeScores(groups0 as { rows: { score: number | null }[] }[]) as (ImportGroup | TvGroup | GameGroup)[];
   const out: ImportResult = { ok: 0, review: 0, errors: [] };
   const tv = groups.length > 0 && groups[0].kind === 'tv';
   const games = groups.length > 0 && groups[0].kind === 'game';
