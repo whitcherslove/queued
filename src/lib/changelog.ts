@@ -9,7 +9,7 @@ export const CHANGELOG: ChangeEntry[] = [
     title: 'Coming up and rewatches',
     items: [
       { icon: '📅', title: 'Coming up shows more', text: 'Season premieres of shows in your Backlog and of shows you’ve watched, new shows, and the next episode of what you’re watching — six months ahead.' },
-      { icon: '🔁', title: 'Finished works in a rewatch', text: 'Rewatching a show? “Finished” in its card marks everything you haven’t rewatched yet.' }
+      { icon: '🔁', title: 'Finished works in a rewatch', text: 'Rewatching a show? “Finished” (in the unfolded status block) marks everything you haven’t rewatched yet.' }
     ]
   },
   {
@@ -20,7 +20,7 @@ export const CHANGELOG: ChangeEntry[] = [
       { icon: '✨', title: 'A new look', text: 'New icon and splash screen. The active tab in the bottom bar lights up in its section’s colour.' },
       { icon: '👋', title: 'Friends', text: 'Friends in the menu: invite with a link or QR, see what friends start, finish and rate in Activity, and a summary page for each — your lists stay yours.' },
       { icon: '🔔', title: 'Notifications', text: 'Friend requests, your friends’ activity, and what comes out today from your lists. Turn them on in Profile and settings.' },
-      { icon: '📺', title: 'Shows', text: '“Finished” in the show card marks every aired episode. Long-press a show you’ve watched → “Stop following” to hide it from new seasons.' },
+      { icon: '📺', title: 'Shows', text: 'Unfold the status block of a show: “Finished” marks every aired episode. Long-press a show you’ve watched → “Stop following” to hide it from new seasons.' },
       { icon: '📖', title: 'Books', text: 'A Books section in the menu: paper, e-book or audio, progress by page, series, covers from editions.' },
       { icon: '🏠', title: 'Home', text: 'What you’re watching, playing and reading, “What tonight?” with Random or AI, what’s ready to start and what’s coming.' }
     ]
