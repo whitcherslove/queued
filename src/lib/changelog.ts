@@ -1,9 +1,18 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.12';
+export const APP_VERSION = '4.13';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.13',
+    title: 'A tidier Activity',
+    items: [
+      { icon: '🗓️', title: 'Days and bursts', text: 'Activity is split by day, and several updates from one person in a row fold into one card.' },
+      { icon: '🆕', title: 'Only what’s new', text: '“Finished” shows up in Activity only on the day it happened — past viewings and old entries stay out.' },
+      { icon: '🎮', title: 'Played together', text: 'Mark a co-op friend and they get “played together — Add?” in Friends → People. Co-op partners are named only to people who share a company with them.' }
+    ]
+  },
   {
     version: '4.12',
     title: 'Tonight’s pick',

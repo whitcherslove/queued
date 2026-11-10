@@ -65,3 +65,8 @@ export async function deleteActivity(id: string): Promise<void> {
   const { error } = await supabase.from('activity').delete().eq('id', id);
   if (error) throw error;
 }
+
+// ---------- co-op invites ("Slava says you played Hades together") ----------
+export interface CoopInvite { id: string; from_name: string | null; from_avatar: string | null; title: string; poster_url: string | null; platform: string | null; playing: boolean; finished_at: string | null }
+export async function myCoopInvites(): Promise<CoopInvite[]> { const { data, error } = await supabase.rpc('my_coop_invites'); if (error) throw error; return (data ?? []) as CoopInvite[]; }
+export async function answerCoop(id: string, accept: boolean) { const { error } = await supabase.rpc('answer_coop', { inv: id, accept }); if (error) throw new Error(error.message); }

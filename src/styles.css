@@ -1248,3 +1248,13 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .tg-connect { padding: 10px 12px; border-radius: 14px; border: 1px dashed var(--line); }
 
 .tg-remove { margin-left: 2px; width: 18px; height: 18px; border-radius: 999px; border: 0; background: var(--surface2); color: var(--muted); font-weight: 800; line-height: 1; display: inline-grid; place-items: center; }
+
+/* feed: days, bursts, bigger rated cards */
+.feed-day { display: flex; flex-direction: column; }
+.feed-day-label { font-size: 11px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; color: var(--muted); margin: 10px 0 2px; }
+.feed-day:first-of-type .feed-day-label { margin-top: 2px; }
+.feed-group { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 0; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; }
+.feed-strip { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.feed-row.big { padding: 10px 0; }
+.feed-row.big .feed-line { font-size: 14px; }
+.feed-row.ten { background: linear-gradient(90deg, color-mix(in srgb, #5FD6A0 12%, transparent), transparent 70%); border-radius: 12px; padding-left: 6px; padding-right: 6px; }

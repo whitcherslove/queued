@@ -67,15 +67,18 @@ async function telegramPost(db: any, id: string) {
   const lines = TG_LINES[key] ?? ['Done.']; let h = 0; for (const c of id + key) h = (h * 31 + c.charCodeAt(0)) >>> 0;
   const line = lines[h % lines.length];
   // details: platform / format, season, co-op friends
-  let coop = '';
-  if ((a.coop_with ?? []).length) { const { data: cp } = await db.from('profiles').select('display_name, handle').in('id', a.coop_with); coop = 'with ' + (cp ?? []).map((x: any) => nameOf(x)).join(', '); }
-  const meta = [isGame && a.platform ? PLAT[a.platform] ?? String(a.platform).toUpperCase() : '', a.section === 'books' && a.format ? FMT[a.format] ?? '' : '', a.section === 'tv' && a.seasons_label ? a.seasons_label : '', coop].filter(Boolean).map(esc).join(' · ');
+  const partners: { id: string; name: string }[] = [];
+  if ((a.coop_with ?? []).length) { const { data: cp } = await db.from('profiles').select('id, display_name, handle').in('id', a.coop_with); (cp ?? []).forEach((x: any) => partners.push({ id: x.id, name: nameOf(x) })); }
+  const metaFor = (inChat: Set<string>) => {
+    const names = partners.filter((x) => inChat.has(x.id)).map((x) => x.name);
+    return [isGame && a.platform ? PLAT[a.platform] ?? String(a.platform).toUpperCase() : '', a.section === 'books' && a.format ? FMT[a.format] ?? '' : '', a.section === 'tv' && a.seasons_label ? a.seasons_label : '', names.length ? 'with ' + names.join(', ') : ''].filter(Boolean).map(esc).join(' · ');
+  };
   const scale = (p?.settings?.scale === 10 ? 10 : 5);
   const score = a.score != null ? (scale === 10 ? Math.round(Number(a.score) * 4) / 2 : Math.round(Number(a.score) * 2) / 2) + '/' + scale : '';
   const head = a.kind === 'finished' ? `${em} <b>${who}</b> ${verbDone} <b>${title}</b>`
     : a.kind === 'started' ? `▶️ <b>${who}</b> ${verbStart} <b>${title}</b>`
     : `🚪 <b>${who}</b> dropped <b>${title}</b>`;
-  const caption = [
+  const captionFor = (meta: string) => [
     head,
     meta ? `<i>${meta}</i>` : '',
     `<blockquote><i>${esc(line)}</i></blockquote>`,
@@ -92,12 +95,16 @@ async function telegramPost(db: any, id: string) {
     photo = `https://res.cloudinary.com/${cfg.cloudinary_cloud}/image/fetch/${tr}${base}`;
   }
   // the chats of every company this person is in (and posts to)
-  const { data: chats } = await db.from('tg_members').select('posting, group:tg_groups(chat_id, active)').eq('user_id', a.user_id);
-  const targets = (chats ?? []).filter((m: any) => m.posting && m.group?.active).map((m: any) => Number(m.group.chat_id));
+  const { data: chats } = await db.from('tg_members').select('posting, group_id, group:tg_groups(chat_id, active)').eq('user_id', a.user_id);
+  const mine = (chats ?? []).filter((m: any) => m.posting && m.group?.active);
+  const targets = mine.map((m: any) => Number(m.group.chat_id));
+  const { data: allMembers } = mine.length ? await db.from('tg_members').select('group_id, user_id').in('group_id', mine.map((m: any) => m.group_id)) : { data: [] };
+  const chatMembers = (chat_id: number) => { const g = mine.find((m: any) => Number(m.group.chat_id) === chat_id)?.group_id; return new Set((allMembers ?? []).filter((x: any) => x.group_id === g).map((x: any) => x.user_id)); };
   if (!targets.length) return { skipped: 'no chats' };
   const { data: done } = await db.from('tg_posts').select('chat_id, message_id, tier').eq('activity_id', id);
   const out: any[] = [];
   for (const chat_id of targets) {
+    const caption = captionFor(metaFor(chatMembers(chat_id)));
     const prev = (done ?? []).find((d: any) => Number(d.chat_id) === chat_id);
     if (prev) {
       if (a.kind !== 'finished') { out.push({ chat_id, skipped: 'already posted' }); continue; }
@@ -148,7 +155,7 @@ Deno.serve(async (req) => {
         : a.kind === 'dropped' ? `${who} dropped ${title}`
         : a.kind === 'season_rated' || a.kind === 'show_rated' ? `${who} rated ${title}`
         : `${who} ${verbDone} ${title}`;
-      const coop = (a.coop_with ?? []).length ? 'with friends' : '';
+      const coop = '';   // co-op partners aren't named in pushes (only people who share a company may see them)
       const details = (a.kind === 'started' ? [a.section === 'tv' ? a.seasons_label : '', ['console', 'pc', 'retro'].includes(a.section) && a.platform ? 'on ' + String(a.platform).toUpperCase() : '']
         : a.kind === 'season_rated' ? [a.seasons_label, rate]
         : a.kind === 'show_rated' ? ['The whole show', rate]
@@ -158,6 +165,11 @@ Deno.serve(async (req) => {
       return Response.json({ sent: n });
     }
     if (b.type === 'telegram') return Response.json(await telegramPost(db, String(b.id)));
+    if (b.type === 'coop') {
+      const [{ data: p }, { data: t }] = await Promise.all([db.from('profiles').select('display_name, handle').eq('id', b.from).maybeSingle(), db.from('titles').select('title, kind').eq('id', b.title_id).maybeSingle()]);
+      const n = await sendTo(db, [b.to], { title: `${nameOf(p)} played ${t?.title ?? 'a game'} with you 🎮`, body: 'Add it to your lists? Open Friends → People.', url: '/?open=friends', tag: 'coop-' + b.title_id });
+      return Response.json({ sent: n });
+    }
     if (b.type === 'releases') {
       const { data: rows } = await db.rpc('releases_today');
       const byUser = new Map<string, { title: string; what: string; section: string }[]>();

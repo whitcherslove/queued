@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import type { Profile } from '../lib/profile';
 import { saveIdentity } from '../lib/profile';
-import { activityFeed, deleteActivity, answerRequest, dismissSuggestion, findByHandle, friendList, inviteUrl, myTitleIds, removeFriend, requestFriend, type Activity, type FriendRow, type MiniTitle } from '../lib/friends';
+import { answerCoop, myCoopInvites, type CoopInvite, activityFeed, deleteActivity, answerRequest, dismissSuggestion, findByHandle, friendList, inviteUrl, myTitleIds, removeFriend, requestFriend, type Activity, type FriendRow, type MiniTitle } from '../lib/friends';
 import { addToBacklog } from '../lib/remote';
 import { TIERS } from '../lib/scores';
 import { Poster } from '../components/Rows';
@@ -51,6 +51,39 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
     if (a.kind === 'show_rated') return 'rated';
     return a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : a.section === 'tv' ? 'finished' : 'beat';
   };
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
+  const [coop, setCoop] = useState<CoopInvite[]>([]);
+  useEffect(() => { myCoopInvites().then(setCoop).catch(() => undefined); }, []);
+  const dayLabel = (iso: string) => { const d = new Date(iso); const t0 = new Date(); t0.setHours(0, 0, 0, 0); const diff = Math.round((t0.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 864e5);
+    return diff <= 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff < 7 ? d.toLocaleDateString('en-GB', { weekday: 'long' }) : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }); };
+  const days = useMemo(() => {
+    const out: { key: string; label: string; blocks: { key: string; items: Activity[] }[] }[] = [];
+    feed.forEach((a) => {
+      const label = dayLabel(a.created_at);
+      let day = out[out.length - 1]; if (!day || day.label !== label) { day = { key: label + a.id, label, blocks: [] }; out.push(day); }
+      const last = day.blocks[day.blocks.length - 1];
+      const near = last && last.items[0].user_id === a.user_id && Math.abs(new Date(last.items[last.items.length - 1].created_at).getTime() - new Date(a.created_at).getTime()) < 3600e3;
+      if (near) last.items.push(a); else day.blocks.push({ key: 'g' + a.id, items: [a] });
+    });
+    return out;
+  }, [feed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const feedRow = (a: Activity) => { const tr = tierOf(a.tier); return (
+              <div key={a.id} className={'feed-row' + (a.kind === 'finished' && a.tier ? ' big' : '') + (a.tier === 'ten' ? ' ten' : '')}
+                onPointerDown={() => { if (!a.can_delete) return; press.current = window.setTimeout(() => setDelAsk(a), 550); }}
+                onPointerUp={() => { if (press.current) clearTimeout(press.current); }} onPointerLeave={() => { if (press.current) clearTimeout(press.current); }}
+                onContextMenu={(e) => { if (a.can_delete) { e.preventDefault(); setDelAsk(a); } }}>
+                <button className={'feed-who' + (a.mine ? '' : ' tappable')} disabled={!!a.mine} onClick={() => setFriendOpen(a.user_id)} aria-label={(a.name ?? a.handle ?? 'Friend') + ' — open their page'}><Avatar url={a.avatar_url} email={a.handle ?? a.name ?? '?'} size={36} /></button>
+                <div className="feed-body">
+                  <span className="feed-line">
+                    {a.mine ? <strong>You</strong> : <button className="who-link" onClick={() => setFriendOpen(a.user_id)}>{a.name || (a.handle ? '@' + a.handle : 'Friend')}</button>}{' '}
+                    <button className="what-link" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{verb(a)} <strong>{a.title}</strong>{(a.kind === 'finished' || a.kind === 'started') && a.seasons_label ? ' · ' + a.seasons_label : ''}{a.kind === 'show_rated' ? ' (the whole show)' : ''}{a.coop_names?.filter(Boolean).length ? ' with ' + a.coop_names.filter(Boolean).join(', ') : ''}</button>
+                  </span>
+                  <button className="feed-meta as-btn" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{tierOf(a.tier) && <span className="tier-under" style={{ background: tierOf(a.tier)!.color }}>{tierOf(a.tier)!.label}</span>}{a.score != null && <ScoreRing value={Number(a.score)} scale={profile.settings.scale ?? 5} size={22} fontSize={9} />}{a.kind === 'dropped' && <span className="tier-under none">Dropped</span>}
+                    {a.platform && ['console', 'pc', 'retro'].includes(a.section) && <PlatformIcon k={a.platform} size={10} />}<span className="muted tiny">{ago(a.created_at)}</span></button>
+                </div>
+                <Poster t={{ title: a.title, poster_url: a.poster_url }} w={a.kind === 'finished' && a.tier ? 52 : 40} h={a.kind === 'finished' && a.tier ? 76 : 58} />
+              </div>
+  ); };
   const addTitle = async (t: MiniTitle & { section?: string; platform?: string | null }) => {
     if (!t.title_id || !t.section) return;
     try { await addToBacklog(t.title_id, t.section as never, 0, (['console', 'pc', 'retro'].includes(t.section) ? { platform: t.platform ?? null } : t.section === 'books' ? { format: 'paper' } : {}) as never); setMine(new Set([...mine, t.title_id])); setNote('Added to your Backlog.'); }
@@ -82,29 +115,38 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
         <div className="title-block"><h1 className="section-title">Friends</h1><span className="muted small">{friends.length ? friends.length + (friends.length === 1 ? ' friend' : ' friends') : 'Watch, play and read together'}</span></div>
       </div></header>
       <main className="content home">
-        <div className="seg" role="tablist"><button role="tab" aria-selected={tab === 'activity'} className={tab === 'activity' ? 'on' : ''} onClick={() => setTab('activity')}>Activity</button><button role="tab" aria-selected={tab === 'people'} className={tab === 'people' ? 'on' : ''} onClick={() => setTab('people')}>People{incoming.length ? ' · ' + incoming.length : ''}</button></div>
+        <div className="seg" role="tablist"><button role="tab" aria-selected={tab === 'activity'} className={tab === 'activity' ? 'on' : ''} onClick={() => setTab('activity')}>Activity</button><button role="tab" aria-selected={tab === 'people'} className={tab === 'people' ? 'on' : ''} onClick={() => setTab('people')}>People{incoming.length + coop.length ? ' · ' + (incoming.length + coop.length) : ''}</button></div>
         {tab === 'activity' && <>
           {feedLoading ? <div className="card-wait"><span className="spinner" aria-hidden="true" /></div>
             : !feed.length ? <div className="empty">{friends.length ? 'Nothing from your friends yet. When they start, finish or rate something, it shows up here.' : 'Add friends to see what they watch, play and read.'}</div>
-            : <section className="panel feed"><span className="muted tiny feed-hint">Tap a name to see their page</span>{feed.map((a) => { const tr = tierOf(a.tier); return (
-              <div key={a.id} className="feed-row"
-                onPointerDown={() => { if (!a.can_delete) return; press.current = window.setTimeout(() => setDelAsk(a), 550); }}
-                onPointerUp={() => { if (press.current) clearTimeout(press.current); }} onPointerLeave={() => { if (press.current) clearTimeout(press.current); }}
-                onContextMenu={(e) => { if (a.can_delete) { e.preventDefault(); setDelAsk(a); } }}>
-                <button className={'feed-who' + (a.mine ? '' : ' tappable')} disabled={!!a.mine} onClick={() => setFriendOpen(a.user_id)} aria-label={(a.name ?? a.handle ?? 'Friend') + ' — open their page'}><Avatar url={a.avatar_url} email={a.handle ?? a.name ?? '?'} size={36} /></button>
-                <div className="feed-body">
-                  <span className="feed-line">
-                    {a.mine ? <strong>You</strong> : <button className="who-link" onClick={() => setFriendOpen(a.user_id)}>{a.name || (a.handle ? '@' + a.handle : 'Friend')}</button>}{' '}
-                    <button className="what-link" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{verb(a)} <strong>{a.title}</strong>{(a.kind === 'finished' || a.kind === 'started') && a.seasons_label ? ' · ' + a.seasons_label : ''}{a.kind === 'show_rated' ? ' (the whole show)' : ''}{a.coop_names?.filter(Boolean).length ? ' with ' + a.coop_names.filter(Boolean).join(', ') : ''}</button>
-                  </span>
-                  <button className="feed-meta as-btn" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{tierOf(a.tier) && <span className="tier-under" style={{ background: tierOf(a.tier)!.color }}>{tierOf(a.tier)!.label}</span>}{a.score != null && <ScoreRing value={Number(a.score)} scale={profile.settings.scale ?? 5} size={22} fontSize={9} />}{a.kind === 'dropped' && <span className="tier-under none">Dropped</span>}
-                    {a.platform && ['console', 'pc', 'retro'].includes(a.section) && <PlatformIcon k={a.platform} size={10} />}<span className="muted tiny">{ago(a.created_at)}</span></button>
+            : <section className="panel feed"><span className="muted tiny feed-hint">Tap a name to see their page</span>
+              {days.map((d) => (
+                <div key={d.key} className="feed-day">
+                  <span className="feed-day-label">{d.label}</span>
+                  {d.blocks.map((b) => b.items.length >= 3 && !openGroups.has(b.key) ? (
+                    <button key={b.key} className="feed-group" onClick={() => setOpenGroups(new Set([...openGroups, b.key]))}>
+                      <Avatar url={b.items[0].avatar_url} email={b.items[0].handle ?? b.items[0].name ?? '?'} size={36} />
+                      <span className="grow stack-0"><span className="feed-line"><strong>{b.items[0].mine ? 'You' : (b.items[0].name || (b.items[0].handle ? '@' + b.items[0].handle : 'Friend'))}</strong> · {b.items.length} updates</span>
+                        <span className="feed-strip">{b.items.slice(0, 6).map((x) => <Poster key={x.id} t={{ title: x.title, poster_url: x.poster_url }} w={26} h={38} />)}{b.items.length > 6 && <span className="muted tiny">+{b.items.length - 6}</span>}</span></span>
+                      <span className="link">Show</span>
+                    </button>
+                  ) : b.items.map((a) => feedRow(a)))}
                 </div>
-                <Poster t={{ title: a.title, poster_url: a.poster_url }} w={40} h={58} />
-              </div>
-            ); })}</section>}
+              ))}</section>}
         </>}
         {tab === 'people' && <>
+        {coop.length > 0 && <section className="panel">
+          <div className="panel-head"><span>Played together</span><span className="count-badge">{coop.length}</span></div>
+          {coop.map((c) => (
+            <div key={c.id} className="friend-row">
+              <Poster t={{ title: c.title, poster_url: c.poster_url }} w={34} h={50} />
+              <span className="grow stack-0"><span className="small"><strong>{c.from_name || 'A friend'}</strong> says you {c.playing ? 'are playing' : 'played'} <strong>{c.title}</strong> together</span>
+                <span className="muted tiny">{[c.platform ? c.platform.toUpperCase() : '', c.finished_at ? 'finished ' + new Date(c.finished_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''].filter(Boolean).join(' · ')}</span></span>
+              <button className="btn sm" onClick={async () => { await answerCoop(c.id, false).catch(() => undefined); setCoop(coop.filter((x) => x.id !== c.id)); }}>Not me</button>
+              <button className="btn primary sm" onClick={async () => { try { await answerCoop(c.id, true); setCoop(coop.filter((x) => x.id !== c.id)); setNote('Added to your lists — rate it when you like.'); } catch (e) { setNote((e as Error).message); } }}>Add</button>
+            </div>
+          ))}
+        </section>}
         {/* who you are for friends */}
         <section className="panel">
           <div className="panel-head"><span>How friends see you</span></div>
