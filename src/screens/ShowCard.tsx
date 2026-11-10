@@ -361,15 +361,15 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               {/* main buttons: Start watching / Up next; "All watched" only when the card is unfolded (fewer accidental taps) */}
               {confirmAll ? (
                 <div className="state-actions confirm-all">
-                  <span className="small grow">Mark all {unwatchedAired.length} aired {unwatchedAired.length === 1 ? 'episode' : 'episodes'} as watched?</span>
+                  <span className="small grow">Finished? This marks all {unwatchedAired.length} aired {unwatchedAired.length === 1 ? 'episode' : 'episodes'} as watched.</span>
                   <button className="btn" onClick={() => setConfirmAll(false)}>Cancel</button>
                   <button className="btn primary" onClick={() => { setConfirmAll(false); applyMarks(unwatchedAired, true); }}>{Ico.check}Mark all</button>
                 </div>
-              ) : (canStart || (takeOpen && !isBack && unwatchedAired.length > 0)) && (
+              ) : (canStart || (!isBack && unwatchedAired.length > 0)) && (
                 <div className="state-actions">
                   {canStart && <button className="btn primary" onClick={() => act(() => startWatching(item, stSeasons))}>{Ico.play}Start watching</button>}
                   {isBack && <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>}
-                  {takeOpen && !isBack && unwatchedAired.length > 0 && <button className={'btn' + (canStart ? '' : ' primary')} onClick={() => setConfirmAll(true)}>{Ico.check}All watched</button>}
+                  {!isBack && unwatchedAired.length > 0 && <button className={'btn' + (canStart ? '' : ' primary')} onClick={() => setConfirmAll(true)}>{Ico.check}Finished</button>}
                 </div>
               )}
 

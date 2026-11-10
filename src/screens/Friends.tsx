@@ -11,6 +11,7 @@ import PlatformIcon from '../components/PlatformIcon';
 import FriendPage from './FriendPage';
 import { useBackLayer } from '../lib/back';
 import Avatar from '../components/Avatar';
+import Tip from '../components/Tip';
 import { IconBack, IconMenu } from '../components/Icons';
 
 /** Friends: your invite link / QR, requests, suggestions from AppSheet, and your friends. */
@@ -173,6 +174,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
         </section>
         </>}
       </main>
+      <Tip id="friends" />
       {delAsk && <div className="sheet-wrap">
         <button className="sheet-scrim" aria-label="Close" onClick={() => setDelAsk(null)} />
         <div className="sheet" role="dialog" aria-label="Delete from the feed">

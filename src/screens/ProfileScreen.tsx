@@ -1,3 +1,4 @@
+import { initTips } from '../lib/tips';
 import { disablePush, enablePush, pushEnabled } from '../lib/push';
 import { BAR_MAX, BAR_MIN, DEFAULT_NAV, NAV_LABEL, normNav, type NavId } from '../lib/nav';
 import { ALL_PLATFORMS, DEFAULT_RETRO, sectionOf } from '../lib/platforms';
@@ -101,6 +102,10 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             <span className={'switch' + (pushOn ? ' on' : '')}><span /></span>
           </button>
           {pushNote && <span className="muted small">{pushNote}</span>}
+
+          <button className="switch-row flat" onClick={() => { set({ tips: [] }); initTips([], (seen) => set({ tips: seen })); }}>
+            <span className="stack-sm grow"><strong>Show tips again</strong><span className="muted small">The little hints on Home, lists, cards and Friends</span></span>
+          </button>
 
           {/* navigation: what's in the bottom bar (and in which order) and what's in the side menu */}
           <button className="switch-row flat" onClick={() => setNavOpen(!navOpen)} aria-expanded={navOpen}>

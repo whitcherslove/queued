@@ -19,6 +19,7 @@ import { movieState } from '../lib/movie';
 import GameAddSheet, { type GameAddMode } from '../components/GameAddSheet';
 import PlatformIcon from '../components/PlatformIcon';
 import FormatIcon from '../components/FormatIcon';
+import Tip from '../components/Tip';
 import BookAddSheet from '../components/BookAddSheet';
 import { readHours } from '../lib/formats';
 import { DEFAULT_RETRO, keyOfIgdb, platformLabel, sectionOf, type GameSection, type IgdbPlatform } from '../lib/platforms';
@@ -738,6 +739,8 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         )}
         </div>
       </main>
+      {!cardId && <Tip id="list" />}
+      {cardId && <Tip id="card" delay={1400} />}
 
       {menu && (() => {
         const { item, log } = menu; const t = item.title; const isBack = item.status === 'backlog';

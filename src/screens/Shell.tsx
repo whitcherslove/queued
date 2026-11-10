@@ -1,10 +1,14 @@
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import type { Profile } from '../lib/profile';
 import type { Settings } from '../lib/theme';
 import { DuoBook, DuoFriends, DuoHome, DuoMovie, DuoPad, DuoPc, DuoRetro, DuoStats, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
 import Home from './Home';
-import Logo from '../components/Logo';
+import Welcome from '../components/Welcome';
+import WhatsNew from '../components/WhatsNew';
+import { APP_VERSION, CHANGELOG, unseen } from '../lib/changelog';
+import { initTips } from '../lib/tips';
+import { supabase } from '../lib/supabase';
 import Friends from './Friends';
 import { normNav } from '../lib/nav';
 import Stats from './Stats';
@@ -33,6 +37,24 @@ const tick = () => { try { navigator.vibrate?.(10); } catch { /* not supported (
 interface Props { profile: Profile; onProfile: (p: Profile) => void; onSettings: (s: Settings) => void }
 
 export default function Shell({ profile, onProfile, onSettings }: Props) {
+  // one-time tips, What's new after an update, the welcome cards on the very first visit
+  const settingsRef = useRef(profile.settings); settingsRef.current = profile.settings;
+  useEffect(() => { initTips(profile.settings.tips, (seen) => onSettings({ ...settingsRef.current, tips: seen })); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const [intro, setIntro] = useState<'welcome' | 'news' | null>(null);
+  useEffect(() => {
+    const st = profile.settings;
+    if (st.seenVersion === APP_VERSION) return;
+    if (st.onboarded || st.seenVersion) { if (unseen(st.seenVersion).length) setIntro('news'); else onSettings({ ...st, seenVersion: APP_VERSION }); return; }
+    // never seen anything: someone with lists already (a tester) gets What's new; a brand-new account gets the welcome
+    supabase.from('library').select('id', { count: 'exact', head: true }).then(({ count }) => setIntro((count ?? 0) > 0 ? 'news' : 'welcome'));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeIntro = () => { setIntro(null); onSettings({ ...settingsRef.current, onboarded: true, seenVersion: APP_VERSION }); };
+  const [newsOpen, setNewsOpen] = useState(false);
+  const introEl = <>
+    {intro === 'welcome' && <Welcome onDone={closeIntro} />}
+    {intro === 'news' && <WhatsNew entries={unseen(profile.settings.seenVersion)} onClose={closeIntro} />}
+    {newsOpen && <WhatsNew entries={CHANGELOG} onClose={() => setNewsOpen(false)} />}
+  </>;
   // your layout (Profile → Navigation): the bottom bar in its order, the rest in the side menu; the app opens on the first tab
   const nav0 = normNav(profile.settings.nav);
   const BAR = nav0.bar as SectionId[];
@@ -80,7 +102,6 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   const drawerEl = drawer && (
     <div className="drawer-wrap">
       <nav className="drawer" aria-label="Menu">
-        <div className="drawer-brand"><Logo size={34} /><span className="brand-text sm">QUEUED</span></div>
         <button className="drawer-profile" onClick={() => { setDrawer(false); setProfileOpen(true); }}>
           <Avatar url={profile.avatar_url} email={profile.email} size={48} />
           <span className="drawer-who"><strong>Your profile</strong><span className="muted small">{profile.email}</span></span>
@@ -92,7 +113,8 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
             <span className="duo-icon drawer-duo">{sx.icon}</span>{sx.title}
           </button>
         ); })}
-        <span className="muted small drawer-foot">Queued · v4.5</span>
+        <button className="drawer-item" onClick={() => { setDrawer(false); setNewsOpen(true); }}>What’s new</button>
+        <span className="muted small drawer-foot">Queued · v4.6</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
@@ -101,37 +123,37 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   if (section === 'home') return (
     <div className="screen">
       <Home settings={profile.settings} onFriends={() => go('friends')} onBack={SIDE('home') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} onStats={() => go('stats')} />
-      {nav}{drawerEl}
+      {nav}{drawerEl}{introEl}
     </div>
   );
   if (section === 'books') return (
     <div className="screen">
       <Movies key="books" kind="book" settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={SIDE('books') ? () => go(lastBar) : undefined} />
-      {nav}{drawerEl}
+      {nav}{drawerEl}{introEl}
     </div>
   );
   if (section === 'friends') return (
     <div className="screen">
       <Friends profile={profile} onProfile={onProfile} onBack={SIDE('friends') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} />
-      {nav}{drawerEl}
+      {nav}{drawerEl}{introEl}
     </div>
   );
   if (section === 'stats') return (
     <div className="screen">
       <Stats onBack={SIDE('stats') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} />
-      {nav}{drawerEl}
+      {nav}{drawerEl}{introEl}
     </div>
   );
   if (section === 'console' || section === 'pc' || section === 'retro') return (
     <div className="screen">
       <Movies key={section} kind="game" gameSection={section} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={SIDE(section) ? () => go(lastBar) : undefined} />
-      {nav}{drawerEl}
+      {nav}{drawerEl}{introEl}
     </div>
   );
   if (section === 'movies' || section === 'tv') return (
     <div className="screen">
       <Movies key={section} kind={section === 'tv' ? 'tv' : 'movie'} settings={profile.settings} onSettings={onSettings} onMenu={() => setDrawer(true)} onBack={SIDE(section) ? () => go(lastBar) : undefined} />
-      {nav}{drawerEl}
+      {nav}{drawerEl}{introEl}
     </div>
   );
 
@@ -164,7 +186,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
       </main>
 
     </div>
-    {nav}{drawerEl}
+    {nav}{drawerEl}{introEl}
     </div>
   );
 }

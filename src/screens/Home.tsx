@@ -18,6 +18,7 @@ import { Ico } from '../components/Rate';
 import { useBackLayer } from '../lib/back';
 import { activityFeed, type Activity } from '../lib/friends';
 import Avatar from '../components/Avatar';
+import Tip from '../components/Tip';
 import MovieCard from './MovieCard';
 import ShowCard from './ShowCard';
 
@@ -453,6 +454,8 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
 
         {!loading && !nowCount && !coming.length && !recent.length && !upNext.length && <div className="empty">Add a movie, a show, a game or a book — your activity shows up here.</div>}
       </main>
+      {!loading && !open && <Tip id="home" />}
+      {open && <Tip id="card" delay={1400} />}
 
       {open?.kind === 'tv' && <ShowCard key={open.id} itemId={open.id} initial={items.find((i) => i.id === open.id) ?? null} settings={settings} topPos={0}
         onClose={() => setOpen(null)} onChanged={load} />}
