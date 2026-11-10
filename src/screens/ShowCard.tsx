@@ -263,6 +263,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   })();
   // during a rewatch only marks made in this rewatch count
   const runFrom = item?.rewatch && item?.run_started_at ? item.run_started_at : null;
+  const canPin = !isPlaying && st.state !== 'dropped';
   const unwatchedAired = eps.flatMap((se) => se.episodes.filter((e) => e.air_date && e.air_date <= todayIso() && !marks.some((m) => m.season === se.season && m.episode === e.n && (!runFrom || m.watched_at >= runFrom))).map((e) => ({ season: se.season, episode: e.n })));
   const canStart = st.state === 'backlog' || st.state === 'newSeason' || st.state === 'lastChance';
   // what the floating bar at the bottom offers: the next episode while watching, Start when there's something to start
@@ -367,11 +368,11 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                   <button className="btn" onClick={() => setConfirmAll(false)}>Cancel</button>
                   <button className="btn primary" onClick={() => { setConfirmAll(false); applyMarks(unwatchedAired, true); }}>{Ico.check}Mark all</button>
                 </div>
-              ) : (canStart || (takeOpen && !isBack && unwatchedAired.length > 0)) && (
+              ) : (canStart || canPin || (takeOpen && isPlaying && unwatchedAired.length > 0)) && (
                 <div className="state-actions">
                   {canStart && <button className="btn primary" onClick={() => act(() => startWatching(item, stSeasons))}>{Ico.play}Start watching</button>}
-                  {isBack && <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>}
-                  {takeOpen && !isBack && unwatchedAired.length > 0 && <button className={'btn' + (canStart ? '' : ' primary')} onClick={() => setConfirmAll(true)}>{Ico.check}Finished</button>}
+                  {canPin && <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>}
+                  {takeOpen && isPlaying && unwatchedAired.length > 0 && <button className={'btn' + (canStart ? '' : ' primary')} onClick={() => setConfirmAll(true)}>{Ico.check}Finished</button>}
                 </div>
               )}
 

@@ -7,6 +7,7 @@ import { loadProfile, Profile, saveSettings } from './lib/profile';
 import Login from './screens/Login';
 import Shell from './screens/Shell';
 import { acceptInvite } from './lib/friends';
+const hasInvite = () => { try { return !!localStorage.getItem('queued.invite') || new URLSearchParams(window.location.search).has('invite'); } catch { return false; } };
 import { ackPending, claimPending, groupGameRows, groupRows, groupTvRows, importGroups } from './lib/importer';
 
 export default function App() {
@@ -27,10 +28,10 @@ export default function App() {
     let code: string | null = null; try { code = localStorage.getItem('queued.invite'); } catch { /* ignore */ }
     if (!code) return;
     try { localStorage.removeItem('queued.invite'); } catch { /* ignore */ }
-    acceptInvite(code).then((who) => setFriendNote('You and ' + (who.name || (who.handle ? '@' + who.handle : 'your friend')) + ' are friends now.'))
-      .catch((e) => setFriendNote((e as Error).message || 'Couldn’t use that invite.'));
+    acceptInvite(code).then((who) => setFriendNote('🎉 You and ' + (who.name || (who.handle ? '@' + who.handle : 'your friend')) + ' are friends now. Find them in Friends.'))
+      .catch((e) => { const m = (e as Error).message || ''; setFriendNote(/own invite/i.test(m) ? 'That’s your own invite link — send it to a friend.' : /not valid/i.test(m) ? 'This invite link doesn’t work any more. Ask for a new one.' : 'Couldn’t use the invite: ' + m); });
   }, [profile?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { if (!friendNote) return; const t = setTimeout(() => setFriendNote(''), 5000); return () => clearTimeout(t); }, [friendNote]);
+
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => { setSession(data.session); setReady(true); });
@@ -80,7 +81,7 @@ export default function App() {
     );
   }
   if (!ready) return <main className="center-screen"><Brand size={132} animated /></main>;
-  if (!session) return <Login />;
+  if (!session) return <>{hasInvite() && <div className="invite-banner" role="status">👋 You’ve been invited to Queued. Sign in — you’ll be friends right after.</div>}<Login /></>;
   if (!profile) return <main className="center-screen"><Brand size={132} animated /></main>;
-  return <>{claiming && <div className="toast" role="status">{claiming}</div>}{friendNote && <div className="toast" role="status" onClick={() => setFriendNote('')}>{friendNote}</div>}<Shell profile={profile} onProfile={setProfile} onSettings={updateSettings} /></>;
+  return <>{claiming && <div className="toast" role="status">{claiming}</div>}{friendNote && <div className="sheet-wrap invite-result"><button className="sheet-scrim" aria-label="Close" onClick={() => setFriendNote('')} /><div className="sheet" role="dialog" aria-label="Invite"><strong className="sheet-title">Invite</strong><span>{friendNote}</span><button className="btn primary" onClick={() => setFriendNote('')}>OK</button></div></div>}<Shell profile={profile} onProfile={setProfile} onSettings={updateSettings} /></>;
 }

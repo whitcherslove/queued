@@ -173,7 +173,7 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
         text: 'Released ' + new Date(i.title.release_date!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), seasons: [] }));
     // your Up next goes first (in your order); if something is both pinned and new, it stays once — as Up next
     const kindOfSec = (sec: string): ReadyRow['kind'] => (sec === 'tv' ? 'Shows' : sec === 'movies' ? 'Movies' : sec === 'books' ? 'Books' : 'Games');
-    const pinned: ReadyRow[] = items.filter((i) => i.status === 'backlog' && i.up_next).sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
+    const pinned: ReadyRow[] = items.filter((i) => (i.status === 'backlog' || (i.section === 'tv' && i.status === 'done')) && i.up_next).sort((a, b) => (a.position ?? 0) - (b.position ?? 0))
       .map((i) => { const d = i.title.data as { ttb?: { main?: number | null }; pages?: number | null; seasons?: unknown[] } | null;
         const text = i.section === 'movies' ? (i.title.runtime ? Math.floor(i.title.runtime / 60) + 'h ' + (i.title.runtime % 60) + 'm' : '') : i.section === 'tv' ? (d?.seasons?.length ? d.seasons.length + (d.seasons.length === 1 ? ' season' : ' seasons') : '') : i.section === 'books' ? (d?.pages ? d.pages + ' pages' : '') : (d?.ttb?.main ? Math.round(d.ttb.main) + ' h to beat' : '');
         return { it: i, kind: kindOfSec(i.section), label: 'Up next', state: 'upNext', text, seasons: [] }; });

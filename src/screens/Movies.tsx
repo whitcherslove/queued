@@ -218,7 +218,9 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     return () => clearTimeout(t);
   }, [q]);
 
-  const { next, rest } = useMemo(() => splitBacklog(items), [items]);
+  const { next: nextBack, rest } = useMemo(() => splitBacklog(items), [items]);
+  // shows you've watched (new season, last chance, up to date…) can be pinned too — they join Up next
+  const next = useMemo(() => (isTv ? [...nextBack, ...items.filter((i) => i.status === 'done' && i.up_next)].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)) : nextBack), [nextBack, items, isTv]);
   const watched = useMemo(() => sortLogs(logs), [logs]);
   // games: search all your games (Console, PC and Retro), not only this section
   const libMatches = useMemo(() => matchLibrary(isGame ? allGames : items, q), [items, allGames, isGame, q]);
@@ -231,6 +233,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     if (!isTv) return out;
     items.forEach((it) => {
       if ((it.overrides as { unfollow?: boolean } | null)?.unfollow && it.status !== 'playing') return;
+      if (it.status === 'done' && it.up_next) return;   // pinned: lives in Up next
       const mine = logs.filter((l) => l.library.id === it.id);
       const p = progress(it, it.title, tvEps.filter((e) => e.title_id === it.title_id), tvMarks.filter((m) => m.library_id === it.id), today);
       const { state, seasons } = showState(it, it.title, mine, it.status === 'playing' ? p : null, today);

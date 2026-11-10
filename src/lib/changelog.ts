@@ -1,9 +1,18 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.9';
+export const APP_VERSION = '4.10';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.10',
+    title: 'Up next for any show',
+    items: [
+      { icon: '📌', title: 'Pin any show', text: 'Shows with a new season, last-chance shows and shows you’re up to date with can go to Up next too.' },
+      { icon: '✓', title: 'Finished, only while watching', text: 'The “Finished” button in a show’s card shows up only for shows you’re watching.' },
+      { icon: '👋', title: 'Clearer invites', text: 'Opening a friend’s invite link now tells you right away whether it worked.' }
+    ]
+  },
   {
     version: '4.9',
     title: 'Ratings in the Telegram group',
