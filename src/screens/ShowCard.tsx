@@ -265,7 +265,9 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const runFrom = item?.rewatch && item?.run_started_at ? item.run_started_at : null;
   const canPin = !isPlaying && st.state !== 'dropped';
   const unwatchedAired = eps.flatMap((se) => se.episodes.filter((e) => e.air_date && e.air_date <= todayIso() && !marks.some((m) => m.season === se.season && m.episode === e.n && (!runFrom || m.watched_at >= runFrom))).map((e) => ({ season: se.season, episode: e.n })));
-  const canStart = st.state === 'backlog' || st.state === 'newSeason' || st.state === 'lastChance';
+  // nothing has aired yet (a show that premieres later) → nothing to start
+  const anyAired = eps.some((se) => se.episodes.some((e) => e.air_date && e.air_date <= todayIso())) || (!!t.release_date && t.release_date <= todayIso() && !eps.length);
+  const canStart = (st.state === 'backlog' || st.state === 'newSeason' || st.state === 'lastChance') && anyAired;
   // what the floating bar at the bottom offers: the next episode while watching, Start when there's something to start
   const barKind: 'episode' | 'start' | null = isPlaying && p.nextEp ? 'episode' : canStart ? 'start' : null;
   const canDrop = st.state !== 'dropped' && st.state !== 'finished';

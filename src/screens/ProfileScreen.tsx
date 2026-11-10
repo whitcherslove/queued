@@ -1,6 +1,5 @@
 import { initTips } from '../lib/tips';
 import { disablePush, enablePush, pushEnabled } from '../lib/push';
-import { setTelegramOff } from '../lib/profile';
 import { BAR_MAX, BAR_MIN, DEFAULT_NAV, NAV_LABEL, normNav, type NavId } from '../lib/nav';
 import { ALL_PLATFORMS, DEFAULT_RETRO, sectionOf } from '../lib/platforms';
 import { enrichGames, metascoreBackfill, resyncGameSections } from '../lib/remote';
@@ -25,7 +24,6 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushNote, setPushNote] = useState('');
-  const [tgOff, setTgOff] = useState(!!profile.telegram_off);
   useEffect(() => { pushEnabled().then(setPushOn).catch(() => undefined); }, []);
   const [tabsOpen, setTabsOpen] = useState(false);
   const tabs = s.tabs ?? { order: ['watched', 'playing', 'backlog'], def: 'watched' };
@@ -104,14 +102,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             <span className={'switch' + (pushOn ? ' on' : '')}><span /></span>
           </button>
           {pushNote && <span className="muted small">{pushNote}</span>}
-          {/* Telegram group: your finished + rated titles are posted there (on for everyone by default) */}
-          <button className="switch-row flat" role="switch" aria-checked={!tgOff} onClick={async () => {
-            const v = !tgOff; setTgOff(v);
-            try { await setTelegramOff(profile.id, v); onProfile({ ...profile, telegram_off: v }); } catch { setTgOff(!v); }
-          }}>
-            <span className="stack-sm grow"><strong>Post my ratings to Telegram</strong><span className="muted small">What you start, drop, or finish and rate is posted to the group chat</span></span>
-            <span className={'switch' + (!tgOff ? ' on' : '')}><span /></span>
-          </button>
+
 
           <button className="switch-row flat" onClick={() => { set({ tips: [] }); initTips([], (seen) => set({ tips: seen })); }}>
             <span className="stack-sm grow"><strong>Show tips again</strong><span className="muted small">The little hints on Home, lists, cards and Friends</span></span>

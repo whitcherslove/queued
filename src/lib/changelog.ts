@@ -1,9 +1,17 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.10';
+export const APP_VERSION = '4.11';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.11',
+    title: 'Telegram companies',
+    items: [
+      { icon: '✈️', title: 'Your companies', text: 'Friends → Telegram: each Telegram chat is a company. Your posts go to the companies you’re in; anyone in a company can add their friends to it. Connect a new chat with one link.' },
+      { icon: '⏳', title: 'No “Start watching” before the premiere', text: 'Shows that haven’t aired a single episode yet don’t offer to start them.' }
+    ]
+  },
   {
     version: '4.10',
     title: 'Up next for any show',

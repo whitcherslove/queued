@@ -1240,3 +1240,9 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .invite-banner { position: fixed; top: calc(12px + env(safe-area-inset-top, 0px)); left: 12px; right: 12px; z-index: 50; padding: 12px 14px; border-radius: 14px;
   background: color-mix(in srgb, var(--surface) 90%, #846CFF); border: 1px solid color-mix(in srgb, #846CFF 35%, var(--line)); font-size: 14px; text-align: center; }
 .invite-result { z-index: 70; }
+
+/* Friends → Telegram */
+.tg-group { display: flex; flex-direction: column; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--surface2); }
+.tg-members { display: flex; flex-wrap: wrap; gap: 6px; }
+.tg-member { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 3px; border-radius: 999px; background: var(--surface); font-size: 12px; }
+.tg-connect { padding: 10px 12px; border-radius: 14px; border: 1px dashed var(--line); }

@@ -50,9 +50,8 @@ async function tgCall(method: string, payload: unknown) {
 }
 async function telegramPost(db: any, id: string) {
   if (!env('TELEGRAM_BOT_TOKEN')) return { skipped: 'no bot token' };
-  const { data: cfgRows } = await db.from('app_config').select('key, value').in('key', ['tg_chat_id', 'cloudinary_cloud', 'site_url']);
+  const { data: cfgRows } = await db.from('app_config').select('key, value').in('key', ['cloudinary_cloud', 'site_url']);
   const cfg: Record<string, string> = Object.fromEntries((cfgRows ?? []).map((r: any) => [r.key, r.value]));
-  if (!cfg.tg_chat_id) return { skipped: 'no chat' };
   const { data: a } = await db.from('activity').select('*, title:titles(title, poster_url, backdrop_url)').eq('id', id).maybeSingle();
   if (!a) return { skipped: 'no event' };
   if (a.kind === 'finished' && !a.tier) return { skipped: 'not rated yet' };
@@ -92,20 +91,30 @@ async function telegramPost(db: any, id: string) {
     if (cfg.site_url && badge) { const size = badge === 'in_progress' ? 350 : 600; tr += `l_fetch:${b64url(cfg.site_url.replace(/\/$/, '') + '/tg/' + badge + '.png')},g_east,x_10,y_0,w_${size},h_${size},c_fit/`; }
     photo = `https://res.cloudinary.com/${cfg.cloudinary_cloud}/image/fetch/${tr}${base}`;
   }
-  const chat_id = cfg.tg_chat_id;
-  if (a.tg_message_id && a.kind === 'finished') {
-    // already posted: a new rating label → new picture and text; a new score only → new text
-    const r = a.tg_tier !== a.tier && photo
-      ? await tgCall('editMessageMedia', { chat_id, message_id: a.tg_message_id, media: { type: 'photo', media: photo, caption, parse_mode: 'HTML' } })
-      : await tgCall(photo ? 'editMessageCaption' : 'editMessageText', { chat_id, message_id: a.tg_message_id, ...(photo ? { caption } : { text: caption }), parse_mode: 'HTML' });
-    await db.from('activity').update({ tg_tier: a.tier }).eq('id', id);
-    return { edited: !!r.ok };
+  // the chats of every company this person is in (and posts to)
+  const { data: chats } = await db.from('tg_members').select('posting, group:tg_groups(chat_id, active)').eq('user_id', a.user_id);
+  const targets = (chats ?? []).filter((m: any) => m.posting && m.group?.active).map((m: any) => Number(m.group.chat_id));
+  if (!targets.length) return { skipped: 'no chats' };
+  const { data: done } = await db.from('tg_posts').select('chat_id, message_id, tier').eq('activity_id', id);
+  const out: any[] = [];
+  for (const chat_id of targets) {
+    const prev = (done ?? []).find((d: any) => Number(d.chat_id) === chat_id);
+    if (prev) {
+      if (a.kind !== 'finished') { out.push({ chat_id, skipped: 'already posted' }); continue; }
+      // already posted here: a new rating label → new picture and text; a new score only → new text
+      const r = prev.tier !== a.tier && photo
+        ? await tgCall('editMessageMedia', { chat_id, message_id: prev.message_id, media: { type: 'photo', media: photo, caption, parse_mode: 'HTML' } })
+        : await tgCall(photo ? 'editMessageCaption' : 'editMessageText', { chat_id, message_id: prev.message_id, ...(photo ? { caption } : { text: caption }), parse_mode: 'HTML' });
+      await db.from('tg_posts').update({ tier: a.tier }).eq('activity_id', id).eq('chat_id', chat_id);
+      out.push({ chat_id, edited: !!r.ok }); continue;
+    }
+    let r = photo ? await tgCall('sendPhoto', { chat_id, photo, caption, parse_mode: 'HTML' }) : { ok: false };
+    if (!r.ok) r = await tgCall('sendMessage', { chat_id, text: caption, parse_mode: 'HTML' });   // the picture failed → text only
+    if (r.ok) await db.from('tg_posts').upsert({ activity_id: id, chat_id, message_id: r.result.message_id, tier: a.tier });
+    else if (/kicked|not a member|chat not found/i.test(String(r.description))) await db.from('tg_groups').update({ active: false }).eq('chat_id', chat_id);
+    out.push({ chat_id, sent: !!r.ok, error: r.ok ? undefined : r.description });
   }
-  if (a.tg_message_id) return { skipped: 'already posted' };
-  let r = photo ? await tgCall('sendPhoto', { chat_id, photo, caption, parse_mode: 'HTML' }) : { ok: false };
-  if (!r.ok) r = await tgCall('sendMessage', { chat_id, text: caption, parse_mode: 'HTML' });   // the picture failed → text only
-  if (r.ok) await db.from('activity').update({ tg_message_id: r.result.message_id, tg_tier: a.tier }).eq('id', id);
-  return { sent: !!r.ok, error: r.ok ? undefined : r.description };
+  return { results: out };
 }
 
 Deno.serve(async (req) => {

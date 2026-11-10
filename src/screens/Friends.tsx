@@ -12,6 +12,7 @@ import FriendPage from './FriendPage';
 import { useBackLayer } from '../lib/back';
 import Avatar from '../components/Avatar';
 import Tip from '../components/Tip';
+import TelegramPanel from '../components/TelegramPanel';
 import { IconBack, IconMenu } from '../components/Icons';
 
 /** Friends: your invite link / QR, requests, suggestions from AppSheet, and your friends. */
@@ -172,6 +173,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
           ))}
           {sent.length > 0 && <span className="muted small">Waiting for: {sent.map(label).join(', ')}</span>}
         </section>
+        <TelegramPanel profile={profile} onProfile={onProfile} friends={rows} />
         </>}
       </main>
       <Tip id="friends" />
