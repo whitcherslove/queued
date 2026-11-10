@@ -109,7 +109,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             const v = !tgOff; setTgOff(v);
             try { await setTelegramOff(profile.id, v); onProfile({ ...profile, telegram_off: v }); } catch { setTgOff(!v); }
           }}>
-            <span className="stack-sm grow"><strong>Post my ratings to Telegram</strong><span className="muted small">When you finish and rate something, it’s posted to the group chat</span></span>
+            <span className="stack-sm grow"><strong>Post my ratings to Telegram</strong><span className="muted small">What you start, drop, or finish and rate is posted to the group chat</span></span>
             <span className={'switch' + (!tgOff ? ' on' : '')}><span /></span>
           </button>
 

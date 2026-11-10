@@ -27,15 +27,21 @@ async function sendTo(db: any, userIds: string[], note: Note) {
 }
 const nameOf = (p: any) => p?.display_name || (p?.handle ? '@' + p.handle : 'A friend');
 
-// ---------- Telegram: a post to the group's chat when someone finishes AND rates something ----------
+// ---------- Telegram: posts to the group's chat — finished & rated, started, dropped ----------
 const TG_EMOJI: Record<string, string> = { ten: '🤌🏻', awesome: '🔥', fine: '🙂', sobad: '🫠', filth: '🗑️' };
 const TG_LINES: Record<string, string[]> = {
   ten: ['Instant classic — no notes.', 'Straight into the hall of fame.', 'Masterpiece, apparently.', 'Nothing will ever be this good again.'],
   awesome: ['Loved it.', 'Would recommend.', 'Worth every minute.', 'Good stuff, really good stuff.'],
   fine: ['It was… fine.', 'Not bad, not great.', 'Done it, that’s about it.', 'Perfectly okay.'],
   sobad: ['Terrible. Loved it.', 'A glorious mess.', 'So wrong it’s right.'],
-  filth: ['Never again.', 'Want those hours back.', 'Avoid at all costs.']
+  filth: ['Never again.', 'Want those hours back.', 'Avoid at all costs.'],
+  started: ['Let’s see what the hype is about.', 'Here we go.', 'Wish them luck.', 'See you on the other side.'],
+  dropped: ['Life’s too short.', 'Nope. Not for me.', 'Gave it a chance. That’s enough.', 'Quietly closing the door.']
 };
+const PLAT: Record<string, string> = { ps5: 'PS5', ps4: 'PS4', ps3: 'PS3', ps2: 'PS2', ps1: 'PS1', psvr: 'PS VR', 'xbox-series': 'Xbox Series', 'xbox-one': 'Xbox One', switch: 'Switch', 'switch-2': 'Switch 2', pc: 'PC', 'steam-deck': 'Steam Deck',
+  'psvr2-pc': 'PS VR2 · PC', 'psvr2-ps5': 'PS VR2', psp: 'PSP', vita: 'PS Vita', 'xbox-360': 'Xbox 360', xbox: 'Xbox', 'wii-u': 'Wii U', wii: 'Wii', gamecube: 'GameCube',
+  n64: 'N64', snes: 'SNES', nes: 'NES', '3ds': '3DS', ds: 'DS', gba: 'GBA', gbc: 'GBC', gb: 'Game Boy', 'virtual-boy': 'Virtual Boy' };
+const FMT: Record<string, string> = { paper: 'Paper', ebook: 'E-book', audio: 'Audiobook' };
 const esc = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const b64url = (x: string) => btoa(unescape(encodeURIComponent(x))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 async function tgCall(method: string, payload: unknown) {
@@ -48,28 +54,46 @@ async function telegramPost(db: any, id: string) {
   const cfg: Record<string, string> = Object.fromEntries((cfgRows ?? []).map((r: any) => [r.key, r.value]));
   if (!cfg.tg_chat_id) return { skipped: 'no chat' };
   const { data: a } = await db.from('activity').select('*, title:titles(title, poster_url, backdrop_url)').eq('id', id).maybeSingle();
-  if (!a || a.kind !== 'finished' || !a.tier) return { skipped: 'not a rated finish' };
+  if (!a) return { skipped: 'no event' };
+  if (a.kind === 'finished' && !a.tier) return { skipped: 'not rated yet' };
+  if (!['finished', 'started', 'dropped'].includes(a.kind)) return { skipped: 'not posted' };
   const { data: p } = await db.from('profiles').select('display_name, handle, avatar_url, settings, telegram_off').eq('id', a.user_id).maybeSingle();
   if (p?.telegram_off) return { skipped: 'off' };
-  const who = esc(nameOf(p)); const title = esc(a.title?.title ?? 'something');
-  const verb = a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : a.section === 'tv' ? 'finished' : 'beat';
-  const em = EMOJI[a.section] ?? '';
-  // the same phrase for the same entry and rating (so an edit doesn't reshuffle it)
-  const lines = TG_LINES[a.tier] ?? ['Done.']; let h = 0; for (const c of id + a.tier) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const who = esc(nameOf(p)); const title = esc(a.title?.title ?? 'something'); const em = EMOJI[a.section] ?? '';
+  const isGame = ['console', 'pc', 'retro'].includes(a.section);
+  const verbDone = a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : a.section === 'tv' ? 'finished' : 'beat';
+  const verbStart = a.section === 'books' ? 'started reading' : a.section === 'tv' || a.section === 'movies' ? 'started watching' : 'started playing';
+  // the same phrase for the same post (an edit doesn't reshuffle it)
+  const key = a.kind === 'finished' ? a.tier : a.kind;
+  const lines = TG_LINES[key] ?? ['Done.']; let h = 0; for (const c of id + key) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const line = lines[h % lines.length];
+  // details: platform / format, season, co-op friends
+  let coop = '';
+  if ((a.coop_with ?? []).length) { const { data: cp } = await db.from('profiles').select('display_name, handle').in('id', a.coop_with); coop = 'with ' + (cp ?? []).map((x: any) => nameOf(x)).join(', '); }
+  const meta = [isGame && a.platform ? PLAT[a.platform] ?? String(a.platform).toUpperCase() : '', a.section === 'books' && a.format ? FMT[a.format] ?? '' : '', a.section === 'tv' && a.seasons_label ? a.seasons_label : '', coop].filter(Boolean).map(esc).join(' · ');
   const scale = (p?.settings?.scale === 10 ? 10 : 5);
   const score = a.score != null ? (scale === 10 ? Math.round(Number(a.score) * 4) / 2 : Math.round(Number(a.score) * 2) / 2) + '/' + scale : '';
-  const caption = `${em} <b>${who} ${verb} «${title}»</b>${a.section === 'tv' && a.seasons_label ? ' · ' + esc(a.seasons_label) : ''}\n${esc(lines[h % lines.length])}\n<b>${esc(TIER[a.tier] ?? a.tier)}${score ? ' · ' + score : ''}</b> ${TG_EMOJI[a.tier] ?? ''}`;
-  // the picture: the title's image + your avatar in the corner + the rating badge (Cloudinary), or just the image
+  const head = a.kind === 'finished' ? `${em} <b>${who}</b> ${verbDone} <b>${title}</b>`
+    : a.kind === 'started' ? `▶️ <b>${who}</b> ${verbStart} <b>${title}</b>`
+    : `🚪 <b>${who}</b> dropped <b>${title}</b>`;
+  const caption = [
+    head,
+    meta ? `<i>${meta}</i>` : '',
+    `<blockquote><i>${esc(line)}</i></blockquote>`,
+    a.kind === 'finished' ? `${TG_EMOJI[a.tier] ?? ''} <b>${esc(TIER[a.tier] ?? a.tier)}</b>${score ? '  ·  <b>' + score + '</b>' : ''}` : ''
+  ].filter(Boolean).join('\n');
+  // the picture: the title's image + avatar in the corner + the rating badge (or "in progress" when started)
   const base = a.title?.backdrop_url ?? a.title?.poster_url ?? null;
   let photo = base;
   if (base && cfg.cloudinary_cloud) {
     let tr = 'c_scale,w_1280/';
     if (p?.avatar_url) tr += `l_fetch:${b64url(p.avatar_url)},g_north_west,x_30,y_30,w_250,h_250,c_fill,r_max/`;
-    if (cfg.site_url) tr += `l_fetch:${b64url(cfg.site_url.replace(/\/$/, '') + '/tg/' + a.tier + '.png')},g_east,x_10,y_0,w_600,h_600,c_fit/`;
+    const badge = a.kind === 'finished' ? a.tier : a.kind === 'started' ? 'in_progress' : null;
+    if (cfg.site_url && badge) { const size = badge === 'in_progress' ? 350 : 600; tr += `l_fetch:${b64url(cfg.site_url.replace(/\/$/, '') + '/tg/' + badge + '.png')},g_east,x_10,y_0,w_${size},h_${size},c_fit/`; }
     photo = `https://res.cloudinary.com/${cfg.cloudinary_cloud}/image/fetch/${tr}${base}`;
   }
   const chat_id = cfg.tg_chat_id;
-  if (a.tg_message_id) {
+  if (a.tg_message_id && a.kind === 'finished') {
     // already posted: a new rating label → new picture and text; a new score only → new text
     const r = a.tg_tier !== a.tier && photo
       ? await tgCall('editMessageMedia', { chat_id, message_id: a.tg_message_id, media: { type: 'photo', media: photo, caption, parse_mode: 'HTML' } })
@@ -77,6 +101,7 @@ async function telegramPost(db: any, id: string) {
     await db.from('activity').update({ tg_tier: a.tier }).eq('id', id);
     return { edited: !!r.ok };
   }
+  if (a.tg_message_id) return { skipped: 'already posted' };
   let r = photo ? await tgCall('sendPhoto', { chat_id, photo, caption, parse_mode: 'HTML' }) : { ok: false };
   if (!r.ok) r = await tgCall('sendMessage', { chat_id, text: caption, parse_mode: 'HTML' });   // the picture failed → text only
   if (r.ok) await db.from('activity').update({ tg_message_id: r.result.message_id, tg_tier: a.tier }).eq('id', id);

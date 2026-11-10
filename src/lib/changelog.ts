@@ -8,7 +8,7 @@ export const CHANGELOG: ChangeEntry[] = [
     version: '4.9',
     title: 'Ratings in the Telegram group',
     items: [
-      { icon: '✈️', title: 'Telegram posts', text: 'When you finish something and rate it, a post with the cover, your avatar and the rating goes to the group chat. Change the rating later — the post updates. Turn it off in Profile and settings → Post my ratings to Telegram.' }
+      { icon: '✈️', title: 'Telegram posts', text: 'When you start something, drop it, or finish and rate it, a post with the cover and your avatar goes to the group chat. Change the rating later — the post updates. Turn it off in Profile and settings → Post my ratings to Telegram.' }
     ]
   },
   {
