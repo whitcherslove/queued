@@ -11,7 +11,7 @@ export async function loadProfile(userId: string, email: string): Promise<Profil
     email,
     avatar_url: data?.avatar_url ?? null,
     settings: { ...DEFAULT_SETTINGS, ...(data?.settings ?? {}) },
-    display_name: data?.display_name ?? null, handle: data?.handle ?? null, invite_code: data?.invite_code ?? null, telegram_off: !!data?.telegram_off
+    display_name: data?.display_name ?? null, handle: data?.handle ?? null, invite_code: data?.invite_code ?? null, telegram_off: data?.telegram_off ?? true
   };
 }
 
