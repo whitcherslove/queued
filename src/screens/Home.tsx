@@ -76,25 +76,28 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
 
   // --- Coming up (next 30 days): new episodes, season premieres, releases from Backlog
   const coming = useMemo(() => {
-    const limit = new Date(Date.now() + 90 * 864e5).toISOString().slice(0, 10);   // the next three months
+    const limit = new Date(Date.now() + 180 * 864e5).toISOString().slice(0, 10);   // the next six months
     const out: { it: LibItem; date: string; what: string }[] = [];
+    const seasonsOf = (t: LibItem['title']) => ((t.data as { seasons?: { n?: number; season_number?: number; air_date: string | null }[] } | null)?.seasons ?? []);
     items.forEach((it) => {
+      if (it.status === 'dropped') return;
       if (it.section === 'tv') {
+        if ((it.overrides as { unfollow?: boolean } | null)?.unfollow && it.status !== 'playing') return;
         if (it.status === 'playing') {
+          // the next episode that isn't out yet — even if you still have aired ones to catch up on
           const p = progress(it, it.title, eps.filter((e) => e.title_id === it.title_id), marks.filter((m) => m.library_id === it.id), today);
-          if (!p.nextEp && p.nextFuture?.air_date && p.nextFuture.air_date <= limit) out.push({ it, date: p.nextFuture.air_date, what: epLabel(p.nextFuture) });
-        } else {
-          const st = showState(it, it.title, logs.filter((l) => l.library.id === it.id), null, today);
-          if ((st.state === 'caughtUp' || st.state === 'newSeason') && st.seasons.length) {
-            const d = seasonAir(it.title, st.seasons[0]);
-            if (d && d >= today && d <= limit) out.push({ it, date: d, what: seasonsName([st.seasons[0]]) + ' premiere' });
-          }
+          if (p.nextFuture?.air_date && p.nextFuture.air_date >= today && p.nextFuture.air_date <= limit) out.push({ it, date: p.nextFuture.air_date, what: epLabel(p.nextFuture) });
+          return;
         }
+        // shows in Backlog and shows you've watched: the next season (or the series) premiering
+        const next = seasonsOf(it.title).map((x) => ({ n: x.n ?? x.season_number ?? 0, d: x.air_date })).filter((x) => x.n > 0 && x.d && x.d >= today && x.d <= limit).sort((x, y) => x.d!.localeCompare(y.d!))[0];
+        if (next) out.push({ it, date: next.d!, what: next.n === 1 ? 'Series premiere' : 'Season ' + next.n + ' premiere' });
+        else if (it.status === 'backlog' && it.title.release_date && it.title.release_date >= today && it.title.release_date <= limit) out.push({ it, date: it.title.release_date, what: 'Series premiere' });
       } else if (it.status === 'backlog' && it.title.release_date && it.title.release_date >= today && it.title.release_date <= limit) {
         out.push({ it, date: it.title.release_date, what: 'Release' });
       }
     });
-    return out.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 60);
+    return out.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 80);
   }, [items, logs, eps, marks, today]);
 
   const justOut = useMemo(() => {

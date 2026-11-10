@@ -1,9 +1,17 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.6';
+export const APP_VERSION = '4.7';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.7',
+    title: 'Coming up and rewatches',
+    items: [
+      { icon: '📅', title: 'Coming up shows more', text: 'Season premieres of shows in your Backlog and of shows you’ve watched, new shows, and the next episode of what you’re watching — six months ahead.' },
+      { icon: '🔁', title: 'Finished works in a rewatch', text: 'Rewatching a show? “Finished” in its card marks everything you haven’t rewatched yet.' }
+    ]
+  },
   {
     version: '4.6',
     title: 'Now & Next, a new look, friends',

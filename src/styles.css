@@ -1073,7 +1073,7 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 
 /* in-progress rows: percent and time left stand out; panel icons stay neutral (no colours that clash with states) */
 .pct-big { font-size: 13px; color: var(--ink); }
-.left-big { font-size: 12px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.left-big { font-size: 12px; font-weight: 700; color: var(--ink); white-space: nowrap; }
 .kind-shows .ph-icon, .kind-games .ph-icon, .kind-books .ph-icon { background: var(--surface2); color: var(--muted); }
 
 .bar-row { display: flex; align-items: center; gap: 8px; }
