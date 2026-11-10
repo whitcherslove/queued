@@ -1246,3 +1246,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .tg-members { display: flex; flex-wrap: wrap; gap: 6px; }
 .tg-member { display: inline-flex; align-items: center; gap: 6px; padding: 3px 9px 3px 3px; border-radius: 999px; background: var(--surface); font-size: 12px; }
 .tg-connect { padding: 10px 12px; border-radius: 14px; border: 1px dashed var(--line); }
+
+.tg-remove { margin-left: 2px; width: 18px; height: 18px; border-radius: 999px; border: 0; background: var(--surface2); color: var(--muted); font-weight: 800; line-height: 1; display: inline-grid; place-items: center; }

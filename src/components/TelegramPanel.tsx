@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Profile } from '../lib/profile';
 import { setTelegramOff } from '../lib/profile';
-import { addTgMember, leaveTgGroup, myTgGroups, setTgPosting, tgConnectLink, type TgGroup } from '../lib/telegram';
+import { addTgMember, leaveTgGroup, myTgGroups, removeTgMember, setTgPosting, tgConnectLink, type TgGroup } from '../lib/telegram';
 import type { FriendRow } from '../lib/friends';
 import Avatar from './Avatar';
 
@@ -32,7 +32,11 @@ export default function TelegramPanel({ profile, onProfile, friends }: { profile
         return (
           <div key={g.id} className="tg-group">
             <div className="row nowrap"><strong className="grow">{g.title}</strong>{!g.active && <span className="tier-under none">bot removed</span>}</div>
-            <div className="tg-members">{g.members.map((m) => <span key={m.id} className="tg-member"><Avatar url={m.avatar_url} email={m.name ?? '?'} size={22} />{name(m)}</span>)}</div>
+            <div className="tg-members">{g.members.map((m) => (
+              <span key={m.id} className="tg-member"><Avatar url={m.avatar_url} email={m.name ?? '?'} size={22} />{name(m)}
+                {m.can_remove && <button className="tg-remove" aria-label={'Remove ' + name(m) + ' from ' + g.title}
+                  onClick={act(async () => { if (confirm('Remove ' + name(m) + ' from ' + g.title + '? Their posts stop going there.')) await removeTgMember(g.id, m.id); })}>×</button>}
+              </span>))}</div>
             <div className="row nowrap tg-actions">
               <button className="switch-row flat grow" role="switch" aria-checked={g.posting} onClick={act(() => setTgPosting(g.id, !g.posting))}>
                 <span className="small grow">Post here</span><span className={'switch' + (g.posting ? ' on' : '')}><span /></span>
