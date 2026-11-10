@@ -3,10 +3,10 @@ import Logo from './Logo';
 
 const CARDS = [
   { icon: null, title: 'Welcome to Queued', text: 'Movies, shows, games and books — what you’re watching, playing and reading, what’s next, and what you thought of it.' },
-  { icon: '🏠', title: 'Home', text: 'Everything you’re in right now, what’s ready to start, what’s coming out — and “What tonight?” when you can’t decide.' },
-  { icon: '🗂️', title: 'Sections and tabs', text: 'Each section has Watched · Now & Next · Backlog. Search to add, pin things to Up next, long-press a row for quick actions.' },
-  { icon: '⭐', title: 'The card', text: 'Open anything to start, finish or rate it. The arrow opens more; “My take” is your rating and score.' },
-  { icon: '👋', title: 'Friends and notifications', text: 'Invite friends to see what they finish and rate. Turn on notifications to hear about new episodes and releases.' }
+  { icon: '🏠', title: 'Home', text: 'What you’re watching, playing and reading, what’s ready to start, what’s coming up — and “What tonight?” when you can’t decide.' },
+  { icon: '🗂️', title: 'Sections and tabs', text: 'Movies, TV Shows, Console and PC below; Books, Retro, Friends and more in the menu. Each has three tabs: what you finished, Now & Next (what you’re in and your Up next) and Backlog. Search at the top to add.' },
+  { icon: '⭐', title: 'The card', text: 'Open a title to start it, mark it watched or finished, and pin it to Up next. The arrow on the status block opens My take — your rating and score — and more actions.' },
+  { icon: '👋', title: 'Friends and notifications', text: 'Invite friends from Friends in the menu to see what they start, finish and rate. Turn on notifications in Profile and settings to hear about new episodes and releases.' }
 ];
 
 /** First-time welcome: a few swipeable cards, "Skip" in the corner. */

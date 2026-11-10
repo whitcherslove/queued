@@ -9,8 +9,14 @@ export function markTip(key: string) { if (seen.includes(key)) return; seen = [.
 export function onTips(f: () => void) { listeners.add(f); return () => { listeners.delete(f); }; }
 
 export const TIPS: Record<string, string> = {
-  home: 'This is Home: what you’re in right now, what’s ready to start and what’s coming. Not sure what to watch? Try “What tonight?”.',
-  list: 'Tabs: Watched · Now & Next · Backlog. Swipe to switch. Long-press a row for quick actions; pin things to Up next.',
-  card: 'The arrow on the card opens more: rating, dates, and actions like Backlog or Drop. “My take” is your rating.',
-  friends: 'Share your invite link — when a friend opens it, you’re friends. Tap a name in Activity to see their page.'
+  home: 'Home shows what you’re watching, playing and reading, “What tonight?” when you can’t decide, what’s ready to start, and what’s coming up.',
+  list: 'Swipe left or right to switch tabs. Tap a title to open it; long-press for quick actions.',
+  card: 'Tap the arrow on the coloured status block for more: My take (your rating and score), dates, and actions like Before, Backlog and Drop.',
+  friends: 'Invite friends from People with your link or QR. In Activity, tap a name to see that friend’s page.'
+};
+/** The list tip names this section's own tabs. */
+export const listTip = (kind: 'movie' | 'tv' | 'game' | 'book') => {
+  const done = kind === 'game' ? 'Finished' : kind === 'book' ? 'Read' : 'Watched';
+  const mid = kind === 'movie' ? 'Up next' : 'Now & Next';
+  return `Tabs: ${done} · ${mid} · Backlog — swipe to switch. Tap a title to open it, long-press for quick actions. Pin titles to Up next from their card.`;
 };
