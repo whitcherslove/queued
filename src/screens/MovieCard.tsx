@@ -247,10 +247,11 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
       <ListRow icon={Ico.coop} label="Co-op" onClick={guard(async () => { if (lp) await updateLog(lp.id, { coop: !coopOn } as never); else await updateItem(item.id, { coop: !coopOn } as never); })}><span className={'switch' + (coopOn ? ' on-green' : '')}><span /></span></ListRow>
       {coopOn && <ListRow icon={<span className="coop-icon">{Ico.coop}</span>} label="With" onClick={() => setCoopPick({ log: lp ? lp.id : null, ids: withIds })}>
         <span className="li-value ellipsis">{withIds.length ? withIds.map((id) => coopNames[id] ?? 'friend').join(', ') : 'Pick friends'} ›</span></ListRow>}
-      {coopOn && withIds.length > 0 && <div className="coop-status">{withIds.map((id) => {
-        const st = coopSent[id];
-        return <span key={id} className={'coop-chip ' + (st ?? 'none')}>{coopNames[id] ?? 'friend'} · {st === 'accepted' ? 'added it ✓' : st === 'declined' ? 'said not them' : st === 'pending' ? 'invite sent' : 'not invited'}</span>;
-      })}</div>}
+      {/* only invites you sent have a status; someone who invited you (or was added before invites existed) shows none */}
+      {/* only what's still open: invite sent / said not them — accepted ones and those who invited you show nothing */}
+      {coopOn && withIds.some((id) => coopSent[id] === 'pending' || coopSent[id] === 'declined') && <div className="coop-status">{withIds.filter((id) => coopSent[id] === 'pending' || coopSent[id] === 'declined').map((id) => (
+        <span key={id} className={'coop-chip ' + coopSent[id]}>{coopNames[id] ?? 'friend'} · {coopSent[id] === 'pending' ? 'invite sent' : 'said not them'}</span>
+      ))}</div>}
       {coopNote && <span className="muted small coop-note">{coopNote}</span>}
     </>;
   };
