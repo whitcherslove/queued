@@ -149,7 +149,7 @@ Deno.serve(async (req) => {
         : a.kind === 'season_rated' || a.kind === 'show_rated' ? `${who} rated ${title}`
         : `${who} ${verbDone} ${title}`;
       const coop = (a.coop_with ?? []).length ? 'with friends' : '';
-      const details = (a.kind === 'started' ? [['console', 'pc', 'retro'].includes(a.section) && a.platform ? 'on ' + String(a.platform).toUpperCase() : '']
+      const details = (a.kind === 'started' ? [a.section === 'tv' ? a.seasons_label : '', ['console', 'pc', 'retro'].includes(a.section) && a.platform ? 'on ' + String(a.platform).toUpperCase() : '']
         : a.kind === 'season_rated' ? [a.seasons_label, rate]
         : a.kind === 'show_rated' ? ['The whole show', rate]
         : a.kind === 'dropped' ? [a.seasons_label]

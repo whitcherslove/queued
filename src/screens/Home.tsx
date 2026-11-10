@@ -415,7 +415,7 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
             return (
               <button key={a.id} className="fr-row" onClick={onFriends}>
                 <Avatar url={a.avatar_url} email={a.handle ?? who} size={34} />
-                <span className="grow stack-0"><span className="fr-line"><strong>{who}</strong> {verb} <strong>{a.title}</strong></span>
+                <span className="grow stack-0"><span className="fr-line"><strong>{who}</strong> {verb} <strong>{a.title}</strong>{(a.kind === 'finished' || a.kind === 'started') && a.seasons_label ? ' · ' + a.seasons_label : ''}</span>
                   <span className="fr-meta">{tr && <span className="tier-under" style={{ background: tr.color }}>{tr.label}</span>}<span className="muted tiny">{ago(a.created_at)}</span></span></span>
                 <Poster t={{ title: a.title, poster_url: a.poster_url }} w={34} h={50} />
               </button>
