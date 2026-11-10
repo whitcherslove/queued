@@ -114,7 +114,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
           </button>
         ); })}
         <button className="drawer-item" onClick={() => { setDrawer(false); setNewsOpen(true); }}>What’s new</button>
-        <span className="muted small drawer-foot">Queued · v4.13.1</span>
+        <span className="muted small drawer-foot">Queued · v4.13.2</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>

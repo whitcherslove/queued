@@ -1267,3 +1267,8 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .coop-chip.accepted { color: #5FD6A0; background: color-mix(in srgb, #5FD6A0 14%, var(--surface2)); }
 .coop-chip.declined { color: var(--muted); }
 .coop-note { padding: 0 14px 10px 46px; display: block; }
+
+.coop-home { border-color: color-mix(in srgb, #A6D8FF 40%, var(--line)); background: linear-gradient(135deg, color-mix(in srgb, #A6D8FF 12%, var(--surface)), var(--surface) 70%); }
+.coop-home-row { display: flex; gap: 12px; align-items: flex-start; }
+.coop-home-row + .coop-home-row { padding-top: 10px; border-top: 1px solid var(--line); }
+.coop-home-btns { gap: 8px; margin-top: 8px; }

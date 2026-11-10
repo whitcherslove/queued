@@ -16,7 +16,7 @@ const DuoTvMini = DuoTv;
 import ScoreRing from '../components/ScoreRing';
 import { Ico } from '../components/Rate';
 import { useBackLayer } from '../lib/back';
-import { activityFeed, type Activity } from '../lib/friends';
+import { activityFeed, answerCoop, myCoopInvites, type Activity, type CoopInvite } from '../lib/friends';
 import Avatar from '../components/Avatar';
 import Tip from '../components/Tip';
 import MovieCard from './MovieCard';
@@ -59,6 +59,13 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
   }, []);
   useEffect(() => { load(); }, [load]);
   const [fEvents, setFEvents] = useState<Activity[]>(friendsCache ?? []);
+  // "played together" invites — right on Home, so they're not missed
+  const [coopInv, setCoopInv] = useState<CoopInvite[]>([]);
+  useEffect(() => { myCoopInvites().then(setCoopInv).catch(() => undefined); }, []);
+  const answer = async (c: CoopInvite, yes: boolean) => {
+    setCoopInv((l) => l.filter((x) => x.id !== c.id));
+    try { await answerCoop(c.id, yes); if (yes) load(); } catch { setCoopInv((l) => [c, ...l]); }
+  };
   useEffect(() => { activityFeed().then((a) => { const x = a.filter((e) => !e.mine).slice(0, 4); friendsCache = x; setFEvents(x); }).catch(() => undefined); }, []);
 
   // --- Continue: shows with an episode ready, games in progress
@@ -302,6 +309,16 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
       </header>
 
       <main className="content home">
+        {coopInv.length > 0 && <section className="panel coop-home">
+          {coopInv.map((c) => (
+            <div key={c.id} className="coop-home-row">
+              <Poster t={{ title: c.title, poster_url: c.poster_url }} w={40} h={58} />
+              <span className="grow stack-0"><span className="small">🎮 <strong>{c.from_name || 'A friend'}</strong> says you {c.playing ? 'are playing' : 'played'} <strong>{c.title}</strong> together</span>
+                <span className="muted tiny">{[c.platform ? c.platform.toUpperCase() : '', c.finished_at ? 'finished ' + new Date(c.finished_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''].filter(Boolean).join(' · ')}</span>
+                <span className="row nowrap coop-home-btns"><button className="btn sm" onClick={() => answer(c, false)}>Not me</button><button className="btn primary sm" onClick={() => answer(c, true)}>Add</button></span></span>
+            </div>
+          ))}
+        </section>}
         {loading && <div className="card-wait"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div>}
 
         {/* In progress — one panel per kind, each with what's left */}
