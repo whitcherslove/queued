@@ -4,6 +4,7 @@ import type { Profile } from '../lib/profile';
 import type { Settings } from '../lib/theme';
 import { DuoBook, DuoFriends, DuoHome, DuoMovie, DuoPad, DuoPc, DuoRetro, DuoStats, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
 import Home from './Home';
+import Logo from '../components/Logo';
 import Friends from './Friends';
 import { normNav } from '../lib/nav';
 import Stats from './Stats';
@@ -15,15 +16,15 @@ import { useBackLayer } from '../lib/back';
 type SectionId = 'home' | 'movies' | 'tv' | 'console' | 'pc' | 'retro' | 'books' | 'stats' | 'friends';
 // Each section has its own color: it lights up the bottom-bar icon when the section is open
 const SECTIONS: { id: SectionId; label: string; title: string; icon: JSX.Element; color: string; tabs: string[]; noun: string }[] = [
-  { id: 'home', label: 'Home', title: 'Home', icon: <DuoHome />, color: '#E26FB0', tabs: [], noun: '' },
-  { id: 'movies', label: 'Movies', title: 'Movies', icon: <DuoMovie />, color: '#E8714A', tabs: ['Watched', 'Backlog'], noun: 'a movie' },
-  { id: 'tv', label: 'TV Shows', title: 'TV Shows', icon: <DuoTv />, color: '#9A8CF0', tabs: ['Watched', 'Watching', 'Backlog'], noun: 'a show' },
-  { id: 'console', label: 'Console', title: 'Console games', icon: <DuoPad />, color: '#2FB98A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
-  { id: 'pc', label: 'PC', title: 'PC games', icon: <DuoPc />, color: '#4C9BEA', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
-  { id: 'retro', label: 'Retro', title: 'Retro games', icon: <DuoRetro />, color: '#E0A43A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
-  { id: 'books', label: 'Books', title: 'Books', icon: <DuoBook />, color: '#D98B5F', tabs: [], noun: 'a book' },
-  { id: 'friends', label: 'Friends', title: 'Friends', icon: <DuoFriends />, color: '#4C9BEA', tabs: [], noun: '' },
-  { id: 'stats', label: 'Stats', title: 'Stats', icon: <DuoStats />, color: '#9A8CF0', tabs: [], noun: '' }
+  { id: 'home', label: 'Home', title: 'Home', icon: <DuoHome />, color: '#FFAC96', tabs: [], noun: '' },
+  { id: 'movies', label: 'Movies', title: 'Movies', icon: <DuoMovie />, color: '#FFAC96', tabs: ['Watched', 'Backlog'], noun: 'a movie' },
+  { id: 'tv', label: 'TV Shows', title: 'TV Shows', icon: <DuoTv />, color: '#B3A3FF', tabs: ['Watched', 'Watching', 'Backlog'], noun: 'a show' },
+  { id: 'console', label: 'Console', title: 'Console games', icon: <DuoPad />, color: '#5CDED2', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
+  { id: 'pc', label: 'PC', title: 'PC games', icon: <DuoPc />, color: '#A6D8FF', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
+  { id: 'retro', label: 'Retro', title: 'Retro games', icon: <DuoRetro />, color: '#F2D58A', tabs: ['Finished', 'Playing', 'Backlog'], noun: 'a game' },
+  { id: 'books', label: 'Books', title: 'Books', icon: <DuoBook />, color: '#F4A7C3', tabs: [], noun: 'a book' },
+  { id: 'friends', label: 'Friends', title: 'Friends', icon: <DuoFriends />, color: '#9FD3FF', tabs: [], noun: '' },
+  { id: 'stats', label: 'Stats', title: 'Stats', icon: <DuoStats />, color: '#C6B8FF', tabs: [], noun: '' }
 ];
 // Home is the first tab and where the app opens; Retro and Stats live in the side menu
 
@@ -67,7 +68,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   if (profileOpen) return <ProfileScreen profile={profile} onBack={() => setProfileOpen(false)} onProfile={onProfile} onSettings={onSettings} />;
 
   const nav = (
-    <nav className="bottom duo-bar" aria-label="Sections" style={{ '--n': BAR.length, '--i': Math.max(0, BAR.indexOf(section)), '--glide': SECTIONS.find((x) => x.id === section)?.color } as CSSProperties}>
+    <nav className="bottom duo-bar" aria-label="Sections" style={{ '--n': BAR.length, '--i': Math.max(0, BAR.indexOf(section)), '--glide': SECTIONS.find((x) => x.id === section)?.color, ...(section === 'home' ? { '--glide-bg': 'linear-gradient(110deg, rgba(92,222,210,.18), rgba(255,172,150,.18), rgba(156,136,255,.18))' } : {}) } as CSSProperties}>
       {BAR.includes(section) && <span className="tab-glider" aria-hidden="true" />}
       {SECTIONS.filter((s) => BAR.includes(s.id)).map((s) => (
         <button key={s.id} aria-current={s.id === section ? 'page' : undefined} className={s.id === section ? 'on' : ''} style={{ ['--sec' as string]: s.color }} onClick={() => go(s.id)}>
@@ -79,6 +80,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   const drawerEl = drawer && (
     <div className="drawer-wrap">
       <nav className="drawer" aria-label="Menu">
+        <div className="drawer-brand"><Logo size={34} /><span className="brand-text sm">QUEUED</span></div>
         <button className="drawer-profile" onClick={() => { setDrawer(false); setProfileOpen(true); }}>
           <Avatar url={profile.avatar_url} email={profile.email} size={48} />
           <span className="drawer-who"><strong>Your profile</strong><span className="muted small">{profile.email}</span></span>
@@ -90,7 +92,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
             <span className="duo-icon drawer-duo">{sx.icon}</span>{sx.title}
           </button>
         ); })}
-        <span className="muted small drawer-foot">Queued · v4.2</span>
+        <span className="muted small drawer-foot">Queued · v4.5</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>

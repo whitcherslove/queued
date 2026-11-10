@@ -255,7 +255,8 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   const deep = useMemo(() => rest.filter((it) => !outNow.includes(it) && !soon.includes(it)), [rest, outNow, soon]);
   const nowCount = isTv ? nowTv.progress.length + nowTv.caught.length : isPlay ? gamePlaying.length : 0;
   const playingCount = nowCount + next.length;   // Now & Next = what you're in + your Up next
-  const backlogCount = deep.length + outNow.length + soon.length;   // only things you haven't started
+  // Backlog count: everything that sits in the Backlog tab
+  const backlogCount = deep.length + outNow.length + soon.length + (isTv ? watchingRows.newSeason.length + watchingRows.lastChance.length + nextSeasons.length + watchingRows.upToDate.length : 0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed);
   const toggleSection = (k: string) => setCollapsed((c) => { const n = { ...c, [k]: !(c[k] ?? k === 'upToDate') }; try { localStorage.setItem('queued.collapsed', JSON.stringify(n)); } catch { /* ignore */ } return n; });
   const isCollapsed = (k: string) => collapsed[k] ?? k === 'upToDate';
@@ -578,7 +579,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
             <span className="seg-pill" ref={pillRef} aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: pillAt(tabIndex) }} />
             {TABS.map((tb, i) => (
               <button key={tb} role="tab" aria-selected={tab === tb} onClick={() => tab !== tb && goTab(i, i > tabIndex ? 'from-right' : 'from-left')}>
-                {tb === 'watched' ? (isBook ? 'Read' : isGame ? 'Finished' : 'Watched') : tb === 'playing' ? 'Now & Next' : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? playingCount : backlogCount}</span>
+                {tb === 'watched' ? (isBook ? 'Read' : isGame ? 'Finished' : 'Watched') : tb === 'playing' ? (isTv || isPlay ? 'Now & Next' : 'Up next') : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? playingCount : backlogCount}</span>
               </button>
             ))}
           </div>

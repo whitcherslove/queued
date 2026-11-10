@@ -20,13 +20,13 @@ createRoot(document.getElementById('root')!).render(<StrictMode><App /></StrictM
 // splash: hold the full word, then the whole thing goes up and the app slides in (1.7 s → 2.0 s of the animation)
 const hideSplash = () => {
   const el = document.getElementById('splash'); if (!el) return;
-  el.classList.add('out');
+  el.classList.add('gone');
   document.getElementById('root')?.classList.add('enter');
   setTimeout(() => el.remove(), 450);
 };
 const waitSplash = () => {
   const start = (window as unknown as { __splashStart?: number }).__splashStart;
   if (start === undefined) { setTimeout(waitSplash, 50); return; }
-  setTimeout(hideSplash, Math.max(0, 1700 - (performance.now() - start)));
+  setTimeout(hideSplash, Math.max(0, 2300 - (performance.now() - start)));
 };
 requestAnimationFrame(waitSplash);

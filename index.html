@@ -3,71 +3,92 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#0A0A0F" />
+    <meta name="theme-color" content="#0B0B10" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Onest:wght@400;500;700&family=Montserrat:wght@800&display=swap" />
     <title>Queued</title>
     <link rel="icon" type="image/png" href="/icons/favicon-64.png" />
     <style>
-      /* Splash "stroke & reveal". Only transform/opacity are animated (60 fps, no layout, no size jumps).
-         The word is laid out once as QUEUED; Q and D start shifted to the centre (offsets measured by the script below). */
-      #splash { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: #0A0A0F; }
-      #splash .stage { display: flex; flex-direction: column; align-items: center; will-change: transform, opacity; }
-      #splash .word { display: flex; align-items: baseline; font-family: 'Montserrat', 'Arial', sans-serif; font-weight: 800; font-size: 60px; line-height: 1;
-        letter-spacing: 1px; color: #FFFFFF; font-kerning: none; -webkit-font-smoothing: antialiased; }
-      #splash .slide { display: inline-block; will-change: transform; }
-      #splash .pop { display: inline-block; transform: scale(0); opacity: 0; will-change: transform, opacity; }
-      #splash .mid { display: inline-flex; opacity: 0; will-change: opacity; }
-      #splash .smile { margin-top: 12px; width: 82%; height: 22px; transform-origin: 50% 50%; transform: scaleX(0); will-change: transform;
-        filter: drop-shadow(0 0 8px rgba(168,85,247,.85)) drop-shadow(0 0 18px rgba(168,85,247,.45)); }
-      #splash .smile svg { display: block; width: 100%; height: 100%; overflow: visible; }
-      /* run: added once fonts are ready and offsets are measured */
-      #splash.run .smile { animation: sp-stroke .4s cubic-bezier(.16,1,.3,1) forwards, sp-widen .5s cubic-bezier(.65,0,.35,1) .8s forwards; }
-      #splash.run .pop { animation: sp-spring .45s cubic-bezier(.34,1.56,.64,1) .4s forwards; }
-      #splash.run .q { transform: translateX(var(--qx)); animation: sp-home .5s cubic-bezier(.65,0,.35,1) .8s forwards; }
-      #splash.run .d { transform: translateX(var(--dx)); animation: sp-home .5s cubic-bezier(.65,0,.35,1) .8s forwards; }
-      #splash.run .mid { animation: sp-fade .4s cubic-bezier(.65,0,.35,1) .95s forwards; }
-      #splash.run.out .stage { animation: sp-up .3s cubic-bezier(.4,0,1,1) forwards; }
-      #splash.out { animation: sp-bg .3s ease .1s forwards; }
-      @keyframes sp-stroke { from { transform: scaleX(0); } to { transform: scaleX(var(--s1)); } }
-      @keyframes sp-widen { from { transform: scaleX(var(--s1)); } to { transform: scaleX(1); } }
-      @keyframes sp-spring { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
-      @keyframes sp-home { to { transform: translateX(0); } }
-      @keyframes sp-fade { to { opacity: 1; } }
-      @keyframes sp-up { to { transform: translateY(-28px); opacity: 0; } }
-      @keyframes sp-bg { to { opacity: 0; visibility: hidden; } }
-      /* the app slides up a little as the splash goes */
+      /* Splash: QD rises in; two translucent copies come out behind it (a queue); Q and D move apart and
+         "UEUE" slides out from behind them — QD becomes QUEUED. Driven frame by frame (transform/opacity/mask only). */
+      #splash { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; overflow: hidden;
+        background: radial-gradient(60% 45% at 30% 38%, rgba(92,222,210,.10), transparent 70%), radial-gradient(60% 45% at 72% 62%, rgba(132,108,255,.15), transparent 70%), #0B0B10; }
+      #splash .stage { position: relative; will-change: transform, opacity; }
+      #splash .measure, #splash .lay { font-family: 'Montserrat', 'Arial', sans-serif; font-weight: 800; font-size: min(15vw, 64px); line-height: 1; letter-spacing: 1px; white-space: nowrap; }
+      #splash .measure { visibility: hidden; display: flex; }
+      #splash .lay { position: absolute; left: 0; top: 0; will-change: transform, opacity; }
+      #splash .lay span.ch { position: absolute; top: 0; -webkit-background-clip: text; background-clip: text; color: transparent;
+        background-image: linear-gradient(90deg, #5CDED2, #FFAC96 50%, #846CFF); background-repeat: no-repeat; will-change: transform; }
+      #splash .mid { position: absolute; left: 0; top: 0; height: 100%; }
+      #splash .front { filter: drop-shadow(0 0 18px rgba(255,172,150,.18)) drop-shadow(0 0 26px rgba(132,108,255,.18)); }
+      #splash.gone { opacity: 0; transition: opacity .35s ease; pointer-events: none; }
       #root.enter { animation: app-in .45s cubic-bezier(.16,1,.3,1); }
       @keyframes app-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-      @media (prefers-reduced-motion: reduce) {
-        #splash .pop, #splash .mid { transform: none; opacity: 1; animation: none !important; }
-        #splash .smile { transform: none; animation: none !important; } #splash.run .q, #splash.run .d { transform: none; animation: none; }
-      }
+      @media (prefers-color-scheme: light) { #splash { background: #0B0B10; } }
     </style>
   </head>
   <body>
     <div id="splash" role="img" aria-label="Queued">
-      <div class="stage" aria-hidden="true">
-        <div class="word"><span class="slide q"><span class="pop">Q</span></span><span class="mid">UEUE</span><span class="slide d"><span class="pop">D</span></span></div>
-        <div class="smile"><svg viewBox="0 0 100 22" preserveAspectRatio="none"><path d="M4 4 Q50 30 96 4" fill="none" stroke="#A855F7" stroke-width="7" stroke-linecap="round" vector-effect="non-scaling-stroke" /></svg></div>
-      </div>
+      <div class="stage" aria-hidden="true"><div class="measure"><span>Q</span><span>U</span><span>E</span><span>U</span><span>E</span><span>D</span></div></div>
     </div>
     <script>
-      // measure where Q and D sit in QUEUED, and how far they must move to stand side by side in the centre; then start
       (function () {
         var sp = document.getElementById('splash'); if (!sp) return;
-        function go() {
-          var q = sp.querySelector('.q'), d = sp.querySelector('.d'), w = sp.querySelector('.word'), sm = sp.querySelector('.smile');
-          var rq = q.getBoundingClientRect(), rd = d.getBoundingClientRect(), rw = w.getBoundingClientRect(), rs = sm.getBoundingClientRect();
-          var c = rw.left + rw.width / 2, pair = rq.width + rd.width, left = c - pair / 2;
-          sp.style.setProperty('--qx', (left - rq.left) + 'px');
-          sp.style.setProperty('--dx', (left + rq.width - rd.left) + 'px');
-          sp.style.setProperty('--s1', Math.min(1, (pair * 0.92) / rs.width).toFixed(3));
-          sp.classList.add('run'); window.__splashStart = performance.now();
+        var stage = sp.querySelector('.stage'), meas = sp.querySelector('.measure');
+        var reduce = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+        function build() {
+          var spans = meas.querySelectorAll('span'), x0 = spans[0].getBoundingClientRect().left;
+          var xs = [], ws = []; spans.forEach(function (e) { var r = e.getBoundingClientRect(); xs.push(r.left - x0); ws.push(r.width); });
+          var W = xs[5] + ws[5], H = meas.getBoundingClientRect().height;
+          stage.style.width = W + 'px'; stage.style.height = H + 'px'; meas.style.display = 'none';
+          var L = 'QUEUED', fs = getComputedStyle(meas).fontSize;
+          // layers: two copies behind, then the front
+          var layers = [{ off: .44, op: .22 }, { off: .22, op: .42 }, { off: 0, op: 1, front: true }].map(function (cfg) {
+            var lay = document.createElement('div'); lay.className = 'lay' + (cfg.front ? ' front' : ''); lay.style.width = W + 'px'; lay.style.height = H + 'px';
+            var mid = document.createElement('div'); mid.className = 'mid'; mid.style.width = W + 'px'; lay.appendChild(mid);
+            var ch = [];
+            for (var i = 0; i < 6; i++) {
+              var e = document.createElement('span'); e.className = 'ch'; e.textContent = L[i]; e.style.left = xs[i] + 'px'; e.style.fontSize = fs;
+              e.style.backgroundSize = W + 'px 100%'; e.style.backgroundPosition = (-xs[i]) + 'px 0';   // each letter keeps its own slice of the gradient
+              (i >= 1 && i <= 4 ? mid : lay).appendChild(e); ch.push(e);
+            }
+            stage.appendChild(lay); cfg.el = lay; cfg.mid = mid; cfg.ch = ch; return cfg;
+          });
+          var em = parseFloat(fs);
+          var pair = ws[0] + ws[5], qx = (W / 2 - pair / 2) - xs[0], dx = (W / 2 - pair / 2 + ws[0]) - xs[5];
+          var lw = xs[3] - xs[1], lstart = (xs[0] + qx + ws[0] * .85) - lw, rstart = xs[5] + dx + ws[5] * .15;
+          var F = em * .55;
+          function cl(v) { return v < 0 ? 0 : v > 1 ? 1 : v; }
+          function oc(t) { return 1 - Math.pow(1 - t, 3); }
+          function ios(t) { return -(Math.cos(Math.PI * t) - 1) / 2; }
+          function sm(t) { return t * t * (3 - 2 * t); }
+          var t0 = performance.now();
+          function frame(now) {
+            var t = reduce ? 9 : (now - t0) / 1000;
+            var a = oc(cl(t / .7)), o = ios(cl((t - .95) / 1.05)), ok = sm(cl((o - .78) / .22));
+            var breathe = t > 1.8 ? (Math.sin((t - 1.8) * 2.4) * .5 + .5) : 0;
+            stage.style.transform = 'translateY(' + (18 * (1 - a)) + 'px) scale(' + (.97 + .03 * a) + ')';
+            var qpos = qx * (1 - o), dpos = dx * (1 - o), ls = (lstart - xs[1]) * (1 - o), rs = (rstart - xs[3]) * (1 - o);
+            var qr = xs[0] + qpos + ws[0] * .97, dl = xs[5] + dpos + ws[5] * .03;
+            var k0 = Math.round(ok * 100) / 100, g = 'rgba(0,0,0,' + k0 + ')';
+            var mask = 'linear-gradient(90deg,' + g + ' 0px,' + g + ' ' + qr + 'px,#000 ' + (qr + F) + 'px,#000 ' + (dl - F) + 'px,' + g + ' ' + dl + 'px,' + g + ' ' + W + 'px)';
+            layers.forEach(function (Lr, idx) {
+              var c = Lr.front ? a : oc(cl((t - .45 - (idx === 0 ? 0 : .08)) / .7));
+              var d = Lr.front ? 0 : (Lr.off * c * em * .5 + (idx === 0 ? 4 : 2) * breathe * (em / 64));
+              Lr.el.style.opacity = Lr.front ? a : (Lr.op * c * (1 - .25 * breathe));
+              Lr.el.style.transform = 'translate(' + d + 'px,' + d + 'px)';
+              Lr.ch[0].style.transform = 'translateX(' + qpos + 'px)'; Lr.ch[5].style.transform = 'translateX(' + dpos + 'px)';
+              Lr.ch[1].style.transform = Lr.ch[2].style.transform = 'translateX(' + ls + 'px)';
+              Lr.ch[3].style.transform = Lr.ch[4].style.transform = 'translateX(' + rs + 'px)';
+              Lr.mid.style.webkitMaskImage = Lr.mid.style.maskImage = mask;
+            });
+            if (!sp.classList.contains('gone')) requestAnimationFrame(frame);
+          }
+          requestAnimationFrame(frame); window.__splashStart = t0;
         }
-        var started = false; function once() { if (!started) { started = true; go(); } }
-        if (document.fonts && document.fonts.load) { document.fonts.load('800 60px Montserrat').then(once, once); setTimeout(once, 700); } else once();
+        var started = false; function once() { if (!started) { started = true; build(); } }
+        if (document.fonts && document.fonts.load) { document.fonts.load('800 64px Montserrat').then(once, once); setTimeout(once, 800); } else once();
       })();
     </script>
     <div id="root"></div>
