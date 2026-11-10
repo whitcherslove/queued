@@ -9,7 +9,7 @@ export function markTip(key: string) { if (seen.includes(key)) return; seen = [.
 export function onTips(f: () => void) { listeners.add(f); return () => { listeners.delete(f); }; }
 
 export const TIPS: Record<string, string> = {
-  home: 'Home shows what you’re watching, playing and reading, “What tonight?” when you can’t decide, what’s ready to start, and what’s coming up.',
+  home: 'Home shows what you’re watching, playing and reading, “Tonight’s pick” when you can’t decide, what’s ready to start, and what’s coming up.',
   list: 'Swipe left or right to switch tabs. Tap a title to open it; long-press for quick actions.',
   card: 'Tap the arrow on the coloured status block for more: My take (your rating and score), dates, and actions like Before, Backlog and Drop.',
   friends: 'Invite friends from People with your link or QR. In Activity, tap a name to see that friend’s page.'

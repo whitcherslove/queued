@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
       if (!cands.length) return Response.json({ error: 'Your backlog is empty.' }, { status: 400, headers: CORS });
       const tBody = {
         systemInstruction: { parts: [{ text:
-          'You help someone pick ONE thing from their own backlog for tonight. Consider the time they have (runtime, episode length, time to beat / to read) and their mood. ' +
+          'You help someone pick ONE thing from their own backlog for tonight. The backlog mixes movies, TV shows, games and books (the "kind" field) — treat every kind as equally possible and don’t lean towards one kind unless the wish asks for it; their favourites ("liked") are taste hints across kinds, not a reason to pick the same kind. Consider the time they have (runtime, episode length, time to beat / to read) and their mood. ' +
           'Use what they rated highly as taste hints. Never pick an id from "skip". Reply ONLY with JSON: {"id": "<id from the list>", "why": "<one or two warm sentences, in the language of the wish>"}. No markdown.' }] },
         contents: [{ role: 'user', parts: [{ text: JSON.stringify({ wish: reqBody?.wish ?? 'something good tonight', skip: reqBody?.skip ?? [], liked: (reqBody?.liked ?? []).slice(0, 30), backlog: cands }) }] }]
       };

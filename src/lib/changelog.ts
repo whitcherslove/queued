@@ -1,9 +1,17 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.11';
+export const APP_VERSION = '4.12';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.12',
+    title: 'Tonight’s pick',
+    items: [
+      { icon: '✦', title: 'Tonight’s pick', text: 'The AI now weighs movies, shows, games and books equally — and the block on Home has a new name.' },
+      { icon: '📺', title: 'Which season', text: 'When you start a show, the feed, notifications and Telegram say which season you’re starting.' }
+    ]
+  },
   {
     version: '4.11',
     title: 'Telegram companies',
@@ -53,7 +61,7 @@ export const CHANGELOG: ChangeEntry[] = [
       { icon: '🔔', title: 'Notifications', text: 'Friend requests, your friends’ activity, and what comes out today from your lists. Turn them on in Profile and settings.' },
       { icon: '📺', title: 'Shows', text: 'Unfold the status block of a show: “Finished” marks every aired episode. Long-press a show you’ve watched → “Stop following” to hide it from new seasons.' },
       { icon: '📖', title: 'Books', text: 'A Books section in the menu: paper, e-book or audio, progress by page, series, covers from editions.' },
-      { icon: '🏠', title: 'Home', text: 'What you’re watching, playing and reading, “What tonight?” with Random or AI, what’s ready to start and what’s coming.' }
+      { icon: '🏠', title: 'Home', text: 'What you’re watching, playing and reading, “Tonight’s pick” with Random or AI, what’s ready to start and what’s coming.' }
     ]
   }
 ];

@@ -199,7 +199,7 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
   const readyKinds = (['Shows', 'Movies', 'Games', 'Books'] as const).filter((k) => ready.some((r) => r.kind === k));
   const readyList = ready.filter((r) => readyKind === 'All' || r.kind === readyKind);
 
-  // ---- What tonight? — 🎲 random or ✦ AI, from your backlog, with filters that depend on the type
+  // ---- Tonight's pick — 🎲 random or ✦ AI, from your backlog, with filters that depend on the type
   type Kind = 'Any' | 'Movie' | 'Show' | 'Game' | 'Book';
   const [kind, setKind] = useState<Kind>('Any');
   const [tnOpen, setTnOpen] = useState(false);
@@ -254,8 +254,12 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
   };
   const askAI = async () => {
     setPicking(true); setPickErr('');
-    const cands = filtered.map((i) => { const d = dataOf(i); return { id: i.id, kind: SEC_LABEL[i.section], title: i.title.title, year: i.title.year, genres: (i.title.genres ?? []).slice(0, 3), minutes: i.title.runtime ?? null, hoursToBeat: d.ttb?.main ?? null, pages: d.pages ?? null, metascore: i.title.metascore ?? null, upNext: i.up_next }; });
-    const liked = logs.filter((l) => l.tier === 'ten' || l.tier === 'awesome').slice(-40).map((l) => ({ title: l.library.title.title, kind: SEC_LABEL[l.library.section], rating: l.tier }));
+    // the AI sees every kind in balance: up to 30 candidates and 8 favourites per kind (newest favourites first)
+    const kindKey = (sec: string) => (['console', 'pc', 'retro'].includes(sec) ? 'game' : sec);
+    const perKind = <T,>(list: T[], sec: (x: T) => string, n: number) => { const seen: Record<string, number> = {}; return list.filter((x) => { const k = kindKey(sec(x)); seen[k] = (seen[k] ?? 0) + 1; return seen[k] <= n; }); };
+    const cands = perKind(filtered.slice().sort(() => Math.random() - 0.5), (i) => i.section, 30).map((i) => { const d = dataOf(i); return { id: i.id, kind: SEC_LABEL[i.section], title: i.title.title, year: i.title.year, genres: (i.title.genres ?? []).slice(0, 3), minutes: i.title.runtime ?? null, hoursToBeat: d.ttb?.main ?? null, pages: d.pages ?? null, metascore: i.title.metascore ?? null, upNext: i.up_next }; });
+    const liked = perKind(logs.filter((l) => l.tier === 'ten' || l.tier === 'awesome').sort((a, b) => b.watched_at.localeCompare(a.watched_at)), (l) => l.library.section, 8)
+      .map((l) => ({ title: l.library.title.title, kind: SEC_LABEL[l.library.section], rating: l.tier }));
     try { const r = await pickTonight(`Something for tonight${kind !== 'Any' ? ' — a ' + kind.toLowerCase() : ''}${mood ? ', in the mood for something ' + mood.toLowerCase() : ''}.`, cands, liked, seen.current); seen.current.push(r.id); setPick(r); }
     catch (e) { setPickErr((e as Error).message || 'Couldn’t pick — try again.'); }
     setPicking(false);
@@ -340,10 +344,10 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
           </section>
         ))}
 
-        {/* What tonight? */}
+        {/* Tonight's pick */}
         {!loading && (
           <section className="tonight">
-            <button className="tn-head" aria-expanded={tnOpen} onClick={() => setTnOpen(!tnOpen)}><span className="tonight-kicker">✦ What tonight?</span><ChevBtn open={tnOpen} size={28} /></button>
+            <button className="tn-head" aria-expanded={tnOpen} onClick={() => setTnOpen(!tnOpen)}><span className="tonight-kicker">✦ Tonight’s pick</span><ChevBtn open={tnOpen} size={28} /></button>
             <div className="seg">{(['Any', 'Movie', 'Show', 'Game', 'Book'] as Kind[]).map((k) => <button key={k} className={tnOpen && kind === k ? 'on' : ''} onClick={() => { setKind(k); setF({}); setPick(null); seen.current = []; setTnOpen(true); }}>{k}</button>)}</div>
             {tnOpen && <>
             {kind === 'Movie' && <><div className="tn-row"><span className="muted tiny">Length</span><div className="tn-chips"><button className={'chip' + (f.len === 'short' ? ' on' : '')} onClick={() => toggle('len', 'short')}>{'< 90 min'}</button><button className={'chip' + (f.len === 'mid' ? ' on' : '')} onClick={() => toggle('len', 'mid')}>90–120</button><button className={'chip' + (f.len === 'long' ? ' on' : '')} onClick={() => toggle('len', 'long')}>2 h +</button></div></div><div className="tn-chips"><button className={'chip' + (f.meta === '1' ? ' on' : '')} onClick={() => toggle('meta', '1')}>Metascore 70+</button><button className={'chip' + (f.old === '1' ? ' on' : '')} onClick={() => toggle('old', '1')}>Before 2000</button></div></>}

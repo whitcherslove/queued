@@ -3,7 +3,7 @@ import Logo from './Logo';
 
 const CARDS = [
   { icon: null, title: 'Welcome to Queued', text: 'Movies, shows, games and books — what you’re watching, playing and reading, what’s next, and what you thought of it.' },
-  { icon: '🏠', title: 'Home', text: 'What you’re watching, playing and reading, what’s ready to start, what’s coming up — and “What tonight?” when you can’t decide.' },
+  { icon: '🏠', title: 'Home', text: 'What you’re watching, playing and reading, what’s ready to start, what’s coming up — and “Tonight’s pick” when you can’t decide.' },
   { icon: '🗂️', title: 'Sections and tabs', text: 'Movies, TV Shows, Console and PC below; Books, Retro, Friends and more in the menu. Each has three tabs: what you finished, Now & Next (what you’re in and your Up next) and Backlog. Search at the top to add.' },
   { icon: '⭐', title: 'The card', text: 'Open a title to start it, mark it watched or finished, and pin it to Up next. The arrow on the status block opens My take — your rating and score — and more actions.' },
   { icon: '👋', title: 'Friends and notifications', text: 'Invite friends from Friends in the menu to see what they start, finish and rate. Turn on notifications in Profile and settings to hear about new episodes and releases.' }
