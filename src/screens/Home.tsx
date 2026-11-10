@@ -64,7 +64,7 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
   const STATE_ORDER: Record<string, number> = { progress: 0, newSeason: 1, lastChance: 2, caughtUp: 3 };
   // watched an episode in the last three weeks = you're watching it, whatever its status (e.g. an ended show you're going through)
   const isRecent = (iso: string | null | undefined) => !!iso && Date.now() - new Date(iso).getTime() < 21 * 864e5;
-  const shows = useMemo(() => items.filter((i) => i.section === 'tv' && i.status !== 'backlog' && i.status !== 'dropped').map((it) => {
+  const shows = useMemo(() => items.filter((i) => i.section === 'tv' && i.status !== 'backlog' && i.status !== 'dropped' && !(i.status !== 'playing' && (i.overrides as { unfollow?: boolean } | null)?.unfollow)).map((it) => {
     const p = progress(it, it.title, eps.filter((e) => e.title_id === it.title_id), marks.filter((m) => m.library_id === it.id), today);
     const st = showState(it, it.title, logs.filter((l) => l.library.id === it.id) as never, it.status === 'playing' ? p : null, today);
     return { it, p, st };
@@ -407,7 +407,7 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
           <div className="panel-head"><span className="ph-icon"><DuoFriendsMini /></span><span>Friends</span>{onFriends && <button className="link" onClick={onFriends}>See all ›</button>}</div>
           {fEvents.map((a) => { const tr = tierOf(a.tier); const who = a.name || (a.handle ? '@' + a.handle : 'Friend');
             const verb = a.kind === 'started' ? (a.section === 'books' ? 'started reading' : a.section === 'tv' || a.section === 'movies' ? 'started watching' : 'started playing')
-              : a.kind === 'dropped' ? 'dropped' : a.kind === 'season_rated' ? 'rated ' + (a.seasons_label ?? 'a season') + ' of' : a.kind === 'show_rated' ? 'rated' : a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : 'finished';
+              : a.kind === 'dropped' ? 'dropped' : a.kind === 'season_rated' ? 'rated ' + (a.seasons_label ?? 'a season') + ' of' : a.kind === 'show_rated' ? 'rated' : a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : a.section === 'tv' ? 'finished' : 'beat';
             return (
               <button key={a.id} className="fr-row" onClick={onFriends}>
                 <Avatar url={a.avatar_url} email={a.handle ?? who} size={34} />

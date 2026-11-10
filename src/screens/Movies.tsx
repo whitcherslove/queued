@@ -91,7 +91,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   // your tab order and the tab a section opens on (Profile → Tabs)
   const tabPref = settings.tabs ?? { order: ['watched', 'playing', 'backlog'], def: 'watched' };
   const hasPlaying = isTv || isGame || isBook;
-  const firstTab = (tabPref.def === 'playing' && !hasPlaying ? tabPref.order.find((x) => x !== 'playing') ?? 'watched' : tabPref.def) as Tab;
+  const firstTab = tabPref.def as Tab;   // every section has Now & Next now
   const [tab, setTab] = useState<Tab>(cached?.tab ?? firstTab);
   const [tvEps, setTvEps] = useState<SeasonEps[]>(cached?.eps ?? []);
   const [tvMarks, setTvMarks] = useState<Mark[]>(cached?.marks ?? []);
@@ -228,6 +228,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     const out: Record<ShowState, Row[]> = { progress: [], newSeason: [], lastChance: [], caughtUp: [], upToDate: [], backlog: [], upNext: [], dropped: [], finished: [] };
     if (!isTv) return out;
     items.forEach((it) => {
+      if ((it.overrides as { unfollow?: boolean } | null)?.unfollow && it.status !== 'playing') return;
       const mine = logs.filter((l) => l.library.id === it.id);
       const p = progress(it, it.title, tvEps.filter((e) => e.title_id === it.title_id), tvMarks.filter((m) => m.library_id === it.id), today);
       const { state, seasons } = showState(it, it.title, mine, it.status === 'playing' ? p : null, today);
@@ -242,10 +243,21 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     out.upToDate.sort((a, b) => (b.last ?? '').localeCompare(a.last ?? ''));
     return out;
   }, [items, logs, tvEps, tvMarks, today, isTv]);
-  const playingCount = watchingRows.progress.length + watchingRows.newSeason.length + watchingRows.lastChance.length + watchingRows.caughtUp.length + watchingRows.upToDate.length;
+  const gamePlaying = useMemo(() => (isPlay ? items.filter((i) => i.status === 'playing').sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')) : []), [items, isPlay]);
+  // Now & Next: Now (in progress) · Up next · Ready (new season / last chance / out now) · Coming soon (new releases, next seasons)
+  // Backlog: everything else you might start some day (+ shows that are up to date, folded at the bottom)
+  const nowTv = useMemo(() => ({ progress: watchingRows.progress, caught: watchingRows.caughtUp.filter((r) => r.it.status === 'playing') }), [watchingRows]);
+  const nextSeasons = useMemo(() => watchingRows.caughtUp.filter((r) => r.it.status !== 'playing'), [watchingRows]);
+  const outNow = useMemo(() => rest.filter((it) => movieState(it, it.title, null, today) === 'outNow').sort((x, y) => (y.title.release_date ?? '').localeCompare(x.title.release_date ?? '')), [rest, today]);
+  const soon = useMemo(() => rest.filter((it) => movieState(it, it.title, null, today) === 'comingSoon' || (isTv && !it.title.release_date && it.status === 'backlog' && isUpcoming(it.title)))
+    .sort((x, y) => (x.title.release_date ?? '9999').localeCompare(y.title.release_date ?? '9999')), [rest, today, isTv]);
+  const deep = useMemo(() => rest.filter((it) => !outNow.includes(it) && !soon.includes(it)), [rest, outNow, soon]);
+  const nowCount = isTv ? nowTv.progress.length + nowTv.caught.length : isPlay ? gamePlaying.length : 0;
+  const playingCount = nowCount + next.length + outNow.length + soon.length + (isTv ? watchingRows.newSeason.length + watchingRows.lastChance.length + nextSeasons.length : 0);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed);
   const toggleSection = (k: string) => setCollapsed((c) => { const n = { ...c, [k]: !(c[k] ?? k === 'upToDate') }; try { localStorage.setItem('queued.collapsed', JSON.stringify(n)); } catch { /* ignore */ } return n; });
   const isCollapsed = (k: string) => collapsed[k] ?? k === 'upToDate';
+  const isUpcoming = (t: Title) => /returning|planned|production|pilot/i.test(String((t.data as { status?: string } | null)?.status ?? ''));
 
   /** A movie that isn't out yet can only go to Backlog — add it straight away, no choice sheet. */
   const offerAdd = async (t: Title) => {
@@ -402,7 +414,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
       </div>
     );
   };
-  const wSection = (key: ShowState | 'upToDate', title: string, hint: string, rows: Row[]) => {
+  const wSection = (key: string, title: string, hint: string, rows: Row[]) => {
     const shut = isCollapsed(key);
     return (
       <section key={key} className="w-section">
@@ -456,8 +468,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   ); };
 
   const searchingMode = q.trim().length >= 1;
-  const TABS: Tab[] = (tabPref.order.filter((x) => x === 'watched' || x === 'backlog' || (x === 'playing' && (isTv || isPlay))) as Tab[]);
-  const gamePlaying = useMemo(() => (isPlay ? items.filter((i) => i.status === 'playing').sort((a, b) => (b.started_on ?? '').localeCompare(a.started_on ?? '')) : []), [items, isPlay]);
+  const TABS: Tab[] = (tabPref.order.filter((x) => x === 'watched' || x === 'backlog' || x === 'playing') as Tab[]);
   const tabIndex = TABS.indexOf(tab);
   // Swipe between tabs. While the finger moves we write transforms straight to the DOM (no React re-render) so it stays smooth.
   const [anim, setAnim] = useState<'' | 'enter-right' | 'enter-left'>('');
@@ -565,7 +576,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
             <span className="seg-pill" ref={pillRef} aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: pillAt(tabIndex) }} />
             {TABS.map((tb, i) => (
               <button key={tb} role="tab" aria-selected={tab === tb} onClick={() => tab !== tb && goTab(i, i > tabIndex ? 'from-right' : 'from-left')}>
-                {tb === 'watched' ? (isBook ? 'Read' : isGame ? 'Finished' : 'Watched') : tb === 'playing' ? (isBook ? 'Reading' : isGame ? 'Playing' : 'Watching') : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? (isPlay ? gamePlaying.length : playingCount) : next.length + rest.length}</span>
+                {tb === 'watched' ? (isBook ? 'Read' : isGame ? 'Finished' : 'Watched') : tb === 'playing' ? 'Now & Next' : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? playingCount : deep.length}</span>
               </button>
             ))}
           </div>
@@ -632,10 +643,37 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
               </div>
             ))}
           </div>
-        ) : tab === 'playing' && isPlay ? (
+        ) : tab === 'playing' ? (
           <div className="stack">
-            {gamePlaying.length === 0 && <div className="empty small-pad">{isBook ? 'Start a book from your Backlog — it shows up here.' : 'Start a game from your Backlog — it shows up here.'}</div>}
-            {view === 'list' ? gamePlaying.map((it) => {
+            {(() => {
+              const block = (key: string, title: string, hint: string, list: LibItem[], code: string, empty?: string) => {
+                const shut = isCollapsed('b-' + key);
+                if (!list.length && !empty) return null;
+                return (
+                  <section key={key} className="w-section">
+                    <button className="w-head" aria-expanded={!shut} onClick={() => toggleSection('b-' + key)}>
+                      <span className="h2">{title}</span><span className={'w-count' + (key === 'next' ? ' upnext' : '')}>{list.length}</span><span className="grow" /><ChevBtn open={!shut} size={30} />
+                    </button>
+                    {!shut && <>
+                      {hint && <span className="muted small">{hint}</span>}
+                      {!list.length && empty && <div className="empty small-pad">{empty}</div>}
+                      {view === 'list' ? list.map((it) => backlogRow(it, code)) : <div className="grid">{list.map((it) => tile(it, code, () => setSheet(it), it.id))}</div>}
+                    </>}
+                  </section>
+                );
+              };
+              const nowShut = isCollapsed('b-now');
+              return <>
+                {/* Now */}
+                {isTv ? <>
+                  {nowTv.progress.length > 0 && wSection('progress', 'Now', 'Shows you’re watching with an episode ready', nowTv.progress)}
+                  {nowTv.caught.length > 0 && wSection('caughtUp', 'Caught up', 'Watching — waiting for the next episode', nowTv.caught)}
+                </> : isPlay && gamePlaying.length > 0 && (
+                  <section className="w-section">
+                    <button className="w-head" aria-expanded={!nowShut} onClick={() => toggleSection('b-now')}>
+                      <span className="h2">Now</span><span className="w-count">{gamePlaying.length}</span><span className="grow" /><ChevBtn open={!nowShut} size={30} />
+                    </button>
+                    {!nowShut && (view === 'list' ? gamePlaying.map((it) => {
               const d = it.started_on ? dateParts(it.started_on) : null;
               return (
                 <div key={it.id} className="row-card" data-rowid={it.id} data-list="p">
@@ -650,13 +688,18 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                   <span className="date-col"><span className="date-cap">Started on</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">—</span>}</span>
                 </div>
               );
-            }) : <div className="grid">{gamePlaying.map((it) => tile(it, 'p', () => setSheet(it), it.id))}</div>}
-          </div>
-        ) : tab === 'playing' ? (
-          <div className="stack">
-            {playingCount === 0 && <div className="empty small-pad">Start a show from your Backlog, or mark an episode — it shows up here.</div>}
-            {WATCHING.filter((w) => watchingRows[w.key].length > 0).map((w) => wSection(w.key, w.title, w.hint, watchingRows[w.key]))}
-            {watchingRows.upToDate.length > 0 && wSection('upToDate', 'Up to date', 'Still running, all watched, nothing announced yet', watchingRows.upToDate)}
+            }) : <div className="grid">{gamePlaying.map((it) => tile(it, 'p', () => setSheet(it), it.id))}</div>)}
+                  </section>
+                )}
+                {block('next', 'Up next', '', next, 'n', `Pin a ${noun} as Up next — it shows up here.`)}
+                {isTv && watchingRows.newSeason.length > 0 && wSection('newSeason', 'New season out', 'A season you haven’t started is out', watchingRows.newSeason)}
+                {isTv && watchingRows.lastChance.length > 0 && wSection('lastChance', 'Last chance', 'Ended shows with seasons you haven’t watched', watchingRows.lastChance)}
+                {block('out', 'Out now', 'Released this year', outNow, 'o')}
+                {block('soon', 'Coming soon', 'Not out yet — soonest first', soon, 's')}
+                {isTv && nextSeasons.length > 0 && wSection('nextSeasons', 'Next seasons', 'Shows you’ve watched — the next season is on the way', nextSeasons)}
+                {playingCount === 0 && <div className="empty small-pad">{`Start a ${noun}, pin one as Up next, or add something that’s coming out — it shows up here.`}</div>}
+              </>;
+            })()}
           </div>
         ) : tab === 'watched' ? (
           <div className="stack">
@@ -667,9 +710,6 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         ) : (
           <div className="stack">
             {(() => {
-              const outNow = isTv ? [] : rest.filter((it) => movieState(it, it.title, null, today) === 'outNow').sort((x, y) => (y.title.release_date ?? '').localeCompare(x.title.release_date ?? ''));
-              const soon = isTv ? [] : rest.filter((it) => movieState(it, it.title, null, today) === 'comingSoon').sort((x, y) => (x.title.release_date ?? '').localeCompare(y.title.release_date ?? ''));
-              const deep = rest.filter((it) => !outNow.includes(it) && !soon.includes(it));
               const block = (key: string, title: string, hint: string, list: LibItem[], code: string, empty?: string) => {
                 const shut = isCollapsed('b-' + key);
                 if (!list.length && !empty) return null;
@@ -687,10 +727,8 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                 );
               };
               return <>
-                {block('next', 'Up next', '', next, 'n', `Pin a ${noun} as Up next — it shows up here.`)}
-                {block('out', 'Out now', 'Released this year', outNow, 'o')}
-                {block('soon', 'Coming soon', 'Not released yet — soonest first', soon, 's')}
-                {block('deep', 'Deep backlog', '', deep, 'r', `Search above to add ${noun}s.`)}
+                {block('deep', 'Backlog', '', deep, 'r', `Search above to add ${noun}s.`)}
+                {isTv && watchingRows.upToDate.length > 0 && wSection('upToDate', 'Up to date', 'All watched, nothing announced yet', watchingRows.upToDate)}
               </>;
             })()}
           </div>
@@ -740,6 +778,10 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                   })()}
                   {isBack && <button role="menuitem" onClick={() => { close(); setEdit(true); }}>Reorder</button>}
                   {log && <button role="menuitem" className="danger" onClick={() => setMenuConfirm('viewing')}>{isGame ? 'Delete this playthrough' : isBook ? 'Delete this reading' : 'Delete this viewing'}</button>}
+                  {/* shows you've watched: stop following (no more New season / Up to date for it) — history and ratings stay in Watched */}
+                  {isTv && item.status === 'done' && (() => { const off = !!(item.overrides as { unfollow?: boolean } | null)?.unfollow; return (
+                    <button role="menuitem" onClick={run(async () => { await updateItem(item.id, { overrides: { ...(item.overrides ?? {}), unfollow: !off } } as never); })}>{off ? 'Follow again' : 'Stop following'}</button>
+                  ); })()}
                   <button role="menuitem" className="danger" onClick={() => setMenuConfirm('remove')}>Remove from my lists</button>
                 </div>
               )}

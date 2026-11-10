@@ -47,7 +47,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
     if (a.kind === 'dropped') return 'dropped';
     if (a.kind === 'season_rated') return 'rated ' + (a.seasons_label ?? 'a season') + ' of';
     if (a.kind === 'show_rated') return 'rated';
-    return a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : a.section === 'tv' ? 'finished' : 'finished';
+    return a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : a.section === 'tv' ? 'finished' : 'beat';
   };
   const addTitle = async (t: MiniTitle & { section?: string; platform?: string | null }) => {
     if (!t.title_id || !t.section) return;

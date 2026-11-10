@@ -5,6 +5,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import webpush from 'npm:web-push@3.6.7';
 
 const env = (k: string) => Deno.env.get(k) ?? '';
+const EMOJI: Record<string, string> = { movies: '🎬', tv: '📺', console: '🎮', pc: '🎮', retro: '🎮', books: '📖' };
 const TIER: Record<string, string> = { ten: '10 out of 10', awesome: 'Awesome', fine: 'This is fine', sobad: 'So bad it’s good', filth: 'Fucking filth' };
 
 type Note = { title: string; body: string; url: string; tag?: string };
@@ -35,8 +36,8 @@ Deno.serve(async (req) => {
     if (b.type === 'friend_request' || b.type === 'friend_accepted') {
       const { data: p } = await db.from('profiles').select('display_name, handle').eq('id', b.from).maybeSingle();
       const n = await sendTo(db, [b.to], b.type === 'friend_request'
-        ? { title: 'Friend request', body: nameOf(p) + ' wants to be friends on Queued', url: '/?open=friends', tag: 'friend-' + b.from }
-        : { title: 'New friend', body: nameOf(p) + ' accepted your friend request', url: '/?open=friends', tag: 'friend-' + b.from });
+        ? { title: 'New friend request', body: nameOf(p) + ' wants to add you on Queued', url: '/?open=friends', tag: 'friend-' + b.from }
+        : { title: 'You’re friends now', body: nameOf(p) + ' accepted your request', url: '/?open=friends', tag: 'friend-' + b.from });
       return Response.json({ sent: n });
     }
     if (b.type === 'activity') {
@@ -47,26 +48,34 @@ Deno.serve(async (req) => {
         db.from('friendships').select('requester, addressee').eq('status', 'accepted').or(`requester.eq.${a.user_id},addressee.eq.${a.user_id}`)
       ]);
       const to = (fr ?? []).map((f: any) => (f.requester === a.user_id ? f.addressee : f.requester));
+      // a whole sentence as the title (with the kind's emoji), the details underneath
       const title = a.title?.title ?? 'something';
+      const who = nameOf(p); const em = EMOJI[a.section] ?? '';
       const rate = [a.tier ? TIER[a.tier] ?? a.tier : '', a.score != null ? String(Number(a.score)) : ''].filter(Boolean).join(' ');
-      const what = a.section === 'books' ? 'reading' : a.section === 'tv' || a.section === 'movies' ? 'watching' : 'playing';
-      const body = a.kind === 'started' ? `started ${what} ${title}`
-        : a.kind === 'dropped' ? `dropped ${title}`
-        : a.kind === 'season_rated' ? `rated ${a.seasons_label ?? 'a season'} of ${title}${rate ? ' — ' + rate : ''}`
-        : a.kind === 'show_rated' ? `rated ${title}${rate ? ' — ' + rate : ''}`
-        : `${a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : 'finished'} ${title}${a.seasons_label ? ' · ' + a.seasons_label : ''}${rate ? ' — ' + rate : ''}`;
-      const n = await sendTo(db, to, { title: nameOf(p), body, url: '/?open=friends', tag: 'act-' + a.id });
+      const verbStart = a.section === 'books' ? 'started reading' : a.section === 'tv' || a.section === 'movies' ? 'started watching' : 'started playing';
+      const verbDone = a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : a.section === 'tv' ? 'finished' : 'beat';
+      const head = a.kind === 'started' ? `${who} ${verbStart} ${title}`
+        : a.kind === 'dropped' ? `${who} dropped ${title}`
+        : a.kind === 'season_rated' || a.kind === 'show_rated' ? `${who} rated ${title}`
+        : `${who} ${verbDone} ${title}`;
+      const coop = (a.coop_with ?? []).length ? 'with friends' : '';
+      const details = (a.kind === 'started' ? [['console', 'pc', 'retro'].includes(a.section) && a.platform ? 'on ' + String(a.platform).toUpperCase() : '']
+        : a.kind === 'season_rated' ? [a.seasons_label, rate]
+        : a.kind === 'show_rated' ? ['The whole show', rate]
+        : a.kind === 'dropped' ? [a.seasons_label]
+        : [a.seasons_label, rate, coop]).filter(Boolean).join(' · ');
+      const n = await sendTo(db, to, { title: head + (em ? ' ' + em : ''), body: details, url: '/?open=friends', tag: 'act-' + a.id });
       return Response.json({ sent: n });
     }
     if (b.type === 'releases') {
       const { data: rows } = await db.rpc('releases_today');
-      const byUser = new Map<string, { title: string; what: string }[]>();
-      (rows ?? []).forEach((r: any) => { const l = byUser.get(r.user_id) ?? []; if (!l.some((x) => x.title === r.title)) l.push({ title: r.title, what: r.what }); byUser.set(r.user_id, l); });
+      const byUser = new Map<string, { title: string; what: string; section: string }[]>();
+      (rows ?? []).forEach((r: any) => { const l = byUser.get(r.user_id) ?? []; if (!l.some((x) => x.title === r.title)) l.push({ title: r.title, what: r.what, section: r.section }); byUser.set(r.user_id, l); });
       let n = 0;
       for (const [uid, list] of byUser) {
         n += await sendTo(db, [uid], list.length === 1
-          ? { title: list[0].title, body: list[0].what, url: '/?open=home', tag: 'out-today' }
-          : { title: list.length + ' things out today', body: list.slice(0, 4).map((x) => x.title + ' — ' + x.what).join('\n'), url: '/?open=home', tag: 'out-today' });
+          ? { title: 'Out today: ' + list[0].title + (EMOJI[list[0].section] ? ' ' + EMOJI[list[0].section] : ''), body: list[0].what, url: '/?open=home', tag: 'out-today' }
+          : { title: list.length + ' things out today', body: list.slice(0, 4).map((x) => (EMOJI[x.section] ? EMOJI[x.section] + ' ' : '') + x.title).join(' · '), url: '/?open=home', tag: 'out-today' });
       }
       return Response.json({ sent: n });
     }

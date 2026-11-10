@@ -26,7 +26,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
   useEffect(() => { pushEnabled().then(setPushOn).catch(() => undefined); }, []);
   const [tabsOpen, setTabsOpen] = useState(false);
   const tabs = s.tabs ?? { order: ['watched', 'playing', 'backlog'], def: 'watched' };
-  const TAB_LABEL: Record<string, string> = { watched: 'Watched / Finished', playing: 'Watching / Playing', backlog: 'Backlog' };
+  const TAB_LABEL: Record<string, string> = { watched: 'Watched / Finished', playing: 'Now & Next', backlog: 'Backlog' };
   const nav = normNav(s.nav);
   const saveNav = (n: { bar: NavId[]; side: NavId[] }) => set({ nav: normNav(n) });
   const moveNav = (where: 'bar' | 'side', i: number, d: number) => {
@@ -157,7 +157,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
               </div>
               <span className="list-group-title">Opens on</span>
               <div className="tn-chips">{tabs.order.map((t) => <button key={t} className={'chip' + (tabs.def === t ? ' on' : '')} onClick={() => set({ tabs: { ...tabs, def: t } })}>{TAB_LABEL[t]}</button>)}</div>
-              <span className="muted small">“Watching” means Playing for games and Reading for books. Movies have no such tab and open on the next one.</span>
+              <span className="muted small">Now & Next: what you’re in, your Up next, what’s out and what’s coming.</span>
             </div>
           )}
 

@@ -352,10 +352,18 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                   <span className="li-icon" aria-hidden="true">{Ico.seasons}</span><span className="grow">{planLabel.split(' · ')[0]}</span><span className="muted small">Change ›</span>
                 </button>
               )}
-              {canStart && (
+              {/* main buttons: Start watching / Up next; "All watched" only when the card is unfolded (fewer accidental taps) */}
+              {confirmAll ? (
+                <div className="state-actions confirm-all">
+                  <span className="small grow">Mark all {unwatchedAired.length} aired {unwatchedAired.length === 1 ? 'episode' : 'episodes'} as watched?</span>
+                  <button className="btn" onClick={() => setConfirmAll(false)}>Cancel</button>
+                  <button className="btn primary" onClick={() => { setConfirmAll(false); applyMarks(unwatchedAired, true); }}>{Ico.check}Mark all</button>
+                </div>
+              ) : (canStart || (takeOpen && !isBack && unwatchedAired.length > 0)) && (
                 <div className="state-actions">
-                  <button className="btn primary" onClick={() => act(() => startWatching(item, stSeasons))}>{Ico.play}Start watching</button>
+                  {canStart && <button className="btn primary" onClick={() => act(() => startWatching(item, stSeasons))}>{Ico.play}Start watching</button>}
                   {isBack && <button className={'btn' + (item.up_next ? ' pin-on' : '')} aria-pressed={item.up_next} onClick={toggleNext}>{Ico.pin}{item.up_next ? 'Up next ✓' : 'Up next'}</button>}
+                  {takeOpen && !isBack && unwatchedAired.length > 0 && <button className={'btn' + (canStart ? '' : ' primary')} onClick={() => setConfirmAll(true)}>{Ico.check}All watched</button>}
                 </div>
               )}
 
@@ -394,15 +402,10 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                 <div className="quiet-row"><span className="small grow">Drop {t.title}? It disappears from your lists; entries stay in Watched.</span>
                   <button className="link" onClick={() => setConfirmDrop(false)}>Cancel</button><button className="link danger" onClick={() => { setConfirmDrop(false); act(() => dropShow(item)); }}>Drop</button></div>
               ) : (
-                confirmAll ? (
-                <div className="quiet-row"><span className="small grow">Mark all {unwatchedAired.length} aired {unwatchedAired.length === 1 ? 'episode' : 'episodes'} as watched today?</span>
-                  <button className="link" onClick={() => setConfirmAll(false)}>Cancel</button>
-                  <button className="link strong" onClick={() => { setConfirmAll(false); applyMarks(unwatchedAired, true); }}>Mark all</button></div>
-                ) : <div className="quiet-row">
+<div className="quiet-row">
                   {st.state !== 'dropped' && <button className="link" onClick={() => { setPastMode('past'); setPastStep('seasons'); }}>⟲ Before</button>}
                   {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="link" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>↩ Backlog</button>}
                   {st.state === 'dropped' && <button className="link" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>↺ Bring back</button>}
-                  {unwatchedAired.length > 0 && <button className="link" onClick={() => setConfirmAll(true)}>✓ All watched</button>}
                   {canDrop && <button className="link danger end" onClick={() => setConfirmDrop(true)}>✕ Drop</button>}
                 </div>
               ))}

@@ -3,48 +3,73 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
-    <meta name="theme-color" content="#121214" />
+    <meta name="theme-color" content="#0A0A0F" />
     <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Onest:wght@400;500;700&family=Montserrat:wght@800&display=swap" />
     <title>Queued</title>
     <link rel="icon" type="image/png" href="/icons/favicon-64.png" />
     <style>
-      /* splash: QD drops in, its smile fills up like a loading bar; then UEUE squeezes in — QD becomes QUEUED, the smile stretches under it */
-      #splash { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: #121214; transition: opacity .35s ease, visibility .35s; }
-      #splash.gone { opacity: 0; visibility: hidden; }
-      #splash .w { display: inline-flex; flex-direction: column; align-items: center; }
-      #splash .word { display: flex; align-items: flex-end; font-family: 'Montserrat', 'Arial', sans-serif; font-weight: 800; font-size: 58px; line-height: 1; letter-spacing: 1px;
-        background: linear-gradient(#ffffff 30%, #DED6FF); -webkit-background-clip: text; background-clip: text; color: transparent; }
-      #splash .q, #splash .d { display: inline-block; opacity: 0; transform: translateY(-18px); animation: sp-drop .38s cubic-bezier(.2,.9,.3,1.2) forwards; }
-      #splash .d { animation-delay: .1s; }
-      #splash .mid { display: inline-flex; overflow: hidden; max-width: 0; animation: sp-open .6s cubic-bezier(.6,0,.2,1) 1.25s forwards; }
-      #splash .mid span { opacity: 0; animation: sp-fade .3s ease-out forwards; }
-      #splash .mid span:nth-child(1) { animation-delay: 1.35s; } #splash .mid span:nth-child(2) { animation-delay: 1.43s; } #splash .mid span:nth-child(3) { animation-delay: 1.51s; } #splash .mid span:nth-child(4) { animation-delay: 1.59s; }
-      #splash .smile-wrap { width: 100%; display: flex; justify-content: center; margin-top: 10px; }
-      #splash .smile-box { width: 64%; animation: sp-wide .6s cubic-bezier(.6,0,.2,1) 1.25s forwards; }
-      #splash .smile { display: block; width: 100%; height: 24px; overflow: visible; filter: drop-shadow(0 0 6px rgba(139,123,240,.55)); }
-      #splash .smile .track { stroke: rgba(139,123,240,.22); }
-      #splash .smile .fill { stroke-dasharray: 100; stroke-dashoffset: 100; animation: sp-load .8s cubic-bezier(.4,0,.2,1) .4s forwards; }
-      @keyframes sp-drop { to { opacity: 1; transform: none; } }
-      @keyframes sp-open { to { max-width: 5.2em; } }
+      /* Splash "stroke & reveal". Only transform/opacity are animated (60 fps, no layout, no size jumps).
+         The word is laid out once as QUEUED; Q and D start shifted to the centre (offsets measured by the script below). */
+      #splash { position: fixed; inset: 0; z-index: 9999; display: flex; align-items: center; justify-content: center; background: #0A0A0F; }
+      #splash .stage { display: flex; flex-direction: column; align-items: center; will-change: transform, opacity; }
+      #splash .word { display: flex; align-items: baseline; font-family: 'Montserrat', 'Arial', sans-serif; font-weight: 800; font-size: 60px; line-height: 1;
+        letter-spacing: 1px; color: #FFFFFF; font-kerning: none; -webkit-font-smoothing: antialiased; }
+      #splash .slide { display: inline-block; will-change: transform; }
+      #splash .pop { display: inline-block; transform: scale(0); opacity: 0; will-change: transform, opacity; }
+      #splash .mid { display: inline-flex; opacity: 0; will-change: opacity; }
+      #splash .smile { margin-top: 12px; width: 82%; height: 22px; transform-origin: 50% 50%; transform: scaleX(0); will-change: transform;
+        filter: drop-shadow(0 0 8px rgba(168,85,247,.85)) drop-shadow(0 0 18px rgba(168,85,247,.45)); }
+      #splash .smile svg { display: block; width: 100%; height: 100%; overflow: visible; }
+      /* run: added once fonts are ready and offsets are measured */
+      #splash.run .smile { animation: sp-stroke .4s cubic-bezier(.16,1,.3,1) forwards, sp-widen .5s cubic-bezier(.65,0,.35,1) .8s forwards; }
+      #splash.run .pop { animation: sp-spring .45s cubic-bezier(.34,1.56,.64,1) .4s forwards; }
+      #splash.run .q { transform: translateX(var(--qx)); animation: sp-home .5s cubic-bezier(.65,0,.35,1) .8s forwards; }
+      #splash.run .d { transform: translateX(var(--dx)); animation: sp-home .5s cubic-bezier(.65,0,.35,1) .8s forwards; }
+      #splash.run .mid { animation: sp-fade .4s cubic-bezier(.65,0,.35,1) .95s forwards; }
+      #splash.run.out .stage { animation: sp-up .3s cubic-bezier(.4,0,1,1) forwards; }
+      #splash.out { animation: sp-bg .3s ease .1s forwards; }
+      @keyframes sp-stroke { from { transform: scaleX(0); } to { transform: scaleX(var(--s1)); } }
+      @keyframes sp-widen { from { transform: scaleX(var(--s1)); } to { transform: scaleX(1); } }
+      @keyframes sp-spring { 0% { transform: scale(0); opacity: 0; } 60% { transform: scale(1.1); opacity: 1; } 100% { transform: scale(1); opacity: 1; } }
+      @keyframes sp-home { to { transform: translateX(0); } }
       @keyframes sp-fade { to { opacity: 1; } }
-      @keyframes sp-load { to { stroke-dashoffset: 0; } }
-      @keyframes sp-wide { to { width: 80%; } }
-      @media (prefers-color-scheme: light) { #splash { background: #f5f4f7; } #splash .word { background: linear-gradient(#17161A 30%, #4b3fa8); -webkit-background-clip: text; background-clip: text; } }
-      @media (prefers-reduced-motion: reduce) { #splash .q, #splash .d, #splash .mid span { animation: none; opacity: 1; transform: none; } #splash .mid { animation: none; max-width: none; } #splash .smile .fill { animation: none; stroke-dashoffset: 0; } #splash .smile-box { animation: none; width: 80%; } }
+      @keyframes sp-up { to { transform: translateY(-28px); opacity: 0; } }
+      @keyframes sp-bg { to { opacity: 0; visibility: hidden; } }
+      /* the app slides up a little as the splash goes */
+      #root.enter { animation: app-in .45s cubic-bezier(.16,1,.3,1); }
+      @keyframes app-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+      @media (prefers-reduced-motion: reduce) {
+        #splash .pop, #splash .mid { transform: none; opacity: 1; animation: none !important; }
+        #splash .smile { transform: none; animation: none !important; } #splash.run .q, #splash.run .d { transform: none; animation: none; }
+      }
     </style>
   </head>
   <body>
-    <div id="splash" role="img" aria-label="Queued is loading">
-      <div class="w" aria-hidden="true">
-        <div class="word"><span class="q">Q</span><span class="mid"><span>U</span><span>E</span><span>U</span><span>E</span></span><span class="d">D</span></div>
-        <div class="smile-wrap"><div class="smile-box"><svg class="smile" viewBox="0 0 100 24" preserveAspectRatio="none">
-          <path class="track" d="M5 5 Q50 30 95 5" fill="none" stroke-width="7" stroke-linecap="round" vector-effect="non-scaling-stroke" />
-          <path class="fill" d="M5 5 Q50 30 95 5" pathLength="100" fill="none" stroke="#8B7BF0" stroke-width="7" stroke-linecap="round" vector-effect="non-scaling-stroke" />
-        </svg></div></div>
+    <div id="splash" role="img" aria-label="Queued">
+      <div class="stage" aria-hidden="true">
+        <div class="word"><span class="slide q"><span class="pop">Q</span></span><span class="mid">UEUE</span><span class="slide d"><span class="pop">D</span></span></div>
+        <div class="smile"><svg viewBox="0 0 100 22" preserveAspectRatio="none"><path d="M4 4 Q50 30 96 4" fill="none" stroke="#A855F7" stroke-width="7" stroke-linecap="round" vector-effect="non-scaling-stroke" /></svg></div>
       </div>
     </div>
+    <script>
+      // measure where Q and D sit in QUEUED, and how far they must move to stand side by side in the centre; then start
+      (function () {
+        var sp = document.getElementById('splash'); if (!sp) return;
+        function go() {
+          var q = sp.querySelector('.q'), d = sp.querySelector('.d'), w = sp.querySelector('.word'), sm = sp.querySelector('.smile');
+          var rq = q.getBoundingClientRect(), rd = d.getBoundingClientRect(), rw = w.getBoundingClientRect(), rs = sm.getBoundingClientRect();
+          var c = rw.left + rw.width / 2, pair = rq.width + rd.width, left = c - pair / 2;
+          sp.style.setProperty('--qx', (left - rq.left) + 'px');
+          sp.style.setProperty('--dx', (left + rq.width - rd.left) + 'px');
+          sp.style.setProperty('--s1', Math.min(1, (pair * 0.92) / rs.width).toFixed(3));
+          sp.classList.add('run'); window.__splashStart = performance.now();
+        }
+        var started = false; function once() { if (!started) { started = true; go(); } }
+        if (document.fonts && document.fonts.load) { document.fonts.load('800 60px Montserrat').then(once, once); setTimeout(once, 700); } else once();
+      })();
+    </script>
     <div id="root"></div>
     <div class="rotate-hint" aria-hidden="true"><span>Turn your phone upright</span></div>
     <script type="module" src="/src/main.tsx"></script>
