@@ -1,9 +1,16 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.8';
+export const APP_VERSION = '4.9';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.9',
+    title: 'Ratings in the Telegram group',
+    items: [
+      { icon: '✈️', title: 'Telegram posts', text: 'When you finish something and rate it, a post with the cover, your avatar and the rating goes to the group chat. Change the rating later — the post updates. Turn it off in Profile and settings → Post my ratings to Telegram.' }
+    ]
+  },
   {
     version: '4.8',
     title: 'Half points on the 10-point scale',

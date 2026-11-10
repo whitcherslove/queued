@@ -27,6 +27,62 @@ async function sendTo(db: any, userIds: string[], note: Note) {
 }
 const nameOf = (p: any) => p?.display_name || (p?.handle ? '@' + p.handle : 'A friend');
 
+// ---------- Telegram: a post to the group's chat when someone finishes AND rates something ----------
+const TG_EMOJI: Record<string, string> = { ten: '🤌🏻', awesome: '🔥', fine: '🙂', sobad: '🫠', filth: '🗑️' };
+const TG_LINES: Record<string, string[]> = {
+  ten: ['Instant classic — no notes.', 'Straight into the hall of fame.', 'Masterpiece, apparently.', 'Nothing will ever be this good again.'],
+  awesome: ['Loved it.', 'Would recommend.', 'Worth every minute.', 'Good stuff, really good stuff.'],
+  fine: ['It was… fine.', 'Not bad, not great.', 'Done it, that’s about it.', 'Perfectly okay.'],
+  sobad: ['Terrible. Loved it.', 'A glorious mess.', 'So wrong it’s right.'],
+  filth: ['Never again.', 'Want those hours back.', 'Avoid at all costs.']
+};
+const esc = (x: string) => x.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const b64url = (x: string) => btoa(unescape(encodeURIComponent(x))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+async function tgCall(method: string, payload: unknown) {
+  const r = await fetch(`https://api.telegram.org/bot${env('TELEGRAM_BOT_TOKEN')}/${method}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  return r.json().catch(() => ({ ok: false }));
+}
+async function telegramPost(db: any, id: string) {
+  if (!env('TELEGRAM_BOT_TOKEN')) return { skipped: 'no bot token' };
+  const { data: cfgRows } = await db.from('app_config').select('key, value').in('key', ['tg_chat_id', 'cloudinary_cloud', 'site_url']);
+  const cfg: Record<string, string> = Object.fromEntries((cfgRows ?? []).map((r: any) => [r.key, r.value]));
+  if (!cfg.tg_chat_id) return { skipped: 'no chat' };
+  const { data: a } = await db.from('activity').select('*, title:titles(title, poster_url, backdrop_url)').eq('id', id).maybeSingle();
+  if (!a || a.kind !== 'finished' || !a.tier) return { skipped: 'not a rated finish' };
+  const { data: p } = await db.from('profiles').select('display_name, handle, avatar_url, settings, telegram_off').eq('id', a.user_id).maybeSingle();
+  if (p?.telegram_off) return { skipped: 'off' };
+  const who = esc(nameOf(p)); const title = esc(a.title?.title ?? 'something');
+  const verb = a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : a.section === 'tv' ? 'finished' : 'beat';
+  const em = EMOJI[a.section] ?? '';
+  // the same phrase for the same entry and rating (so an edit doesn't reshuffle it)
+  const lines = TG_LINES[a.tier] ?? ['Done.']; let h = 0; for (const c of id + a.tier) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  const scale = (p?.settings?.scale === 10 ? 10 : 5);
+  const score = a.score != null ? (scale === 10 ? Math.round(Number(a.score) * 4) / 2 : Math.round(Number(a.score) * 2) / 2) + '/' + scale : '';
+  const caption = `${em} <b>${who} ${verb} «${title}»</b>${a.section === 'tv' && a.seasons_label ? ' · ' + esc(a.seasons_label) : ''}\n${esc(lines[h % lines.length])}\n<b>${esc(TIER[a.tier] ?? a.tier)}${score ? ' · ' + score : ''}</b> ${TG_EMOJI[a.tier] ?? ''}`;
+  // the picture: the title's image + your avatar in the corner + the rating badge (Cloudinary), or just the image
+  const base = a.title?.backdrop_url ?? a.title?.poster_url ?? null;
+  let photo = base;
+  if (base && cfg.cloudinary_cloud) {
+    let tr = 'c_scale,w_1280/';
+    if (p?.avatar_url) tr += `l_fetch:${b64url(p.avatar_url)},g_north_west,x_30,y_30,w_250,h_250,c_fill,r_max/`;
+    if (cfg.site_url) tr += `l_fetch:${b64url(cfg.site_url.replace(/\/$/, '') + '/tg/' + a.tier + '.png')},g_east,x_10,y_0,w_600,h_600,c_fit/`;
+    photo = `https://res.cloudinary.com/${cfg.cloudinary_cloud}/image/fetch/${tr}${base}`;
+  }
+  const chat_id = cfg.tg_chat_id;
+  if (a.tg_message_id) {
+    // already posted: a new rating label → new picture and text; a new score only → new text
+    const r = a.tg_tier !== a.tier && photo
+      ? await tgCall('editMessageMedia', { chat_id, message_id: a.tg_message_id, media: { type: 'photo', media: photo, caption, parse_mode: 'HTML' } })
+      : await tgCall(photo ? 'editMessageCaption' : 'editMessageText', { chat_id, message_id: a.tg_message_id, ...(photo ? { caption } : { text: caption }), parse_mode: 'HTML' });
+    await db.from('activity').update({ tg_tier: a.tier }).eq('id', id);
+    return { edited: !!r.ok };
+  }
+  let r = photo ? await tgCall('sendPhoto', { chat_id, photo, caption, parse_mode: 'HTML' }) : { ok: false };
+  if (!r.ok) r = await tgCall('sendMessage', { chat_id, text: caption, parse_mode: 'HTML' });   // the picture failed → text only
+  if (r.ok) await db.from('activity').update({ tg_message_id: r.result.message_id, tg_tier: a.tier }).eq('id', id);
+  return { sent: !!r.ok, error: r.ok ? undefined : r.description };
+}
+
 Deno.serve(async (req) => {
   if (req.headers.get('x-push-secret') !== env('PUSH_SECRET') || !env('PUSH_SECRET')) return new Response('forbidden', { status: 403 });
   webpush.setVapidDetails(env('VAPID_SUBJECT') || 'mailto:admin@example.com', env('VAPID_PUBLIC_KEY'), env('VAPID_PRIVATE_KEY'));
@@ -67,6 +123,7 @@ Deno.serve(async (req) => {
       const n = await sendTo(db, to, { title: head + (em ? ' ' + em : ''), body: details, url: '/?open=friends', tag: 'act-' + a.id });
       return Response.json({ sent: n });
     }
+    if (b.type === 'telegram') return Response.json(await telegramPost(db, String(b.id)));
     if (b.type === 'releases') {
       const { data: rows } = await db.rpc('releases_today');
       const byUser = new Map<string, { title: string; what: string; section: string }[]>();
