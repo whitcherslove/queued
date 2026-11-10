@@ -248,12 +248,14 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   // Backlog: everything else you might start some day (+ shows that are up to date, folded at the bottom)
   const nowTv = useMemo(() => ({ progress: watchingRows.progress, caught: watchingRows.caughtUp.filter((r) => r.it.status === 'playing') }), [watchingRows]);
   const nextSeasons = useMemo(() => watchingRows.caughtUp.filter((r) => r.it.status !== 'playing'), [watchingRows]);
-  const outNow = useMemo(() => rest.filter((it) => movieState(it, it.title, null, today) === 'outNow').sort((x, y) => (y.title.release_date ?? '').localeCompare(x.title.release_date ?? '')), [rest, today]);
+  const shelved = (it: LibItem) => !!(it.overrides as { shelved?: boolean } | null)?.shelved;
+  const outNow = useMemo(() => rest.filter((it) => !shelved(it) && movieState(it, it.title, null, today) === 'outNow').sort((x, y) => (y.title.release_date ?? '').localeCompare(x.title.release_date ?? '')), [rest, today]);
   const soon = useMemo(() => rest.filter((it) => movieState(it, it.title, null, today) === 'comingSoon' || (isTv && !it.title.release_date && it.status === 'backlog' && isUpcoming(it.title)))
     .sort((x, y) => (x.title.release_date ?? '9999').localeCompare(y.title.release_date ?? '9999')), [rest, today, isTv]);
   const deep = useMemo(() => rest.filter((it) => !outNow.includes(it) && !soon.includes(it)), [rest, outNow, soon]);
   const nowCount = isTv ? nowTv.progress.length + nowTv.caught.length : isPlay ? gamePlaying.length : 0;
-  const playingCount = nowCount + next.length + outNow.length + soon.length + (isTv ? watchingRows.newSeason.length + watchingRows.lastChance.length + nextSeasons.length : 0);
+  const playingCount = nowCount + next.length;   // Now & Next = what you're in + your Up next
+  const backlogCount = deep.length + outNow.length + soon.length;   // only things you haven't started
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(readCollapsed);
   const toggleSection = (k: string) => setCollapsed((c) => { const n = { ...c, [k]: !(c[k] ?? k === 'upToDate') }; try { localStorage.setItem('queued.collapsed', JSON.stringify(n)); } catch { /* ignore */ } return n; });
   const isCollapsed = (k: string) => collapsed[k] ?? k === 'upToDate';
@@ -576,7 +578,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
             <span className="seg-pill" ref={pillRef} aria-hidden="true" style={{ width: `calc((100% - 8px) / ${TABS.length})`, transform: pillAt(tabIndex) }} />
             {TABS.map((tb, i) => (
               <button key={tb} role="tab" aria-selected={tab === tb} onClick={() => tab !== tb && goTab(i, i > tabIndex ? 'from-right' : 'from-left')}>
-                {tb === 'watched' ? (isBook ? 'Read' : isGame ? 'Finished' : 'Watched') : tb === 'playing' ? 'Now & Next' : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? playingCount : deep.length}</span>
+                {tb === 'watched' ? (isBook ? 'Read' : isGame ? 'Finished' : 'Watched') : tb === 'playing' ? 'Now & Next' : 'Backlog'} <span className="muted">{tb === 'watched' ? watched.length : tb === 'playing' ? playingCount : backlogCount}</span>
               </button>
             ))}
           </div>
@@ -692,12 +694,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                   </section>
                 )}
                 {block('next', 'Up next', '', next, 'n', `Pin a ${noun} as Up next — it shows up here.`)}
-                {isTv && watchingRows.newSeason.length > 0 && wSection('newSeason', 'New season out', 'A season you haven’t started is out', watchingRows.newSeason)}
-                {isTv && watchingRows.lastChance.length > 0 && wSection('lastChance', 'Last chance', 'Ended shows with seasons you haven’t watched', watchingRows.lastChance)}
-                {block('out', 'Out now', 'Released this year', outNow, 'o')}
-                {block('soon', 'Coming soon', 'Not out yet — soonest first', soon, 's')}
-                {isTv && nextSeasons.length > 0 && wSection('nextSeasons', 'Next seasons', 'Shows you’ve watched — the next season is on the way', nextSeasons)}
-                {playingCount === 0 && <div className="empty small-pad">{`Start a ${noun}, pin one as Up next, or add something that’s coming out — it shows up here.`}</div>}
+                {playingCount === 0 && <div className="empty small-pad">{`Start a ${noun} or pin one as Up next — it shows up here.`}</div>}
               </>;
             })()}
           </div>
@@ -727,7 +724,12 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                 );
               };
               return <>
-                {block('deep', 'Backlog', '', deep, 'r', `Search above to add ${noun}s.`)}
+                {isTv && watchingRows.newSeason.length > 0 && wSection('newSeason', 'New season out', 'A season you haven’t started is out', watchingRows.newSeason)}
+                {isTv && watchingRows.lastChance.length > 0 && wSection('lastChance', 'Last chance', 'Ended shows with seasons you haven’t watched', watchingRows.lastChance)}
+                {block('out', 'Out now', 'Released this year', outNow, 'o')}
+                {block('soon', 'Coming soon', 'Not out yet — soonest first', soon, 's')}
+                {isTv && nextSeasons.length > 0 && wSection('nextSeasons', 'Next seasons', 'Shows you’ve watched — the next season is on the way', nextSeasons)}
+                {block('deep', (outNow.length || soon.length || (isTv && (watchingRows.newSeason.length || watchingRows.lastChance.length || nextSeasons.length))) ? 'Everything else' : 'Backlog', '', deep, 'r', `Search above to add ${noun}s.`)}
                 {isTv && watchingRows.upToDate.length > 0 && wSection('upToDate', 'Up to date', 'All watched, nothing announced yet', watchingRows.upToDate)}
               </>;
             })()}

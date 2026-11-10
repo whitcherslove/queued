@@ -1,3 +1,4 @@
+import { movieState } from '../lib/movie';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMsg, ItemLog, LibItem, Mark, SeasonEps, SeasonRating } from '../lib/types';
 import type { Settings } from '../lib/theme';
@@ -255,6 +256,11 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const stSeasons = st.seasons.length ? st.seasons : plan;
   const stAir = st.seasons.length ? seasonAir(t, st.seasons[0]) : null;
   const act = (fn: () => Promise<unknown>) => { guard(async () => { await fn(); })(); };
+  const pill = (() => {
+    const ss = shownState(st.state, !!item.up_next);
+    if (ss === 'backlog' && !(item.overrides as { shelved?: boolean } | null)?.shelved) { const ms = movieState(item, t, null); if (ms === 'outNow') return { k: 'outNow', label: 'Out now' }; if (ms === 'comingSoon') return { k: 'comingSoon', label: 'Coming soon' }; }
+    return { k: ss, label: STATE_LABEL[ss] };
+  })();
   const unwatchedAired = eps.flatMap((se) => se.episodes.filter((e) => e.air_date && e.air_date <= todayIso() && !marks.some((m) => m.season === se.season && m.episode === e.n)).map((e) => ({ season: se.season, episode: e.n })));
   const canStart = st.state === 'backlog' || st.state === 'newSeason' || st.state === 'lastChance';
   // what the floating bar at the bottom offers: the next episode while watching, Start when there's something to start
@@ -341,7 +347,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               {/* tap the top part to show / hide the extra options at the bottom */}
               <button className="state-head" aria-expanded={takeOpen} {...statusPress.bind} onClick={() => { setTakeOpen(!takeOpen); setConfirmDrop(false); }}>
                 <span className="state-head-text">
-                  <span className="state-pill" data-state={shownState(st.state, !!item.up_next)}>{STATE_LABEL[shownState(st.state, !!item.up_next)]}</span>
+                  <span className="state-pill" data-state={pill.k}>{pill.label}</span>
                   <span className="state-title">{title}</span>
                   {sub && <span className="small muted">{sub}</span>}
                 </span>
@@ -404,6 +410,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               ) : (
 <div className="quiet-row">
                   {st.state !== 'dropped' && <button className="link" onClick={() => { setPastMode('past'); setPastStep('seasons'); }}>⟲ Before</button>}
+                  {isBack && pill.k === 'outNow' && <button className="link" onClick={() => act(() => updateItem(item.id, { overrides: { ...(item.overrides ?? {}), shelved: true } } as never))}>↩ Backlog</button>}
                   {!isBack && st.state !== 'dropped' && st.state !== 'finished' && st.state !== 'upToDate' && <button className="link" onClick={() => act(() => moveToBacklog(item, stSeasons, topPos))}>↩ Backlog</button>}
                   {st.state === 'dropped' && <button className="link" onClick={() => act(() => bringBack(item, logs.length > 0, topPos))}>↺ Bring back</button>}
                   {canDrop && <button className="link danger end" onClick={() => setConfirmDrop(true)}>✕ Drop</button>}
@@ -508,7 +515,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               <div className="view-row">
                 <span className="grow small strong">{what[st.state]}</span>
                 {item.rewatch && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
-                <span className="state-pill" data-state={shownState(st.state, !!item.up_next)}>{STATE_LABEL[shownState(st.state, !!item.up_next)]}</span>
+                <span className="state-pill" data-state={pill.k}>{pill.label}</span>
                 {(isBack || isPlaying) && logs.length > 0 && <button className="del-x" aria-label="Cancel the plan" onClick={cancelPlan}><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.8" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg></button>}
               </div>
             );

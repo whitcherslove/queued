@@ -163,7 +163,7 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
       .map((x) => ({ it: x.it, kind: 'Shows' as const, label: x.st.state === 'newSeason' ? 'New season' : 'Last chance', state: x.st.state, text: x.st.state === 'newSeason' ? seasonsName(x.st.seasons) + ' is out' : seasonsName(x.st.seasons) + ' left', seasons: x.st.seasons }));
     // out now: in your backlog and already released this year (or within the last ~4 months, so January still shows December's releases)
     const since = new Date(Date.now() - 120 * 864e5).toISOString().slice(0, 10);
-    items.filter((i) => i.status === 'backlog' && i.section !== 'tv' && i.title.release_date && i.title.release_date <= today && (i.title.release_date.slice(0, 4) === today.slice(0, 4) || i.title.release_date >= since))
+    items.filter((i) => i.status === 'backlog' && !(i.overrides as { shelved?: boolean } | null)?.shelved && i.section !== 'tv' && i.title.release_date && i.title.release_date <= today && (i.title.release_date.slice(0, 4) === today.slice(0, 4) || i.title.release_date >= since))
       .sort((a, b) => (b.title.release_date ?? '').localeCompare(a.title.release_date ?? ''))
       .forEach((i) => out.push({ it: i, kind: i.section === 'movies' ? 'Movies' : i.section === 'books' ? 'Books' : 'Games', label: 'Out now', state: 'outNow',
         text: 'Released ' + new Date(i.title.release_date!).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }), seasons: [] }));

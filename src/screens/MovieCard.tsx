@@ -208,7 +208,9 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
   };
   // the platform you play / played on (latest playthrough unless it's in Backlog or Playing)
   const heroPlat: string | null = game ? ((item.status === 'backlog' || item.status === 'playing' ? gItem.platform : (last as (typeof last) & { platform?: string | null } | null)?.platform ?? gItem.platform) ?? null) : null;
-  const mState = isPlaying ? ('playing' as const) : movieState(item, t, planned ? null : last);
+  const mState0 = isPlaying ? ('playing' as const) : movieState(item, t, planned ? null : last);
+  // moved to the general backlog by hand: no longer "Out now"
+  const mState = mState0 === 'outNow' && (item.overrides as { shelved?: boolean } | null)?.shelved ? ('backlog' as const) : mState0;
   const inBacklog = item.status === 'backlog';
   const canWatchNow = inBacklog && movieState(item, t, null) !== 'comingSoon';
   const rel = t.release_date;
@@ -545,6 +547,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
             <div className="quiet-row">
               {(canWatchNow || isPlaying) && <button className="link" onClick={() => setPastOpen(true)}>⟲ Before</button>}
               {isPlaying && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: 'backlog', position: backlogCount, started_on: null, run_started_at: null } as never); })}>↩ Backlog</button>}
+              {mState === 'outNow' && <button className="link" onClick={guard(async () => { await updateItem(item.id, { overrides: { ...(item.overrides ?? {}), shelved: true } } as never); })}>↩ Backlog</button>}
               {mState === 'dropped' && <button className="link" onClick={guard(async () => { await updateItem(item.id, { status: logs.length ? 'done' : 'backlog', position: backlogCount }); })}>↺ Bring back</button>}
               {(canWatchNow || isPlaying) && <button className="link danger end" onClick={() => setConfirmDrop(true)}>✕ Drop</button>}
             </div>
