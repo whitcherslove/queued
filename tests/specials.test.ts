@@ -13,3 +13,15 @@ describe('specials', () => {
     expect(mergeSpecials(eps, []).flatMap((s) => s.episodes).some((e) => e.s === 0)).toBe(false);
   });
 });
+
+describe('specials before season 1', () => {
+  it('a lead-in special goes at the start of season 1; one between seasons at the end of the earlier season', () => {
+    const dw = [
+      { title_id: 'd', season: 1, name: 'S1', air_date: '2024-05-10', episodes: [{ n: 1, name: 'Space Babies', air_date: '2024-05-10' }, { n: 8, name: 'Empire of Death', air_date: '2024-06-22' }] },
+      { title_id: 'd', season: 2, name: 'S2', air_date: '2025-04-12', episodes: [{ n: 1, name: 'x', air_date: '2025-04-12' }] },
+      { title_id: 'd', season: 0, name: 'Specials', air_date: null, episodes: [{ n: 4, name: 'The Church on Ruby Road', air_date: '2023-12-25' }, { n: 5, name: 'Joy to the World', air_date: '2024-12-25' }] }
+    ];
+    const m = mergeSpecials(dw, [4, 5]);
+    expect(m[0].episodes.map((e) => (e.s === 0 ? 'sp' + e.n : e.n))).toEqual(['sp4', 1, 8, 'sp5']);
+  });
+});

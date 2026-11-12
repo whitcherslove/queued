@@ -186,7 +186,8 @@ const stale = (iso: string, hours: number) => Date.now() - new Date(iso).getTime
 /** Make sure every season's episode list is cached; refresh running shows twice a day. */
 async function ensureEpisodes(db: any, sourceId: string) {
   let { data: t } = await db.from('titles').select('*').eq('kind', 'tv').eq('source', 'tmdb').eq('source_id', sourceId).maybeSingle();
-  if (!t || (!ended(t) && stale(t.fetched_at, 12))) t = await fetchTv(db, sourceId);
+  // shows cached before specials existed don't know whether they have any → refresh them once (ended shows too)
+  if (!t || t.data?.specials === undefined || (!ended(t) && stale(t.fetched_at, 12))) t = await fetchTv(db, sourceId);
   const { data: have } = await db.from('title_seasons').select('season, fetched_at').eq('title_id', t.id);
   const got = new Map((have ?? []).map((h: any) => [h.season, h.fetched_at]));
   const lastN = Math.max(0, ...(t.data?.seasons ?? []).map((x: any) => x.n));

@@ -499,7 +499,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
             const first = seasons[0]?.air_date ?? null, lastAir = eps.filter((x) => x.season > 0).flatMap((x) => x.episodes).map((e) => e.air_date).filter(Boolean).sort().pop() ?? null;
             const lastYear = lastAir ? String(Number(lastAir.slice(0, 4)) + 1) : null;
             // likely real specials: long enough and aired while the show ran (or the year after)
-            const likely = (e: { runtime?: number | null; air_date: string | null }) => (e.runtime ?? 0) >= 20 && !!e.air_date && (!first || e.air_date >= first) && (!lastYear || e.air_date.slice(0, 4) <= lastYear);
+            const firstYear = first ? String(Number(first.slice(0, 4)) - 1) : null;   // lead-in specials (a year before season 1) count too
+            const likely = (e: { runtime?: number | null; air_date: string | null }) => (e.runtime ?? 0) >= 20 && !!e.air_date && (!firstYear || e.air_date.slice(0, 4) >= firstYear) && (!lastYear || e.air_date.slice(0, 4) <= lastYear);
             const sorted = [...sp].sort((a, b) => Number(likely(b)) - Number(likely(a)) || (a.air_date ?? '').localeCompare(b.air_date ?? ''));
             const open = !!openS[0];
             const togglePick = (n: number) => guard(async () => {
