@@ -67,6 +67,29 @@ export function logScope(list: number[] | null) {
   return { scope: (s.length === 1 ? 'season' : 'seasons') as 'season' | 'seasons', season_from: s[0], season_to: s[s.length - 1], seasons: s };
 }
 
+/** The specials (TMDB season 0 episode numbers) someone picked for their viewing. */
+export const specialsOf = (item: { overrides?: unknown }): number[] => (((item.overrides as { specials?: number[] } | null)?.specials) ?? []);
+
+/**
+ * Seasons without season 0, with the picked specials placed inside the season they aired after
+ * (right after the last episode that aired before them). Each placed special keeps s = 0 so marks stay "0:n".
+ */
+export function mergeSpecials(eps: SeasonEps[], picked: number[]): SeasonEps[] {
+  const main = eps.filter((e) => e.season !== 0).map((e) => ({ ...e, episodes: [...e.episodes] })).sort((a, b) => a.season - b.season);
+  const sp = eps.find((e) => e.season === 0);
+  if (!sp || !picked.length || !main.length) return main;
+  sp.episodes.filter((x) => picked.includes(x.n)).sort((a, b) => (a.air_date ?? '9999').localeCompare(b.air_date ?? '9999')).forEach((x) => {
+    const at = x.air_date ?? '9999';
+    // the season: the last one that started on or before the special
+    let target = main[0];
+    main.forEach((se) => { const first = se.episodes.find((e) => e.air_date)?.air_date ?? se.air_date; if (first && first <= at) target = se; });
+    let pos = target.episodes.length;
+    for (let i = target.episodes.length - 1; i >= 0; i--) { const d = target.episodes[i].air_date; if (!d || d > at) pos = i; else break; }
+    target.episodes.splice(pos, 0, { ...x, s: 0 });
+  });
+  return main;
+}
+
 export interface EpRef { season: number; episode: number; name: string; air_date: string | null; runtime?: number | null }
 export interface Progress {
   aired: number; seen: number; total: number; pct: number;
@@ -75,8 +98,9 @@ export interface Progress {
 }
 
 /** Progress over the planned seasons. During a rewatch, marks older than the rewatch start do not count. */
-export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_seasons' | 'run_started_at'> & { rewatch?: boolean }, t: Title, eps: SeasonEps[], marks: Mark[], today = todayIso()): Progress {
+export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_seasons' | 'run_started_at'> & { rewatch?: boolean; overrides?: unknown }, t: Title, eps0: SeasonEps[], marks: Mark[], today = todayIso()): Progress {
   const scope = scopeSeasons(item, t);
+  const eps = mergeSpecials(eps0, specialsOf(item));   // season 0 counts only for the specials you picked
   // Only a rewatch starts from scratch; otherwise every mark counts, whenever it was made.
   const since = item.rewatch ? item.run_started_at ?? '' : '';
   const seenSet = new Set(marks.filter((m) => m.watched_at >= since).map((m) => m.season + ':' + m.episode));
@@ -86,16 +110,17 @@ export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_sea
     const se = eps.find((e) => e.season === sn);
     (se?.episodes ?? []).forEach((e) => {
       total++;
-      const ref = { season: sn, episode: e.n, name: e.name, air_date: e.air_date, runtime: e.runtime ?? null };
+      const es = e.s ?? sn;   // a special placed in this season keeps its own season 0
+      const ref = { season: es, episode: e.n, name: e.name, air_date: e.air_date, runtime: e.runtime ?? null };
       const isAired = !!e.air_date && e.air_date <= today;
       if (isAired) {
         aired++;
-        if (seenSet.has(sn + ':' + e.n)) seen++;
+        if (seenSet.has(es + ':' + e.n)) seen++;
         else if (!nextEp) nextEp = ref;
       } else if (!nextFuture) nextFuture = ref;
     });
   });
-  marks.forEach((m) => { if (m.watched_at >= since && scope.includes(m.season) && (!lastSeen || m.watched_at > lastSeen)) lastSeen = m.watched_at; });
+  marks.forEach((m) => { if (m.watched_at >= since && (scope.includes(m.season) || m.season === 0) && (!lastSeen || m.watched_at > lastSeen)) lastSeen = m.watched_at; });
   const allKnown = scope.length > 0 && scope.every((n) => known.has(n));
   const fullyAired = total > 0 && aired === total;
   const planEndsInPast = planOf(item) !== null || isEnded(t);
@@ -104,6 +129,7 @@ export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_sea
 }
 
 export function epLabel(e: { season: number; episode: number }): string {
+  if (e.season === 0) return 'Special';
   return 'S' + e.season + ' · E' + e.episode;
 }
 

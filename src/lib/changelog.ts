@@ -1,9 +1,18 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.13';
+export const APP_VERSION = '4.14';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.14',
+    title: 'Specials, seasons, reactions',
+    items: [
+      { icon: '★', title: 'Specials', text: 'A folded Specials row under a show’s seasons. Add the specials that matter — they move into the season they aired after and count toward your progress. The rest count for nothing.' },
+      { icon: '📺', title: 'Seasons in Activity', text: 'Finishing a season posts “finished · Season 2”; rate it later and the rating joins the same entry.' },
+      { icon: '🔥', title: 'Reactions', text: 'React 🔥 😂 👀 😢 to your friends’ updates — they get a notification.' }
+    ]
+  },
   {
     version: '4.13',
     title: 'A tidier Activity',

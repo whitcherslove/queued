@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import type { Profile } from '../lib/profile';
 import { saveIdentity } from '../lib/profile';
-import { answerCoop, myCoopInvites, type CoopInvite, activityFeed, deleteActivity, answerRequest, dismissSuggestion, findByHandle, friendList, inviteUrl, myTitleIds, removeFriend, requestFriend, type Activity, type FriendRow, type MiniTitle } from '../lib/friends';
+import { REACTIONS, setReaction, answerCoop, myCoopInvites, type CoopInvite, activityFeed, deleteActivity, answerRequest, dismissSuggestion, findByHandle, friendList, inviteUrl, myTitleIds, removeFriend, requestFriend, type Activity, type FriendRow, type MiniTitle } from '../lib/friends';
 import { addToBacklog } from '../lib/remote';
 import { TIERS } from '../lib/scores';
 import { Poster } from '../components/Rows';
@@ -67,6 +67,18 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
     });
     return out;
   }, [feed]); // eslint-disable-line react-hooks/exhaustive-deps
+  const react = async (a: Activity, emoji: string) => {
+    const cur = a.reactions ?? []; const had = cur.find((r) => r.emoji === emoji);
+    const on = !had?.mine;
+    const next = on ? (had ? cur.map((r) => r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r) : [...cur, { emoji, count: 1, mine: true }])
+      : cur.map((r) => r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r).filter((r) => r.count > 0);
+    setFeed((f) => f.map((x) => x.id === a.id ? { ...x, reactions: next } : x));
+    try { await setReaction(a.id, emoji, on); } catch { setFeed((f) => f.map((x) => x.id === a.id ? { ...x, reactions: cur } : x)); }
+  };
+  const reactBar = (a: Activity) => (
+    <div className="react-bar">{REACTIONS.map((e) => { const r = (a.reactions ?? []).find((x) => x.emoji === e);
+      return <button key={e} className={'react' + (r?.mine ? ' mine' : '') + (r ? ' has' : '')} aria-pressed={!!r?.mine} aria-label={'React ' + e} onClick={() => react(a, e)}>{e}{r ? <span>{r.count}</span> : null}</button>; })}</div>
+  );
   const feedRow = (a: Activity) => { const tr = tierOf(a.tier); return (
               <div key={a.id} className={'feed-row' + (a.kind === 'finished' && a.tier ? ' big' : '') + (a.tier === 'ten' ? ' ten' : '')}
                 onPointerDown={() => { if (!a.can_delete) return; press.current = window.setTimeout(() => setDelAsk(a), 550); }}
@@ -80,6 +92,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
                   </span>
                   <button className="feed-meta as-btn" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{tierOf(a.tier) && <span className="tier-under" style={{ background: tierOf(a.tier)!.color }}>{tierOf(a.tier)!.label}</span>}{a.score != null && <ScoreRing value={Number(a.score)} scale={profile.settings.scale ?? 5} size={22} fontSize={9} />}{a.kind === 'dropped' && <span className="tier-under none">Dropped</span>}
                     {a.platform && ['console', 'pc', 'retro'].includes(a.section) && <PlatformIcon k={a.platform} size={10} />}<span className="muted tiny">{ago(a.created_at)}</span></button>
+                  {reactBar(a)}
                 </div>
                 <Poster t={{ title: a.title, poster_url: a.poster_url }} w={a.kind === 'finished' && a.tier ? 52 : 40} h={a.kind === 'finished' && a.tier ? 76 : 58} />
               </div>

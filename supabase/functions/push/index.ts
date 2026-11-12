@@ -165,6 +165,12 @@ Deno.serve(async (req) => {
       return Response.json({ sent: n });
     }
     if (b.type === 'telegram') return Response.json(await telegramPost(db, String(b.id)));
+    if (b.type === 'reaction') {
+      const [{ data: p }, { data: a }] = await Promise.all([db.from('profiles').select('display_name, handle').eq('id', b.from).maybeSingle(), db.from('activity').select('user_id, title:titles(title)').eq('id', b.id).maybeSingle()]);
+      if (!a) return Response.json({ skipped: 'no event' });
+      const n = await sendTo(db, [a.user_id], { title: `${nameOf(p)} reacted ${b.emoji}`, body: 'to your ' + (a.title?.title ?? 'update'), url: '/?open=friends', tag: 'react-' + b.id });
+      return Response.json({ sent: n });
+    }
     if (b.type === 'coop') {
       const [{ data: p }, { data: t }] = await Promise.all([db.from('profiles').select('display_name, handle').eq('id', b.from).maybeSingle(), db.from('titles').select('title, kind').eq('id', b.title_id).maybeSingle()]);
       const n = await sendTo(db, [b.to], { title: `${nameOf(p)} played ${t?.title ?? 'a game'} with you 🎮`, body: 'Add it to your lists? Open Friends → People.', url: '/?open=friends', tag: 'coop-' + b.title_id });

@@ -9,7 +9,7 @@ import {
   askAi, deleteLog, insertLog, loadChat, loadEpisodes, loadItem, loadItemLogs, loadMarks, loadSeasonRatings,
   refreshEpisodes, removeFromLibrary, saveSeasonRating, setMarks, updateItem, updateLog, addMarksAt
 } from '../lib/remote';
-import { STATE_LABEL, coveredSeasons, shownState, epLabel, epRuntime, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showState, showYears, todayIso } from '../lib/tv';
+import { STATE_LABEL, coveredSeasons, mergeSpecials, specialsOf, shownState, epLabel, epRuntime, isEnded, logScope, logSeasons, planOf, progress, scopeLabel, seasonAir, seasonsName, seasonsOf, showState, showYears, todayIso } from '../lib/tv';
 import { applyEpisodeMarks, bringBack, dropShow, moveToBacklog, startWatching } from '../lib/tvActions';
 import ScoreRing from '../components/ScoreRing';
 import DateField from '../components/DateField';
@@ -133,6 +133,8 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   const epPress = useLongPress((k) => epHandler.current(k));
   if (!item || !t) return <div className="card-screen"><div className="card-loading">{error || 'Loading…'}</div></div>;
 
+  const picked = specialsOf(item);
+  const epsView = mergeSpecials(eps, picked);   // seasons with your picked specials inside
   const p = progress(item, t, eps, marks);
   const status = item.status, isBack = status === 'backlog', isPlaying = status === 'playing', isDone = status === 'done' || status === 'dropped';
   const last = latestLog(logs);
@@ -264,7 +266,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   // during a rewatch only marks made in this rewatch count
   const runFrom = item?.rewatch && item?.run_started_at ? item.run_started_at : null;
   const canPin = !isPlaying && st.state !== 'dropped';
-  const unwatchedAired = eps.flatMap((se) => se.episodes.filter((e) => e.air_date && e.air_date <= todayIso() && !marks.some((m) => m.season === se.season && m.episode === e.n && (!runFrom || m.watched_at >= runFrom))).map((e) => ({ season: se.season, episode: e.n })));
+  const unwatchedAired = epsView.flatMap((se) => se.episodes.filter((e) => e.air_date && e.air_date <= todayIso() && !marks.some((m) => m.season === (e.s ?? se.season) && m.episode === e.n && (!runFrom || m.watched_at >= runFrom))).map((e) => ({ season: e.s ?? se.season, episode: e.n })));
   // nothing has aired yet (a show that premieres later) → nothing to start
   const anyAired = eps.some((se) => se.episodes.some((e) => e.air_date && e.air_date <= todayIso())) || (!!t.release_date && t.release_date <= todayIso() && !eps.length);
   const canStart = (st.state === 'backlog' || st.state === 'newSeason' || st.state === 'lastChance') && anyAired;
@@ -438,9 +440,9 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
           {seasonsOpen && <>
           {seasons.length === 0 && <p className="muted small">Loading seasons…</p>}
           {seasons.map((s) => {
-            const list = eps.find((x) => x.season === s.n)?.episodes ?? [];
+            const list = epsView.find((x) => x.season === s.n)?.episodes ?? [];
             const aired = list.filter((e) => e.air_date && e.air_date <= today).length;
-            const seen = list.filter((e) => runSeen(s.n, e.n)).length;
+            const seen = list.filter((e) => runSeen(e.s ?? s.n, e.n)).length;
             const upcoming = list.length - aired;
             const rating = ratings.find((r) => r.season === s.n);
             const rt = tierOf(rating?.tier ?? null);
@@ -463,7 +465,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                 {open && (
                   <div className="season-body">
                     <div className="row between"><span className="muted small">{rating ? 'Rated on ' + longDate(rating.rated_at) : 'Not rated yet'}</span>
-                      {aired > 0 && <button className="btn sm" onClick={() => applyMarks(list.filter((e) => e.air_date && e.air_date <= today && (allSeen || !runSeen(s.n, e.n))).map((e) => ({ season: s.n, episode: e.n })), !allSeen)}>{allSeen ? 'Unmark all' : 'Mark season watched'}</button>}</div>
+                      {aired > 0 && <button className="btn sm" onClick={() => applyMarks(list.filter((e) => e.air_date && e.air_date <= today && (allSeen || !runSeen(e.s ?? s.n, e.n))).map((e) => ({ season: e.s ?? s.n, episode: e.n })), !allSeen)}>{allSeen ? 'Unmark all' : 'Mark season watched'}</button>}</div>
                     {rateFocus === s.n && <span className="just-finished">Season {s.n} finished · rate it</span>}
                     <div id={'season-rate-' + s.n} className={rateFocus === s.n ? 'rate-focus' : undefined}><RatingTiles label={'Season ' + s.n + ' rating'} value={rating?.tier ?? null} onPick={(v) => guard(async () => { await setSeasonRating(s.n, { tier: v }); })()} /></div>
                     <div className="score-row">
@@ -471,12 +473,13 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
                     <div className="ep-list">
                       {list.length === 0 && <span className="muted small">{ready ? 'No episodes announced yet.' : 'Loading episodes…'}</span>}
                       {list.map((e) => {
-                        const future = !e.air_date || e.air_date > today, on = runSeen(s.n, e.n), before = !on && seenBefore(s.n, e.n);
+                        const es = e.s ?? s.n;   // a picked special keeps its own season 0
+                        const future = !e.air_date || e.air_date > today, on = runSeen(es, e.n), before = !on && seenBefore(es, e.n);
                         return (
-                          <button key={e.n} className={'ep-row' + (on ? ' on' : '') + (future ? ' future' : '')} disabled={future} aria-pressed={on}
-                            {...(future ? {} : epPress(s.n + ':' + e.n))} onClick={() => applyMarks([{ season: s.n, episode: e.n }], !on)}>
+                          <button key={es + ':' + e.n} className={'ep-row' + (on ? ' on' : '') + (future ? ' future' : '') + (es === 0 ? ' special' : '')} disabled={future} aria-pressed={on}
+                            {...(future ? {} : epPress(es + ':' + e.n))} onClick={() => applyMarks([{ season: es, episode: e.n }], !on)}>
                             <span className={'ep-box' + (on ? ' on' : before ? ' before' : '')} aria-hidden="true">{(on || before) && <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>}</span>
-                            <span className="ep-n">{e.n}</span>
+                            <span className="ep-n">{es === 0 ? '★' : e.n}</span>
                             <span className="ep-name">{e.name}{e.runtime ? <span className="ep-rt"> · {epRuntime(e.runtime)}</span> : null}</span>
                             <span className={'ep-date' + (before ? ' before' : '')}>{future ? (e.air_date ? 'Airs ' + releaseText(e.air_date, null) : 'TBA') : (on || before) ? (before ? 'Seen ' : '') + releaseText(marks.find((m) => m.season === s.n && m.episode === e.n)?.watched_at ?? null, null) : releaseText(e.air_date, null)}</span>
                           </button>
@@ -489,6 +492,43 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
               </div>
             );
           })}
+          {/* TMDB "season 0": folded; pick the specials that count — they move into the season they aired after */}
+          {(() => {
+            const sp = eps.find((x) => x.season === 0)?.episodes ?? [];
+            if (!sp.length) return null;
+            const first = seasons[0]?.air_date ?? null, lastAir = eps.filter((x) => x.season > 0).flatMap((x) => x.episodes).map((e) => e.air_date).filter(Boolean).sort().pop() ?? null;
+            const lastYear = lastAir ? String(Number(lastAir.slice(0, 4)) + 1) : null;
+            // likely real specials: long enough and aired while the show ran (or the year after)
+            const likely = (e: { runtime?: number | null; air_date: string | null }) => (e.runtime ?? 0) >= 20 && !!e.air_date && (!first || e.air_date >= first) && (!lastYear || e.air_date.slice(0, 4) <= lastYear);
+            const sorted = [...sp].sort((a, b) => Number(likely(b)) - Number(likely(a)) || (a.air_date ?? '').localeCompare(b.air_date ?? ''));
+            const open = !!openS[0];
+            const togglePick = (n: number) => guard(async () => {
+              const next = picked.includes(n) ? picked.filter((x) => x !== n) : [...picked, n];
+              const ov = { ...(item.overrides ?? {}), specials: next };
+              setItem({ ...item, overrides: ov } as typeof item); await updateItem(item.id, { overrides: ov } as never);
+            })();
+            return (
+              <div className="season-card specials">
+                <button className="season-head" aria-expanded={open} onClick={() => setOpenS({ ...openS, 0: !open })}>
+                  <span className="stack-sm grow"><strong>Specials</strong>
+                    <span className="muted small">{sp.length} from TMDB{picked.length ? ' · ' + picked.length + ' in your viewing' : ' · pick the ones that count'}</span></span>
+                  <ChevBtn open={open} size={30} />
+                </button>
+                {open && <div className="ep-list">
+                  {sorted.map((e) => {
+                    const on = picked.includes(e.n);
+                    return (
+                      <div key={e.n} className={'sp-row' + (likely(e) ? '' : ' extra')}>
+                        <span className="grow stack-0"><span className="ep-name">{e.name}</span>
+                          <span className="muted tiny">{[e.air_date ? longDate(e.air_date) : '', e.runtime ? epRuntime(e.runtime) : ''].filter(Boolean).join(' · ')}</span></span>
+                        <button className={'btn sm' + (on ? ' pin-on' : '')} onClick={() => togglePick(e.n)}>{on ? '✓ In my viewing' : '+ Add'}</button>
+                      </div>
+                    );
+                  })}
+                </div>}
+              </div>
+            );
+          })()}
           </>}
         </section>
 

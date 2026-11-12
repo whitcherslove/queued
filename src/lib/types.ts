@@ -30,7 +30,7 @@ export interface LogRow {
 export interface SearchHit { sourceId: string; title: string; year: number | null; releaseDate: string | null; posterUrl: string | null; platforms?: string[]; type?: string; parent?: string | null }
 
 export interface TvSeason { n: number; name: string; air_date: string | null; episode_count: number }
-export interface TvEpisode { n: number; name: string; air_date: string | null; runtime?: number | null }
+export interface TvEpisode { n: number; name: string; air_date: string | null; runtime?: number | null; s?: number }
 export interface SeasonEps { title_id: string; season: number; name: string | null; air_date: string | null; episodes: TvEpisode[] }
 export interface Mark { library_id: string; season: number; episode: number; watched_at: string }
 export interface SeasonRating { library_id: string; season: number; tier: string | null; score: number | null; rated_at: string }

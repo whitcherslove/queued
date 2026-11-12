@@ -57,6 +57,7 @@ async function fetchTv(db: any, id: string) {
     data: {
       mc_url: mcTv?.url ?? null,
       status: m.status, network: (m.networks ?? [])[0]?.name ?? null, seasons, number_of_episodes: m.number_of_episodes ?? null,
+      specials: ((m.seasons ?? []).find((x: any) => x.season_number === 0)?.episode_count) || 0,
       last_air_date: m.last_air_date ?? null,
       next_episode: m.next_episode_to_air ? { season: m.next_episode_to_air.season_number, episode: m.next_episode_to_air.episode_number, air_date: m.next_episode_to_air.air_date } : null,
       cast: (m.credits?.cast ?? []).slice(0, 8).map((c: any) => ({ name: c.name, role: c.character })),
@@ -189,10 +190,12 @@ async function ensureEpisodes(db: any, sourceId: string) {
   const { data: have } = await db.from('title_seasons').select('season, fetched_at').eq('title_id', t.id);
   const got = new Map((have ?? []).map((h: any) => [h.season, h.fetched_at]));
   const lastN = Math.max(0, ...(t.data?.seasons ?? []).map((x: any) => x.n));
-  for (const s of t.data?.seasons ?? []) {
+  // season 0 = TMDB "Specials": cached like a season (re-checked weekly), counted only for the specials someone picks
+  const all = [...(t.data?.seasons ?? []), ...(t.data?.specials ? [{ n: 0, name: 'Specials', air_date: null }] : [])];
+  for (const s of all) {
     const f = got.get(s.n);
     // finished seasons never change; only the newest ones of a running show are re-checked
-    if (f && (ended(t) || s.n < lastN - 1 || !stale(f as string, 12))) continue;
+    if (f && (s.n === 0 ? !stale(f as string, 24 * 7) : (ended(t) || s.n < lastN - 1 || !stale(f as string, 12)))) continue;
     const r = await tmdbFetch('/tv/' + sourceId + '/season/' + s.n, { language: 'en-US' });
     if (!r.ok) continue;
     const j = await r.json();

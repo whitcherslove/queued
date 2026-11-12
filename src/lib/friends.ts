@@ -38,7 +38,7 @@ export const inviteUrl = (code: string) => `${window.location.origin}/?invite=${
 // ---------- activity feed and a friend's summary (never their lists) ----------
 export interface Activity { id: string; user_id: string; name: string | null; handle: string | null; avatar_url: string | null; kind: 'started' | 'finished' | 'dropped' | 'season_rated' | 'show_rated';
   section: string; seasons_label: string | null; season: number | null; tier: string | null; score: number | null; platform: string | null; format: string | null; created_at: string;
-  title_id: string; title: string; poster_url: string | null; year: number | null; mine?: boolean; coop_names?: string[] | null; can_delete?: boolean }
+  title_id: string; title: string; poster_url: string | null; year: number | null; mine?: boolean; coop_names?: string[] | null; can_delete?: boolean; reactions?: { emoji: string; count: number; mine: boolean }[] }
 export async function activityFeed(before?: string): Promise<Activity[]> {
   const { data, error } = await supabase.rpc('activity_feed', { lim: 40, before: before ?? null });
   if (error) throw error;
@@ -76,4 +76,14 @@ export async function sentCoopInvites(titleId: string): Promise<{ to_user: strin
   const { data: me } = await supabase.auth.getUser();
   const { data } = await supabase.from('coop_invites').select('to_user, status').eq('title_id', titleId).eq('from_user', me.user?.id ?? '');
   return (data ?? []) as { to_user: string; status: 'pending' | 'accepted' | 'declined' }[];
+}
+
+export const REACTIONS = ['🔥', '😂', '👀', '😢'] as const;
+/** Put or take back your reaction on a feed event. */
+export async function setReaction(activityId: string, emoji: string, on: boolean) {
+  const { data: me } = await supabase.auth.getUser();
+  const uid = me.user?.id; if (!uid) return;
+  const q = on ? supabase.from('activity_reactions').insert({ activity_id: activityId, user_id: uid, emoji })
+    : supabase.from('activity_reactions').delete().eq('activity_id', activityId).eq('user_id', uid).eq('emoji', emoji);
+  const { error } = await q; if (error && !/duplicate/i.test(error.message)) throw error;
 }
