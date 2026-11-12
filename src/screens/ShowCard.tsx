@@ -123,7 +123,9 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
   }, [itemId]);
   useEffect(() => {
     reload().then(async ({ it, ep }) => {
-      const need = ep.length < seasonsOf(it.title).length || !isEnded(it.title);
+      // also: shows saved before specials existed (no "specials" mark yet), or with specials not loaded yet
+      const sp = (it.title.data as { specials?: number } | null)?.specials;
+      const need = ep.length < seasonsOf(it.title).length || !isEnded(it.title) || sp === undefined || (sp > 0 && !ep.some((e) => e.season === 0));
       if (need) { await refreshEpisodes([it.title.source_id]); await reload(); onChanged(); }
     }).catch(() => setError('Couldn’t load this show.'));
   }, [reload]);
