@@ -16,7 +16,7 @@ export const CHANGELOG: ChangeEntry[] = [
     version: '4.19',
     title: 'Filters',
     items: [
-      { icon: '⏷', title: 'Filters in every section', text: 'The funnel next to Reorder: rating, genre, decade, length, platform or format, when you finished it — plus co-op only, ended shows only, out already. Remembered per section.' }
+      { icon: '🔍', title: 'Filters in every section', text: 'The funnel next to Reorder: rating, genre, decade, length, platform or format, when you finished it — plus co-op only, ended shows only, out already. Remembered per section.' }
     ]
   },
   {

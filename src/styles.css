@@ -1375,3 +1375,8 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .st-rate { flex-direction: row !important; align-items: center !important; gap: 8px !important; }
 .st-title .rew-mark { margin-left: 6px; vertical-align: -2px; }
 .st-group .w-head { width: 100%; margin-bottom: 2px; }
+
+/* What's new: the list scrolls, the button always stays at the bottom */
+.sheet.whats-new { display: flex; flex-direction: column; max-height: 86vh; overflow: hidden; }
+.sheet.whats-new > .wn-list { flex: 1 1 auto; flex-shrink: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.sheet.whats-new > .btn { flex-shrink: 0; }
