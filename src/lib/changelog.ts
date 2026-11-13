@@ -1,9 +1,17 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.15';
+export const APP_VERSION = '4.18';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.18',
+    title: 'Companies',
+    items: [
+      { icon: '👑', title: 'Your companies', text: 'Friends → People → Companies: create a company without a Telegram chat, connect a chat later, rename it or delete it. Whoever made it is the owner 👑 and can hand it over.' },
+      { icon: '🤝', title: 'Friends from a company', text: 'See someone in a company who isn’t your friend yet? Tap “+ friend” next to their name.' }
+    ]
+  },
   {
     version: '4.15',
     title: 'Reactions, your cards, a private page',

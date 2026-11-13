@@ -96,7 +96,7 @@ async function telegramPost(db: any, id: string) {
   }
   // the chats of every company this person is in (and posts to)
   const { data: chats } = await db.from('tg_members').select('posting, group_id, group:tg_groups(chat_id, active)').eq('user_id', a.user_id);
-  const mine = (chats ?? []).filter((m: any) => m.posting && m.group?.active);
+  const mine = (chats ?? []).filter((m: any) => m.posting && m.group?.active && m.group?.chat_id);   // companies without a chat get no posts
   const targets = mine.map((m: any) => Number(m.group.chat_id));
   const { data: allMembers } = mine.length ? await db.from('tg_members').select('group_id, user_id').in('group_id', mine.map((m: any) => m.group_id)) : { data: [] };
   const chatMembers = (chat_id: number) => { const g = mine.find((m: any) => Number(m.group.chat_id) === chat_id)?.group_id; return new Set((allMembers ?? []).filter((x: any) => x.group_id === g).map((x: any) => x.user_id)); };
@@ -165,9 +165,13 @@ Deno.serve(async (req) => {
       return Response.json({ sent: n });
     }
     if (b.type === 'telegram') return Response.json(await telegramPost(db, String(b.id)));
+    if (b.type === 'tg_leave') {
+      const r = await tgCall('leaveChat', { chat_id: Number(b.chat_id) });
+      return Response.json({ left: !!r.ok });
+    }
     if (b.type === 'tg_test') {
       const { data: g } = await db.from('tg_groups').select('chat_id, title').eq('id', b.group).maybeSingle();
-      if (!g) return Response.json({ skipped: 'no group' });
+      if (!g || !g.chat_id) return Response.json({ skipped: 'no chat' });
       const r = await tgCall('sendMessage', { chat_id: Number(g.chat_id), text: `✅ Queued test — “${g.title}” is connected.` });
       if (!r.ok && /kicked|not a member|chat not found/i.test(String(r.description))) await db.from('tg_groups').update({ active: false }).eq('chat_id', g.chat_id);
       return Response.json({ sent: !!r.ok, error: r.ok ? undefined : r.description });

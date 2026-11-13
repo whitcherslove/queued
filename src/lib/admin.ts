@@ -48,7 +48,7 @@ export async function saveChangelog(e: ChangeEntry) { const { error } = await su
 export async function deleteChangelog(version: string) { const { error } = await supabase.from('changelog_entries').delete().eq('version', version); if (error) throw new Error(error.message); }
 export const seenCount = (v: string) => rpc<number>('admin_seen_count', { v });
 
-export interface AdminTgGroup { id: string; title: string; active: boolean; chat_id: number; posts_7d: number; members: { id: string; name: string | null; avatar_url: string | null; posting: boolean }[] }
+export interface AdminTgGroup { id: string; title: string; active: boolean; chat_id: number | null; owner: string | null; posts_7d: number; members: { id: string; name: string | null; avatar_url: string | null; posting: boolean }[] }
 export const adminTgGroups = () => rpc<AdminTgGroup[]>('admin_tg_groups');
 export const adminTgRemove = (g: string, member: string) => rpc<void>('admin_tg_remove', { g, member });
 export const adminTgTest = (g: string) => rpc<void>('admin_tg_test', { g });
