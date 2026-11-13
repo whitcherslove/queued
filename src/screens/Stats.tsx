@@ -5,11 +5,14 @@ import { loadEverything, loadMarkDates } from '../lib/remote';
 import { merged } from '../lib/logic';
 import { logSeasons, seasonsName } from '../lib/tv';
 import { TIERS } from '../lib/scores';
-import { IconBack, IconMenu } from '../components/Icons';
+import { IconBack, IconMenu, ReplayIcon } from '../components/Icons';
 import { Poster } from '../components/Rows';
 import PlatformIcon from '../components/PlatformIcon';
 import ShowCard from './ShowCard';
 import MovieCard from './MovieCard';
+import { EyePlus } from './Movies';
+import { useBackLayer } from '../lib/back';
+import ScoreRing from '../components/ScoreRing';
 
 const SECTIONS = [
   { id: 'movies', label: 'Movies' }, { id: 'tv', label: 'TV Shows' }, { id: 'console', label: 'Console games' },
@@ -34,6 +37,7 @@ export default function Stats({ onBack, onMenu, settings }: { onBack?: () => voi
   const [replays, setReplays] = useState(false);
   const [card, setCard] = useState<LibItem | null>(null);
   const scale = settings?.scale ?? 5;
+  useBackLayer(!!card, () => setCard(null));   // Back from a card returns to Stats
 
   useEffect(() => {
     (async () => {
@@ -112,8 +116,8 @@ export default function Stats({ onBack, onMenu, settings }: { onBack?: () => voi
   const row = (l: LogRow) => (
     <button key={l.id} className="st-row" onClick={() => setCard(l.library)}>
       <Poster t={{ title: l.library.title.title, poster_url: l.library.title.poster_url }} w={34} h={50} />
-      <span className="grow stack-0"><span className="st-title">{name(l)}{l.rewatch && <span className="muted"> · 🔁</span>}</span><span className="muted tiny">{fmtDate(l.watched_at)}</span></span>
-      <span className="st-rate">{rate(l)}{l.score != null && <span className="st-score">{shown(Number(l.score))}</span>}</span>
+      <span className="grow stack-0"><span className="st-title">{name(l)}{l.rewatch && (GAMES.includes(l.library.section) ? <span className="rew-mini" role="img" aria-label="Replay"><ReplayIcon size={13} /></span> : <EyePlus size={13} />)}</span><span className="muted tiny">{fmtDate(l.watched_at)}</span></span>
+      <span className="st-rate">{rate(l)}{l.score != null && <ScoreRing value={Number(l.score)} scale={scale} size={30} fontSize={11} />}</span>
     </button>
   );
   const gameRow = (l: LogRow) => {
@@ -121,9 +125,9 @@ export default function Stats({ onBack, onMenu, settings }: { onBack?: () => voi
     return (
       <button key={l.id} className="st-row game" onClick={() => setCard(l.library)}>
         <Poster t={{ title: l.library.title.title, poster_url: l.library.title.poster_url }} w={34} h={50} />
-        <span className="grow stack-0 st-main"><span className="st-title">{l.library.title.title}</span>
+        <span className="grow stack-0 st-main"><span className="st-title">{l.library.title.title}{l.rewatch && <span className="rew-mini" role="img" aria-label="Replay"><ReplayIcon size={13} /></span>}</span>
           <span className="st-ref muted tiny">{plat ? <PlatformIcon k={plat} size={10} /> : <span />}<span className="st-year">{l.library.title.year ?? ''}</span><span>{fmtDate(l.watched_at)}</span></span></span>
-        <span className="st-rate">{rate(l)}{l.score != null && <span className="st-score">{shown(Number(l.score))}</span>}</span>
+        <span className="st-rate">{rate(l)}{l.score != null && <ScoreRing value={Number(l.score)} scale={scale} size={30} fontSize={11} />}</span>
       </button>
     );
   };

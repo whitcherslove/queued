@@ -75,7 +75,7 @@ interface Props { settings: Settings; onSettings: (s: Settings) => void; onMenu:
 type Tab = 'watched' | 'playing' | 'backlog';
 
 const tierOf = (id: string | null) => TIERS.find((t) => t.id === id) ?? null;
-const EyePlus = ({ size = 15 }: { size?: number }) => (
+export const EyePlus = ({ size = 15 }: { size?: number }) => (
   <span className="rew-mark" role="img" aria-label="Rewatch"><svg aria-hidden="true" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" /><path d="M12 18c-3.6 0 -6.6 -2 -9 -6c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6" /><path d="M16 19h6" /><path d="M19 16v6" /></svg></span>
 );
 
