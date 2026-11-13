@@ -1,9 +1,17 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.19';
+export const APP_VERSION = '4.20';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.20',
+    title: 'New Stats',
+    items: [
+      { icon: '📊', title: 'Stats, rebuilt', text: 'Pick a year or a month. Overview: totals, hours, ratings, months, your 10 out of 10s, taste and records. Journal: everything you finished. Games: the games journal, new and replayed.' },
+      { icon: '↗', title: 'Share your year', text: 'The share button at the top sends a short summary of the period.' }
+    ]
+  },
   {
     version: '4.19',
     title: 'Filters',

@@ -127,7 +127,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         ); })}
         {admin && <button className="drawer-item" onClick={() => { setDrawer(false); setAdminOpen(true); }}>Admin</button>}
         <button className="drawer-item" onClick={() => { setDrawer(false); setNewsOpen(true); }}>What’s new</button>
-        <span className="muted small drawer-foot">Queued · v4.19</span>
+        <span className="muted small drawer-foot">Queued · v4.20</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
@@ -153,7 +153,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   );
   if (section === 'stats') return (
     <div className="screen">
-      <Stats onBack={SIDE('stats') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} />
+      <Stats settings={profile.settings} onBack={SIDE('stats') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} />
       {nav}{drawerEl}{introEl}
     </div>
   );
