@@ -20,6 +20,8 @@ import GameAddSheet, { type GameAddMode } from '../components/GameAddSheet';
 import PlatformIcon from '../components/PlatformIcon';
 import FormatIcon from '../components/FormatIcon';
 import Tip from '../components/Tip';
+import { PICK_TIERS } from '../lib/scores';
+import { DECADES, DONE_WHEN, LENGTHS, NO_FILTERS, activeCount, passItem, passLog, type Filters } from '../lib/filters';
 import { listTip } from '../lib/tips';
 import BookAddSheet from '../components/BookAddSheet';
 import { readHours } from '../lib/formats';
@@ -221,12 +223,19 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
   const { next: nextBack, rest } = useMemo(() => splitBacklog(items), [items]);
   // shows you've watched (new season, last chance, up to date…) can be pinned too — they join Up next
   const next = useMemo(() => (isTv ? [...nextBack, ...items.filter((i) => i.status === 'done' && i.up_next)].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)) : nextBack), [nextBack, items, isTv]);
-  const watched = useMemo(() => sortLogs(logs), [logs]);
+  const watchedAll = useMemo(() => sortLogs(logs), [logs]);
   // games: search all your games (Console, PC and Retro), not only this section
   const libMatches = useMemo(() => matchLibrary(isGame ? allGames : items, q), [items, allGames, isGame, q]);
   const fresh = useMemo(() => newHits(hits, items), [hits, items]);
   const customOrder = logs.some((l) => l.position !== null);
   const today = todayIso();
+  const fKey = 'queued.filters.' + (isGame ? gameSection : kind);
+  const [filters, setFilters] = useState<Filters>(() => { try { return { ...NO_FILTERS, ...JSON.parse(localStorage.getItem(fKey) ?? '{}') }; } catch { return NO_FILTERS; } });
+  const [filterOpen, setFilterOpen] = useState(false);
+  useEffect(() => { try { localStorage.setItem(fKey, JSON.stringify(filters)); } catch { /* full */ } }, [filters, fKey]);
+  const nF = activeCount(filters);
+  const fit = (it: LibItem) => !nF || passItem(it, filters, kind, today);
+  const watched = useMemo(() => (nF ? watchedAll.filter((l) => passLog(l, filters, kind, today)) : watchedAll), [watchedAll, filters, nF, kind, today]);
   // TV: every show gets exactly one state (see showState); Watching is split into sections by it
   const watchingRows = useMemo(() => {
     const out: Record<ShowState, Row[]> = { progress: [], newSeason: [], lastChance: [], caughtUp: [], upToDate: [], backlog: [], upNext: [], dropped: [], finished: [] };
@@ -422,7 +431,9 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
       </div>
     );
   };
-  const wSection = (key: string, title: string, hint: string, rows: Row[]) => {
+  const wSection = (key: string, title: string, hint: string, rows0: Row[]) => {
+    const rows = rows0.filter((r) => fit(r.it));   // the filters
+    if (!rows.length) return null;
     const shut = isCollapsed(key);
     return (
       <section key={key} className="w-section">
@@ -556,6 +567,39 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
 
   return (
     <div className="app section-in">
+      {filterOpen && (() => {
+        const all = isGame ? allGames : items;
+        const count = new Map<string, number>(); all.forEach((i) => (i.title.genres ?? []).forEach((g) => count.set(g, (count.get(g) ?? 0) + 1)));
+        const genres = [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16).map(([g]) => g);
+        const plats = [...new Set(all.map((i) => (i as { platform?: string | null }).platform).filter(Boolean) as string[])];
+        const tog = (k: 'tiers' | 'genres' | 'decades' | 'platforms' | 'formats', v: string) => setFilters({ ...filters, [k]: filters[k].includes(v) ? filters[k].filter((x) => x !== v) : [...filters[k], v] });
+        const chip = (on: boolean, label: React.ReactNode, onClick: () => void, key: string) => <button key={key} className={'f-chip' + (on ? ' on' : '')} aria-pressed={on} onClick={onClick}>{label}</button>;
+        return (
+          <div className="sheet-wrap">
+            <button className="sheet-scrim" aria-label="Close" onClick={() => setFilterOpen(false)} />
+            <div className="sheet filter-sheet" role="dialog" aria-label="Filters">
+              <div className="row nowrap"><strong className="grow">Filters</strong>{nF > 0 && <button className="link" onClick={() => setFilters(NO_FILTERS)}>Clear all</button>}</div>
+              <span className="f-title">Rating <span className="muted tiny">· in {isBook ? 'Read' : isGame ? 'Finished' : 'Watched'}</span></span>
+              <div className="f-row">{[...PICK_TIERS.map((t) => chip(filters.tiers.includes(t.id), <><i className="f-dot" style={{ background: t.color }} />{t.label}</>, () => tog('tiers', t.id), t.id)), chip(filters.tiers.includes('none'), 'No rating', () => tog('tiers', 'none'), 'none')]}</div>
+              {genres.length > 0 && <><span className="f-title">Genre</span><div className="f-row">{genres.map((g) => chip(filters.genres.includes(g), g, () => tog('genres', g), g))}</div></>}
+              <span className="f-title">Released</span>
+              <div className="f-row">{DECADES.map((d) => chip(filters.decades.includes(d.id), d.label, () => tog('decades', d.id), d.id))}</div>
+              <span className="f-title">Length</span>
+              <div className="f-row">{LENGTHS[kind].map((l) => chip(filters.length === l.id, l.label, () => setFilters({ ...filters, length: filters.length === l.id ? null : l.id }), l.id))}</div>
+              {isGame && plats.length > 1 && <><span className="f-title">Platform</span><div className="f-row">{plats.map((k) => chip(filters.platforms.includes(k), <PlatformIcon k={k} size={12} />, () => tog('platforms', k), k))}</div></>}
+              {isBook && <><span className="f-title">Format</span><div className="f-row">{[['paper', 'Paper'], ['ebook', 'E-book'], ['audio', 'Audio']].map(([k, l]) => chip(filters.formats.includes(k), l, () => tog('formats', k), k))}</div></>}
+              <span className="f-title">Finished <span className="muted tiny">· in {isBook ? 'Read' : isGame ? 'Finished' : 'Watched'}</span></span>
+              <div className="f-row">{DONE_WHEN.map((d) => chip(filters.doneWhen === d.id, d.label, () => setFilters({ ...filters, doneWhen: filters.doneWhen === d.id ? null : d.id }), d.id))}</div>
+              <div className="f-row">
+                {isGame && chip(filters.coop, '🎮 Co-op only', () => setFilters({ ...filters, coop: !filters.coop }), 'coop')}
+                {isTv && chip(filters.ended, 'Ended shows only', () => setFilters({ ...filters, ended: !filters.ended }), 'ended')}
+                {chip(filters.released, 'Out already', () => setFilters({ ...filters, released: !filters.released }), 'released')}
+              </div>
+              <button className="btn primary" onClick={() => setFilterOpen(false)}>Show</button>
+            </div>
+          </div>
+        );
+      })()}
       <header className="top">
         <div className="title-row">
           {onBack
@@ -568,6 +612,10 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
             {view === 'list'
               ? <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="4" y="4" width="6.5" height="6.5" rx="1" /><rect x="13.5" y="4" width="6.5" height="6.5" rx="1" /><rect x="4" y="13.5" width="6.5" height="6.5" rx="1" /><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1" /></svg>
               : <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg>}
+          </button>
+          <button className={'icon-btn boxed filter-btn' + (nF ? ' active' : '')} aria-label={nF ? `Filters (${nF} on)` : 'Filters'} onClick={() => setFilterOpen(true)}>
+            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 5h16l-6 8v5l-4 2v-7L4 5z" /></svg>
+            {nF > 0 && <span className="filter-dot">{nF}</span>}
           </button>
           <button className={'icon-btn boxed' + (edit ? ' active' : '')} aria-label="Reorder" aria-pressed={edit} onClick={() => setEdit(!edit)}>
             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 4v16M8 4L4 8M8 4l4 4M16 20V4M16 20l-4-4M16 20l4-4" /></svg>
@@ -593,6 +641,10 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           <div className="edit-bar"><span className="muted small">Drag the handles to reorder</span><button className="btn primary sm" onClick={() => setEdit(false)}>Done</button></div>
         )}
       </header>
+      {nF > 0 && !filterOpen && <div className="f-on">
+        <button className="f-chip on" onClick={() => setFilterOpen(true)}>{nF} filter{nF > 1 ? 's' : ''} on</button>
+        <button className="f-chip" aria-label="Clear filters" onClick={() => setFilters(NO_FILTERS)}>✕ Clear</button>
+      </div>}
 
       <main className="content swipe-area" {...swipeHandlers}
         onPointerDownCapture={(e) => {
@@ -655,6 +707,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           <div className="stack">
             {(() => {
               const block = (key: string, title: string, hint: string, list: LibItem[], code: string, empty?: string) => {
+                list = list.filter(fit);   // the filters
                 const shut = isCollapsed('b-' + key);
                 if (!list.length && !empty) return null;
                 return (
@@ -681,7 +734,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                     <button className="w-head" aria-expanded={!nowShut} onClick={() => toggleSection('b-now')}>
                       <span className="h2">Now</span><span className="w-count">{gamePlaying.length}</span><span className="grow" /><ChevBtn open={!nowShut} size={30} />
                     </button>
-                    {!nowShut && (view === 'list' ? gamePlaying.map((it) => {
+                    {!nowShut && (view === 'list' ? gamePlaying.filter(fit).map((it) => {
               const d = it.started_on ? dateParts(it.started_on) : null;
               return (
                 <div key={it.id} className="row-card" data-rowid={it.id} data-list="p">
@@ -696,7 +749,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                   <span className="date-col"><span className="date-cap">Started on</span>{d ? <><span className="date-big">{d.day} {d.mon}</span><span className="date-year">{d.year}</span></> : <span className="date-big">—</span>}</span>
                 </div>
               );
-            }) : <div className="grid">{gamePlaying.map((it) => tile(it, 'p', () => setSheet(it), it.id))}</div>)}
+            }) : <div className="grid">{gamePlaying.filter(fit).map((it) => tile(it, 'p', () => setSheet(it), it.id))}</div>)}
                   </section>
                 )}
                 {block('next', 'Up next', '', next, 'n', `Pin a ${noun} as Up next — it shows up here.`)}
@@ -714,6 +767,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
           <div className="stack">
             {(() => {
               const block = (key: string, title: string, hint: string, list: LibItem[], code: string, empty?: string) => {
+                list = list.filter(fit);   // the filters
                 const shut = isCollapsed('b-' + key);
                 if (!list.length && !empty) return null;
                 return (

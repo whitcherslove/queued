@@ -78,11 +78,11 @@ async function telegramPost(db: any, id: string) {
   const head = a.kind === 'finished' ? `${em} <b>${who}</b> ${verbDone} <b>${title}</b>`
     : a.kind === 'started' ? `▶️ <b>${who}</b> ${verbStart} <b>${title}</b>`
     : `🚪 <b>${who}</b> dropped <b>${title}</b>`;
+  // header (with the details on the same line) → the phrase in a quote (straight, not italic) → an empty line → the rating
   const captionFor = (meta: string) => [
-    head,
-    meta ? `<i>${meta}</i>` : '',
-    `<blockquote><i>${esc(line)}</i></blockquote>`,
-    a.kind === 'finished' ? `${TG_EMOJI[a.tier] ?? ''} <b>${esc(TIER[a.tier] ?? a.tier)}</b>${score ? '  ·  <b>' + score + '</b>' : ''}` : ''
+    head + (meta ? ' · ' + meta : ''),
+    `<blockquote>${esc(line)}</blockquote>`,
+    a.kind === 'finished' ? `\n${TG_EMOJI[a.tier] ?? ''} <b>${esc(TIER[a.tier] ?? a.tier)}</b>${score ? '  ·  <b>' + score + '</b>' : ''}` : ''
   ].filter(Boolean).join('\n');
   // the picture: the title's image + avatar in the corner + the rating badge (or "in progress" when started)
   const base = a.title?.backdrop_url ?? a.title?.poster_url ?? null;

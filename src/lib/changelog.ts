@@ -1,9 +1,16 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.18';
+export const APP_VERSION = '4.19';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.19',
+    title: 'Filters',
+    items: [
+      { icon: '⏷', title: 'Filters in every section', text: 'The funnel next to Reorder: rating, genre, decade, length, platform or format, when you finished it — plus co-op only, ended shows only, out already. Remembered per section.' }
+    ]
+  },
   {
     version: '4.18',
     title: 'Companies',
