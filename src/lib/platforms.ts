@@ -119,3 +119,28 @@ export const ALL_PLATFORMS: Platform[] = CATALOG.map((c) => ({ key: c.key, label
 
 /** Platforms that have a logo in /public/plogos (white "Black & White" platform logos; inverted in the light theme). */
 export const PLATFORM_ICONS = new Set<string>(["3ds", "amiga", "android", "arcade", "atari-2600", "atari-7800", "atari-jaguar", "atari-lynx", "c64", "dos", "dreamcast", "ds", "game-gear", "gamecube", "gb", "gba", "gbc", "genesis", "ios", "master-system", "msx", "n64", "neo-geo", "nes", "pc", "ps1", "ps2", "ps3", "ps4", "ps5", "psp", "psvr", "psvr2-pc", "psvr2-ps5", "saturn", "sega-32x", "sega-cd", "snes", "steam-deck", "switch", "switch-2", "turbografx", "virtual-boy", "vita", "wii", "wii-u", "xbox", "xbox-360", "xbox-one", "xbox-series", "zx-spectrum"]);
+
+// ---------- platforms added or changed in Admin (a new console, a better logo) ----------
+export interface CustomPlatform { key: string; label: string; grp: string; section: GameSection; match: string[]; logo_url: string | null }
+/** Logos uploaded in Admin (key → URL); they win over the built-in ones. */
+export const CUSTOM_LOGOS = new Map<string, string>();
+const registered = new Set<string>();
+export function registerCustomPlatforms(list: CustomPlatform[]) {
+  for (const p of list) {
+    const match = (p.match ?? []).map((m) => m.toLowerCase().trim()).filter(Boolean);
+    const ex = byKey.get(p.key);
+    if (ex) {
+      ex.label = p.label || ex.label; ex.group = p.grp || ex.group;
+      if (match.length && !registered.has(p.key)) ex.match = [...match, ...ex.match];
+      if (p.section === 'pc') ex.pc = true;
+      const a = ALL_PLATFORMS.find((x) => x.key === p.key); if (a) { a.label = ex.label; a.group = ex.group; }
+    } else {
+      const c = { key: p.key, label: p.label, group: p.grp || 'Other', pc: p.section === 'pc', match };
+      CATALOG.unshift(c); byKey.set(p.key, c);
+      ALL_PLATFORMS.push({ key: p.key, label: p.label, section: p.section, group: c.group });
+    }
+    if (p.section === 'retro' && !DEFAULT_RETRO.includes(p.key)) DEFAULT_RETRO.push(p.key);
+    if (p.logo_url) CUSTOM_LOGOS.set(p.key, p.logo_url); else CUSTOM_LOGOS.delete(p.key);
+    registered.add(p.key);
+  }
+}

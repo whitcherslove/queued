@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { IconBack } from '../components/Icons';
 import Avatar from '../components/Avatar';
 import { useBackLayer } from '../lib/back';
+import { NewsTab, PlatformsTab, TelegramTab } from './AdminMore';
 import { adminConfig, adminOverview, adminSetConfig, adminTool, adminUserAction, adminUsers, type AdminUser, type ConfigRow, type Overview } from '../lib/admin';
 
 const LABEL: Record<string, string> = { site_url: 'Site address', tg_bot_username: 'Telegram bot', cloudinary_cloud: 'Cloudinary cloud', ai_daily_limit: 'AI picks per person per day', push_url: 'Push function', push_secret: 'Push secret', tg_chat_id: 'Old Telegram chat (unused)' };
@@ -10,7 +11,7 @@ const ago = (iso: string | null) => { if (!iso) return 'never'; const m = Math.r
 
 /** Admin (only for the app's admin): Overview · People · Settings & tools. */
 export default function Admin({ onBack }: { onBack: () => void }) {
-  const [tab, setTab] = useState<'overview' | 'people' | 'settings'>('overview');
+  const [tab, setTab] = useState<'overview' | 'people' | 'platforms' | 'news' | 'telegram' | 'settings'>('overview');
   const [ov, setOv] = useState<Overview | null>(null);
   const [users, setUsers] = useState<AdminUser[] | null>(null);
   const [cfg, setCfg] = useState<ConfigRow[] | null>(null);
@@ -34,8 +35,8 @@ export default function Admin({ onBack }: { onBack: () => void }) {
         <button className="icon-btn" aria-label="Back" onClick={onBack}><IconBack /></button>
         <div className="title-block"><h1 className="section-title">Admin</h1></div>
       </div>
-        <div className="seg" role="tablist">
-          {(['overview', 'people', 'settings'] as const).map((t) => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{t === 'overview' ? 'Overview' : t === 'people' ? 'People' + (users ? ' · ' + users.length : '') : 'Settings'}</button>)}
+        <div className="seg scroll" role="tablist">
+          {(['overview', 'people', 'platforms', 'news', 'telegram', 'settings'] as const).map((t) => <button key={t} role="tab" aria-selected={tab === t} className={tab === t ? 'on' : ''} onClick={() => setTab(t)}>{({ overview: 'Overview', people: 'People' + (users ? ' · ' + users.length : ''), platforms: 'Platforms', news: 'What’s new', telegram: 'Telegram', settings: 'Settings' })[t]}</button>)}
         </div>
       </header>
       <main className="content stack">
@@ -64,6 +65,10 @@ export default function Admin({ onBack }: { onBack: () => void }) {
             </button>
           ))}
         </section>}
+
+        {tab === 'platforms' && <PlatformsTab say={setNote} />}
+        {tab === 'news' && <NewsTab say={setNote} />}
+        {tab === 'telegram' && <TelegramTab say={setNote} />}
 
         {tab === 'settings' && <>
           <section className="panel"><div className="panel-head"><span>Server settings</span></div>

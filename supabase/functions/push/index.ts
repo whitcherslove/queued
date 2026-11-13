@@ -165,6 +165,13 @@ Deno.serve(async (req) => {
       return Response.json({ sent: n });
     }
     if (b.type === 'telegram') return Response.json(await telegramPost(db, String(b.id)));
+    if (b.type === 'tg_test') {
+      const { data: g } = await db.from('tg_groups').select('chat_id, title').eq('id', b.group).maybeSingle();
+      if (!g) return Response.json({ skipped: 'no group' });
+      const r = await tgCall('sendMessage', { chat_id: Number(g.chat_id), text: `✅ Queued test — “${g.title}” is connected.` });
+      if (!r.ok && /kicked|not a member|chat not found/i.test(String(r.description))) await db.from('tg_groups').update({ active: false }).eq('chat_id', g.chat_id);
+      return Response.json({ sent: !!r.ok, error: r.ok ? undefined : r.description });
+    }
     if (b.type === 'test') {
       const n = await sendTo(db, [b.to], { title: 'Test notification ✅', body: 'Notifications work on this device.', url: '/', tag: 'test' });
       return Response.json({ sent: n });

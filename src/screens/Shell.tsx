@@ -6,9 +6,10 @@ import { DuoBook, DuoFriends, DuoHome, DuoMovie, DuoPad, DuoPc, DuoRetro, DuoSta
 import Home from './Home';
 import Welcome from '../components/Welcome';
 import Admin from './Admin';
-import { amAdmin, touchSeen } from '../lib/admin';
+import { amAdmin, loadChangelogDb, loadCustomPlatforms, touchSeen } from '../lib/admin';
 import WhatsNew from '../components/WhatsNew';
-import { APP_VERSION, CHANGELOG, unseen } from '../lib/changelog';
+import { allEntries, latestVersion, setDbChangelog, unseen } from '../lib/changelog';
+import { registerCustomPlatforms } from '../lib/platforms';
 import { initTips } from '../lib/tips';
 import { supabase } from '../lib/supabase';
 import Friends from './Friends';
@@ -43,14 +44,18 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   const settingsRef = useRef(profile.settings); settingsRef.current = profile.settings;
   useEffect(() => { initTips(profile.settings.tips, (seen) => onSettings({ ...settingsRef.current, tips: seen })); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [intro, setIntro] = useState<'welcome' | 'news' | null>(null);
-  useEffect(() => {
-    const st = profile.settings;
+  // platforms from Admin: the last known list right away, then the fresh one
+  const [, setPlatTick] = useState(0);
+  useState(() => { try { registerCustomPlatforms(JSON.parse(localStorage.getItem('queued.platforms') ?? '[]')); } catch { /* none yet */ } return 0; });
+  useEffect(() => { loadCustomPlatforms().then((l) => { registerCustomPlatforms(l); try { localStorage.setItem('queued.platforms', JSON.stringify(l)); } catch { /* full */ } setPlatTick((x) => x + 1); }).catch(() => undefined); }, []);
+  useEffect(() => { loadChangelogDb().then(setDbChangelog).catch(() => undefined).finally(() => {
+    const st = profile.settings; const APP_VERSION = latestVersion();
     if (st.seenVersion === APP_VERSION) return;
     if (st.onboarded || st.seenVersion) { if (unseen(st.seenVersion).length) setIntro('news'); else onSettings({ ...st, seenVersion: APP_VERSION }); return; }
     // never seen anything: someone with lists already (a tester) gets What's new; a brand-new account gets the welcome
     supabase.from('library').select('id', { count: 'exact', head: true }).then(({ count }) => setIntro((count ?? 0) > 0 ? 'news' : 'welcome'));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  const closeIntro = () => { setIntro(null); onSettings({ ...settingsRef.current, onboarded: true, seenVersion: APP_VERSION }); };
+  }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const closeIntro = () => { setIntro(null); onSettings({ ...settingsRef.current, onboarded: true, seenVersion: latestVersion() }); };
   const [newsOpen, setNewsOpen] = useState(false);
   const [admin, setAdmin] = useState(false);
   const [adminOpen, setAdminOpen] = useState(false);
@@ -58,7 +63,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   const introEl = <>
     {intro === 'welcome' && <Welcome onDone={closeIntro} />}
     {intro === 'news' && <WhatsNew entries={unseen(profile.settings.seenVersion)} onClose={closeIntro} />}
-    {newsOpen && <WhatsNew entries={CHANGELOG} onClose={() => setNewsOpen(false)} />}
+    {newsOpen && <WhatsNew entries={allEntries()} onClose={() => setNewsOpen(false)} />}
   </>;
   // your layout (Profile → Navigation): the bottom bar in its order, the rest in the side menu; the app opens on the first tab
   const nav0 = normNav(profile.settings.nav);
@@ -122,7 +127,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         ); })}
         {admin && <button className="drawer-item" onClick={() => { setDrawer(false); setAdminOpen(true); }}>Admin</button>}
         <button className="drawer-item" onClick={() => { setDrawer(false); setNewsOpen(true); }}>What’s new</button>
-        <span className="muted small drawer-foot">Queued · v4.16</span>
+        <span className="muted small drawer-foot">Queued · v4.17</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>

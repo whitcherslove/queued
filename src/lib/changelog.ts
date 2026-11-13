@@ -99,4 +99,12 @@ export const newer = (a: string, b: string) => {
   for (let i = 0; i < Math.max(x.length, y.length); i++) { if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0); }
   return false;
 };
-export const unseen = (seen?: string) => CHANGELOG.filter((e) => !seen || newer(e.version, seen));
+// entries written in Admin (stored in the database) join the built-in ones; the same version from Admin wins
+let DB: ChangeEntry[] = [];
+export function setDbChangelog(list: ChangeEntry[]) { DB = list; }
+export const allEntries = (): ChangeEntry[] => {
+  const map = new Map<string, ChangeEntry>(); CHANGELOG.forEach((e) => map.set(e.version, e)); DB.forEach((e) => map.set(e.version, e));
+  return [...map.values()].sort((a, b) => (newer(a.version, b.version) ? -1 : newer(b.version, a.version) ? 1 : 0));
+};
+export const latestVersion = () => allEntries()[0]?.version ?? APP_VERSION;
+export const unseen = (seen?: string) => allEntries().filter((e) => !seen || newer(e.version, seen));
