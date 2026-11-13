@@ -1,17 +1,17 @@
 import { supabase } from './supabase';
 import { DEFAULT_SETTINGS, Settings } from './theme';
 
-export interface Profile { id: string; email: string; avatar_url: string | null; settings: Settings; display_name?: string | null; handle?: string | null; invite_code?: string | null; telegram_off?: boolean }
+export interface Profile { id: string; email: string; avatar_url: string | null; settings: Settings; display_name?: string | null; handle?: string | null; invite_code?: string | null; telegram_off?: boolean; page_hidden?: boolean }
 
 export async function loadProfile(userId: string, email: string): Promise<Profile> {
-  const { data, error } = await supabase.from('profiles').select('id, avatar_url, settings, display_name, handle, invite_code, telegram_off').eq('id', userId).maybeSingle();
+  const { data, error } = await supabase.from('profiles').select('id, avatar_url, settings, display_name, handle, invite_code, telegram_off, page_hidden').eq('id', userId).maybeSingle();
   if (error) throw error;
   return {
     id: userId,
     email,
     avatar_url: data?.avatar_url ?? null,
     settings: { ...DEFAULT_SETTINGS, ...(data?.settings ?? {}) },
-    display_name: data?.display_name ?? null, handle: data?.handle ?? null, invite_code: data?.invite_code ?? null, telegram_off: data?.telegram_off ?? true
+    display_name: data?.display_name ?? null, handle: data?.handle ?? null, invite_code: data?.invite_code ?? null, telegram_off: data?.telegram_off ?? true, page_hidden: !!data?.page_hidden
   };
 }
 
@@ -61,5 +61,11 @@ export async function saveIdentity(userId: string, name: string, handle: string)
 /** Telegram group posts of your ratings: on by default, this turns them off (or back on). */
 export async function setTelegramOff(userId: string, off: boolean): Promise<void> {
   const { error } = await supabase.from('profiles').update({ telegram_off: off }).eq('id', userId);
+  if (error) throw new Error(error.message);
+}
+
+/** Hide my friend page (friends then see only my name and avatar). */
+export async function setPageHidden(userId: string, hidden: boolean): Promise<void> {
+  const { error } = await supabase.from('profiles').update({ page_hidden: hidden }).eq('id', userId);
   if (error) throw new Error(error.message);
 }

@@ -33,9 +33,10 @@ export default function FriendPage({ id, onClose, onTitle }: { id: string; onClo
         {s?.profile && <Avatar url={s.profile.avatar_url} email={s.profile.handle ?? name} size={40} />}
       </div></header>
       <main className="content home">
+        {s?.hidden && <section className="panel"><span className="muted">🔒 {name} keeps their page private. You still see their updates in Activity.</span></section>}
         {err && <p className="error">{err}</p>}
         {!s && !err && <div className="card-wait"><span className="spinner" aria-hidden="true" /></div>}
-        {s && <>
+        {s && !s.hidden && <>
           {/* compact taste match; the titles you both rated open on tap */}
           {s.match && s.match.common > 0 && <section className="panel match-compact">
             <button className="match-row" aria-expanded={bothOpen} onClick={() => setBothOpen(!bothOpen)}>

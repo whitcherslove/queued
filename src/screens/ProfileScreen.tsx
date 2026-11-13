@@ -1,3 +1,4 @@
+import { setPageHidden } from '../lib/profile';
 import { initTips } from '../lib/tips';
 import { disablePush, enablePush, pushEnabled } from '../lib/push';
 import { BAR_MAX, BAR_MIN, DEFAULT_NAV, NAV_LABEL, normNav, type NavId } from '../lib/nav';
@@ -24,6 +25,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushNote, setPushNote] = useState('');
+  const [pageHidden, setPageHiddenState] = useState(!!profile.page_hidden);
   useEffect(() => { pushEnabled().then(setPushOn).catch(() => undefined); }, []);
   const [tabsOpen, setTabsOpen] = useState(false);
   const tabs = s.tabs ?? { order: ['watched', 'playing', 'backlog'], def: 'watched' };
@@ -102,6 +104,14 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             <span className={'switch' + (pushOn ? ' on' : '')}><span /></span>
           </button>
           {pushNote && <span className="muted small">{pushNote}</span>}
+          {/* my friend page: hide it (friends see only name and avatar; Activity stays) */}
+          <button className="switch-row flat" role="switch" aria-checked={!!pageHidden} onClick={async () => {
+            const v = !pageHidden; setPageHiddenState(v);
+            try { await setPageHidden(profile.id, v); onProfile({ ...profile, page_hidden: v }); } catch { setPageHiddenState(!v); }
+          }}>
+            <span className="stack-sm grow"><strong>Hide my page</strong><span className="muted small">Friends won’t see your page — what you’re in, recent, favourites, taste match. Your updates in Activity stay.</span></span>
+            <span className={'switch' + (pageHidden ? ' on' : '')}><span /></span>
+          </button>
 
 
           <button className="switch-row flat" onClick={() => { set({ tips: [] }); initTips([], (seen) => set({ tips: seen })); }}>

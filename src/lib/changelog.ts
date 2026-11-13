@@ -1,9 +1,18 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.14';
+export const APP_VERSION = '4.15';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.15',
+    title: 'Reactions, your cards, a private page',
+    items: [
+      { icon: '☺', title: 'Reactions', text: 'Only the reactions people used show under an update. Tap ☺+ (or hold the update) for all eight — and “＋ To my Backlog” to grab what a friend finished.' },
+      { icon: '🃏', title: 'Open your card', text: 'Tap a title in Activity or on a friend’s page: if it’s in your lists, your card opens; if not, you can add it.' },
+      { icon: '🔒', title: 'Hide my page', text: 'Profile and settings → Hide my page: friends see only your name and avatar. Your updates in Activity stay.' }
+    ]
+  },
   {
     version: '4.14',
     title: 'Specials, seasons, reactions',

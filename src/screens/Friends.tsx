@@ -9,6 +9,8 @@ import { Poster } from '../components/Rows';
 import ScoreRing from '../components/ScoreRing';
 import PlatformIcon from '../components/PlatformIcon';
 import FriendPage from './FriendPage';
+import ShowCard from './ShowCard';
+import MovieCard from './MovieCard';
 import { useBackLayer } from '../lib/back';
 import Avatar from '../components/Avatar';
 import Tip from '../components/Tip';
@@ -33,7 +35,15 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
   const [tab, setTab] = useState<'activity' | 'people'>('activity');
   const [feed, setFeed] = useState<Activity[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
-  const [mine, setMine] = useState<Set<string>>(new Set());
+  const [mine, setMine] = useState<Map<string, { id: string; section: string }>>(new Map());
+  const [card, setCard] = useState<{ id: string; section: string } | null>(null);   // my own card, opened from Activity or a friend's page
+  useBackLayer(!!card, () => setCard(null));
+  const [picker, setPicker] = useState<string | null>(null);   // the event whose reaction picker is open
+  // a title someone else has: if it's in my lists — open my card; if not — the sheet with "Add to Backlog"
+  const openTitle = (t: MiniTitle & { section?: string; platform?: string | null; who?: string; label?: string | null }) => {
+    const m = t.title_id ? mine.get(t.title_id) : undefined;
+    if (m) { setTitleOpen(null); setCard(m); } else setTitleOpen(t);
+  };
   const [friendOpen, setFriendOpen] = useState<string | null>(null);
   const [titleOpen, setTitleOpen] = useState<(MiniTitle & { section?: string; platform?: string | null; who?: string; label?: string | null }) | null>(null);
   const [delAsk, setDelAsk] = useState<Activity | null>(null);
@@ -75,12 +85,31 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
     setFeed((f) => f.map((x) => x.id === a.id ? { ...x, reactions: next } : x));
     try { await setReaction(a.id, emoji, on); } catch { setFeed((f) => f.map((x) => x.id === a.id ? { ...x, reactions: cur } : x)); }
   };
-  const reactBar = (a: Activity) => (
-    <div className="react-bar">{REACTIONS.map((e) => { const r = (a.reactions ?? []).find((x) => x.emoji === e);
-      return <button key={e} className={'react' + (r?.mine ? ' mine' : '') + (r ? ' has' : '')} aria-pressed={!!r?.mine} aria-label={'React ' + e} onClick={() => react(a, e)}>{e}{r ? <span>{r.count}</span> : null}</button>; })}</div>
-  );
+  const reactBar = (a: Activity) => {
+    const used = (a.reactions ?? []).filter((r) => r.count > 0);
+    const canAdd = !a.mine && !!a.title_id && !mine.has(a.title_id);
+    return (
+      <div className="react-wrap">
+        <div className="react-bar">
+          {used.map((r) => <button key={r.emoji} className={'react has' + (r.mine ? ' mine' : '')} aria-pressed={r.mine} aria-label={'React ' + r.emoji} onClick={() => react(a, r.emoji)}>{r.emoji}<span>{r.count}</span></button>)}
+          <button className={'react add' + (picker === a.id ? ' open' : '')} aria-label="Add a reaction" aria-expanded={picker === a.id} onClick={() => setPicker(picker === a.id ? null : a.id)}>☺+</button>
+        </div>
+        {picker === a.id && <div className="react-picker" role="menu">
+          {REACTIONS.map((e) => { const r = used.find((x) => x.emoji === e); return <button key={e} role="menuitem" className={'react-pick' + (r?.mine ? ' mine' : '')} onClick={() => { setPicker(null); react(a, e); }}>{e}</button>; })}
+          {canAdd && <button className="react-pick add-bl" role="menuitem" onClick={() => { setPicker(null); react(a, '👀'); addTitle({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform }); }}>＋ To my Backlog</button>}
+        </div>}
+      </div>
+    );
+  };
+  const hold = useRef<number | null>(null);
+  const holdFor = (id: string) => ({
+    onTouchStart: () => { hold.current = window.setTimeout(() => { setPicker(id); navigator.vibrate?.(10); }, 450); },
+    onTouchMove: () => { if (hold.current) clearTimeout(hold.current); },
+    onTouchEnd: () => { if (hold.current) clearTimeout(hold.current); },
+    onContextMenu: (e: React.MouseEvent) => { e.preventDefault(); setPicker(id); }
+  });
   const feedRow = (a: Activity) => { const tr = tierOf(a.tier); return (
-              <div key={a.id} className={'feed-row' + (a.kind === 'finished' && a.tier ? ' big' : '') + (a.tier === 'ten' ? ' ten' : '')}
+              <div key={a.id} className={'feed-row' + (a.kind === 'finished' && a.tier ? ' big' : '') + (a.tier === 'ten' ? ' ten' : '')} {...holdFor(a.id)}
                 onPointerDown={() => { if (!a.can_delete) return; press.current = window.setTimeout(() => setDelAsk(a), 550); }}
                 onPointerUp={() => { if (press.current) clearTimeout(press.current); }} onPointerLeave={() => { if (press.current) clearTimeout(press.current); }}
                 onContextMenu={(e) => { if (a.can_delete) { e.preventDefault(); setDelAsk(a); } }}>
@@ -88,9 +117,9 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
                 <div className="feed-body">
                   <span className="feed-line">
                     {a.mine ? <strong>You</strong> : <button className="who-link" onClick={() => setFriendOpen(a.user_id)}>{a.name || (a.handle ? '@' + a.handle : 'Friend')}</button>}{' '}
-                    <button className="what-link" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{verb(a)} <strong>{a.title}</strong>{(a.kind === 'finished' || a.kind === 'started') && a.seasons_label ? ' · ' + a.seasons_label : ''}{a.kind === 'show_rated' ? ' (the whole show)' : ''}{a.coop_names?.filter(Boolean).length ? ' with ' + a.coop_names.filter(Boolean).join(', ') : ''}</button>
+                    <button className="what-link" onClick={() => openTitle({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{verb(a)} <strong>{a.title}</strong>{(a.kind === 'finished' || a.kind === 'started') && a.seasons_label ? ' · ' + a.seasons_label : ''}{a.kind === 'show_rated' ? ' (the whole show)' : ''}{a.coop_names?.filter(Boolean).length ? ' with ' + a.coop_names.filter(Boolean).join(', ') : ''}</button>
                   </span>
-                  <button className="feed-meta as-btn" onClick={() => setTitleOpen({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{tierOf(a.tier) && <span className="tier-under" style={{ background: tierOf(a.tier)!.color }}>{tierOf(a.tier)!.label}</span>}{a.score != null && <ScoreRing value={Number(a.score)} scale={profile.settings.scale ?? 5} size={22} fontSize={9} />}{a.kind === 'dropped' && <span className="tier-under none">Dropped</span>}
+                  <button className="feed-meta as-btn" onClick={() => openTitle({ title_id: a.title_id, title: a.title, poster_url: a.poster_url, section: a.section, platform: a.platform, tier: a.tier, score: a.score, who: a.mine ? 'You' : (a.name || (a.handle ? '@' + a.handle : 'Friend')), label: a.kind === 'season_rated' ? a.seasons_label : a.kind === 'show_rated' ? 'the whole show' : a.seasons_label })}>{tierOf(a.tier) && <span className="tier-under" style={{ background: tierOf(a.tier)!.color }}>{tierOf(a.tier)!.label}</span>}{a.score != null && <ScoreRing value={Number(a.score)} scale={profile.settings.scale ?? 5} size={22} fontSize={9} />}{a.kind === 'dropped' && <span className="tier-under none">Dropped</span>}
                     {a.platform && ['console', 'pc', 'retro'].includes(a.section) && <PlatformIcon k={a.platform} size={10} />}<span className="muted tiny">{ago(a.created_at)}</span></button>
                   {reactBar(a)}
                 </div>
@@ -99,7 +128,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
   ); };
   const addTitle = async (t: MiniTitle & { section?: string; platform?: string | null }) => {
     if (!t.title_id || !t.section) return;
-    try { await addToBacklog(t.title_id, t.section as never, 0, (['console', 'pc', 'retro'].includes(t.section) ? { platform: t.platform ?? null } : t.section === 'books' ? { format: 'paper' } : {}) as never); setMine(new Set([...mine, t.title_id])); setNote('Added to your Backlog.'); }
+    try { await addToBacklog(t.title_id, t.section as never, 0, (['console', 'pc', 'retro'].includes(t.section) ? { platform: t.platform ?? null } : t.section === 'books' ? { format: 'paper' } : {}) as never); myTitleIds().then(setMine).catch(() => undefined); setNote('Added to your Backlog.'); }
     catch { setNote('Couldn’t add it. Try again.'); }
     setTitleOpen(null);
   };
@@ -246,15 +275,18 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
             <button className="btn danger grow" onClick={async () => { const d = delAsk; setDelAsk(null); try { await deleteActivity(d.id); setFeed((f) => f.filter((x) => x.id !== d.id)); } catch { setNote('Couldn’t delete it.'); } }}>Delete</button></div>
         </div>
       </div>}
-      {friendOpen && <FriendPage id={friendOpen} onClose={() => setFriendOpen(null)} onTitle={(t) => setTitleOpen(t)} />}
-      {titleOpen && <div className="sheet-wrap">
+      {card && <div className="card-layer">{card.section === 'tv'
+        ? <ShowCard key={card.id} itemId={card.id} initial={null} settings={profile.settings} topPos={0} onClose={() => setCard(null)} onChanged={() => undefined} />
+        : <MovieCard key={card.id} game={['console', 'pc', 'retro'].includes(card.section)} book={card.section === 'books'} itemId={card.id} initial={null} settings={profile.settings} backlogCount={0} onClose={() => setCard(null)} onChanged={() => undefined} onOpenOther={(id) => setCard({ id, section: card.section })} />}</div>}
+      {friendOpen && <FriendPage id={friendOpen} onClose={() => setFriendOpen(null)} onTitle={(t) => openTitle(t)} />}
+      {titleOpen && <div className="sheet-wrap over-page">
         <button className="sheet-scrim" aria-label="Close" onClick={() => setTitleOpen(null)} />
         <div className="sheet" role="dialog" aria-label={titleOpen.title}>
           <div className="action-head"><Poster t={{ title: titleOpen.title, poster_url: titleOpen.poster_url }} w={52} h={76} /><span className="stack-sm"><strong>{titleOpen.title}</strong>{titleOpen.label && <span className="muted small">{titleOpen.label}</span>}</span></div>
           {(titleOpen.tier || titleOpen.score != null) && <div className="row nowrap their-rate"><span className="muted small grow">{titleOpen.who ?? 'Their'} rating</span>
             {tierOf(titleOpen.tier) && <span className="tier-under" style={{ background: tierOf(titleOpen.tier)!.color }}>{tierOf(titleOpen.tier)!.label}</span>}
             {titleOpen.score != null && <ScoreRing value={Number(titleOpen.score)} scale={profile.settings.scale ?? 5} size={34} fontSize={12} />}</div>}
-          {titleOpen.title_id && mine.has(titleOpen.title_id) ? <span className="muted small">Already in your lists.</span>
+          {titleOpen.title_id && mine.has(titleOpen.title_id) ? <button className="btn primary" onClick={() => { setCard(mine.get(titleOpen.title_id!)!); setTitleOpen(null); }}>Open my card</button>
             : titleOpen.title_id && titleOpen.section ? <button className="btn primary" onClick={() => addTitle(titleOpen)}>Add to Backlog</button> : null}
           <button className="btn" onClick={() => setTitleOpen(null)}>Close</button>
         </div>

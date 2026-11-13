@@ -46,6 +46,7 @@ export async function activityFeed(before?: string): Promise<Activity[]> {
 }
 export interface MiniTitle { title_id?: string; title: string; poster_url: string | null; section?: string; tier?: string | null; score?: number | null; dropped?: boolean; seasons_label?: string | null; platform?: string | null; format?: string | null; at?: string }
 export interface FriendSummary {
+  hidden?: boolean;   // they keep their page private
   profile: { name: string | null; handle: string | null; avatar_url: string | null } | null;
   now: MiniTitle[]; recent: MiniTitle[]; year: Record<string, number> | null; favorites: MiniTitle[];
   match: { common: number; pct: number | null; both: { title: string; poster_url: string | null; mine: string; theirs: string }[] } | null;
@@ -56,9 +57,10 @@ export async function friendSummary(friend: string): Promise<FriendSummary> {
   return data as FriendSummary;
 }
 /** title ids you already have — to say "In your lists" instead of offering to add */
-export async function myTitleIds(): Promise<Set<string>> {
-  const { data } = await supabase.from('library').select('title_id');
-  return new Set((data ?? []).map((r: { title_id: string }) => r.title_id));
+/** My titles: title id → my entry (to open its card), so "already mine" can open it right away. */
+export async function myTitleIds(): Promise<Map<string, { id: string; section: string }>> {
+  const { data } = await supabase.from('library').select('id, title_id, section');
+  return new Map((data ?? []).map((r: { id: string; title_id: string; section: string }) => [r.title_id, { id: r.id, section: r.section }]));
 }
 
 export async function deleteActivity(id: string): Promise<void> {
@@ -78,7 +80,7 @@ export async function sentCoopInvites(titleId: string): Promise<{ to_user: strin
   return (data ?? []) as { to_user: string; status: 'pending' | 'accepted' | 'declined' }[];
 }
 
-export const REACTIONS = ['🔥', '😂', '👀', '😢'] as const;
+export const REACTIONS = ['❤️', '🔥', '🤯', '😂', '😢', '💀', '🤝', '👀'] as const;
 /** Put or take back your reaction on a feed event. */
 export async function setReaction(activityId: string, emoji: string, on: boolean) {
   const { data: me } = await supabase.auth.getUser();
