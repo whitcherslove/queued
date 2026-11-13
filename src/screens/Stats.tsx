@@ -5,7 +5,7 @@ import { loadEverything, loadMarkDates } from '../lib/remote';
 import { merged } from '../lib/logic';
 import { logSeasons, seasonsName } from '../lib/tv';
 import { TIERS } from '../lib/scores';
-import { IconBack, IconMenu, ReplayIcon } from '../components/Icons';
+import { ChevBtn, IconBack, IconMenu, ReplayIcon } from '../components/Icons';
 import { Poster } from '../components/Rows';
 import PlatformIcon from '../components/PlatformIcon';
 import ShowCard from './ShowCard';
@@ -37,7 +37,14 @@ export default function Stats({ onBack, onMenu, settings }: { onBack?: () => voi
   const [replays, setReplays] = useState(false);
   const [card, setCard] = useState<LibItem | null>(null);
   const scale = settings?.scale ?? 5;
-  useBackLayer(!!card, () => setCard(null));   // Back from a card returns to Stats
+  useBackLayer(!!card, () => setCard(null));
+  const [shut, setShut] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem('queued.stats.shut') ?? '[]')); } catch { return new Set(); } });
+  const toggleGroup = (k: string) => { const n = new Set(shut); if (n.has(k)) n.delete(k); else n.add(k); setShut(n); try { localStorage.setItem('queued.stats.shut', JSON.stringify([...n])); } catch { /* full */ } };
+  const groupHead = (k: string, label: string, n: number) => (
+    <button className="w-head" aria-expanded={!shut.has(k)} onClick={() => toggleGroup(k)}>
+      <span className="h2">{label}</span><span className="w-count">{n}</span><span className="grow" /><ChevBtn open={!shut.has(k)} size={30} />
+    </button>
+  );   // Back from a card returns to Stats
 
   useEffect(() => {
     (async () => {
@@ -205,7 +212,7 @@ export default function Stats({ onBack, onMenu, settings }: { onBack?: () => voi
 
         {tab === 'journal' && (period.length === 0 ? <div className="empty small-pad">Nothing finished in {periodLabel}.</div> : SECTIONS.map((s) => {
           const list = period.filter((l) => l.library.section === s.id);
-          return list.length ? <section key={s.id} className="panel st-group"><div className="panel-head"><span>{s.label}</span><span className="count-badge">{list.length}</span></div>{list.map(row)}</section> : null;
+          return list.length ? <section key={s.id} className="panel st-group">{groupHead('j-' + s.id, s.label, list.length)}{!shut.has('j-' + s.id) && list.map(row)}</section> : null;
         }))}
 
         {tab === 'games' && <>
@@ -215,9 +222,9 @@ export default function Stats({ onBack, onMenu, settings }: { onBack?: () => voi
           </div>
           {gamesShown.length === 0 ? <div className="empty small-pad">No games {replays ? 'replayed' : 'finished'} in {periodLabel}.</div> : GAMES.map((g) => {
             const list = gamesShown.filter((l) => l.library.section === g);
-            return list.length ? <section key={g} className="panel st-group"><div className="panel-head"><span>{SECTIONS.find((x) => x.id === g)!.label}</span><span className="count-badge">{list.length}</span></div>
-              <div className="st-thead"><span /><span>Title</span><span>Platform</span><span>Year</span><span>Finished</span><span>Rating</span></div>
-              {list.map(gameRow)}</section> : null;
+            return list.length ? <section key={g} className="panel st-group">{groupHead('g-' + g, SECTIONS.find((x) => x.id === g)!.label, list.length)}
+              {!shut.has('g-' + g) && <><div className="st-thead"><span /><span>Title</span><span>Platform</span><span>Year</span><span>Finished</span><span>Rating</span></div>
+              {list.map(gameRow)}</>}</section> : null;
           })}
         </>}
         </>}
