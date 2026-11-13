@@ -165,6 +165,10 @@ Deno.serve(async (req) => {
       return Response.json({ sent: n });
     }
     if (b.type === 'telegram') return Response.json(await telegramPost(db, String(b.id)));
+    if (b.type === 'test') {
+      const n = await sendTo(db, [b.to], { title: 'Test notification ✅', body: 'Notifications work on this device.', url: '/', tag: 'test' });
+      return Response.json({ sent: n });
+    }
     if (b.type === 'reaction') {
       const [{ data: p }, { data: a }] = await Promise.all([db.from('profiles').select('display_name, handle').eq('id', b.from).maybeSingle(), db.from('activity').select('user_id, title:titles(title)').eq('id', b.id).maybeSingle()]);
       if (!a) return Response.json({ skipped: 'no event' });

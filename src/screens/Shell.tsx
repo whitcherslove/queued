@@ -5,6 +5,8 @@ import type { Settings } from '../lib/theme';
 import { DuoBook, DuoFriends, DuoHome, DuoMovie, DuoPad, DuoPc, DuoRetro, DuoStats, DuoTv, IconBack, IconMenu, IconSearch } from '../components/Icons';
 import Home from './Home';
 import Welcome from '../components/Welcome';
+import Admin from './Admin';
+import { amAdmin, touchSeen } from '../lib/admin';
 import WhatsNew from '../components/WhatsNew';
 import { APP_VERSION, CHANGELOG, unseen } from '../lib/changelog';
 import { initTips } from '../lib/tips';
@@ -50,6 +52,9 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const closeIntro = () => { setIntro(null); onSettings({ ...settingsRef.current, onboarded: true, seenVersion: APP_VERSION }); };
   const [newsOpen, setNewsOpen] = useState(false);
+  const [admin, setAdmin] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
+  useEffect(() => { touchSeen(); amAdmin().then(setAdmin); }, []);
   const introEl = <>
     {intro === 'welcome' && <Welcome onDone={closeIntro} />}
     {intro === 'news' && <WhatsNew entries={unseen(profile.settings.seenVersion)} onClose={closeIntro} />}
@@ -86,7 +91,9 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   const sec = SECTIONS.find((s) => s.id === section)!;
   useBackLayer(drawer, () => setDrawer(false));
   useBackLayer(profileOpen, () => setProfileOpen(false));
+  useBackLayer(adminOpen, () => setAdminOpen(false));
 
+  if (adminOpen) return <Admin onBack={() => setAdminOpen(false)} />;
   if (profileOpen) return <ProfileScreen profile={profile} onBack={() => setProfileOpen(false)} onProfile={onProfile} onSettings={onSettings} />;
 
   const nav = (
@@ -113,8 +120,9 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
             <span className="duo-icon drawer-duo">{sx.icon}</span>{sx.title}
           </button>
         ); })}
+        {admin && <button className="drawer-item" onClick={() => { setDrawer(false); setAdminOpen(true); }}>Admin</button>}
         <button className="drawer-item" onClick={() => { setDrawer(false); setNewsOpen(true); }}>What’s new</button>
-        <span className="muted small drawer-foot">Queued · v4.15</span>
+        <span className="muted small drawer-foot">Queued · v4.16</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>

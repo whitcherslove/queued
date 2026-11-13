@@ -1295,3 +1295,13 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .react-pick { width: 38px; height: 38px; border: 0; border-radius: 10px; background: transparent; font-size: 20px; display: grid; place-items: center; }
 .react-pick.mine { background: color-mix(in srgb, #FFAC96 18%, transparent); }
 .react-pick.add-bl { width: auto; padding: 0 12px; font-size: 13px; font-weight: 800; color: var(--accent); }
+
+/* admin */
+.adm-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.adm-stat { display: flex; flex-direction: column; padding: 10px 12px; border-radius: 12px; background: var(--surface2); }
+.adm-num { font-size: 22px; font-weight: 800; }
+.adm-err { display: flex; flex-direction: column; gap: 2px; padding: 6px 0; border-top: 1px solid var(--line); }
+.adm-err code { font-size: 11px; color: var(--muted); word-break: break-word; }
+.adm-cfg { display: flex; flex-direction: column; gap: 4px; padding: 6px 0; border-top: 1px solid var(--line); }
+.count-badge.danger { background: #DE3C49; color: #fff; }
+.toast-inline { padding: 10px 12px; border-radius: 12px; background: var(--surface2); font-size: 13px; }

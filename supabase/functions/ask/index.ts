@@ -40,6 +40,12 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   try {
     const { libraryId, question, mode, text, lang } = await req.json();
+    // AI usage: counted per person, with a daily limit (set in Admin → Settings); the admin has none
+    {
+      const { data: okAi } = await createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } })
+        .rpc('ai_take', { kind: mode === 'translate' ? 'translate' : mode === 'tonight' ? 'tonight' : 'ask' });
+      if (okAi === false) return Response.json({ error: 'You’ve used today’s AI picks — try again tomorrow.' }, { status: 429, headers: CORS });
+    }
     // mode "translate": a book description in the language you read in (signed-in users only)
     if (mode === 'translate') {
       const { data: who } = await createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } }).auth.getUser();
