@@ -3,7 +3,7 @@ import QRCode from 'qrcode';
 import type { Profile } from '../lib/profile';
 import { saveIdentity } from '../lib/profile';
 import { REACTIONS, setReaction, answerCoop, myCoopInvites, type CoopInvite, activityFeed, deleteActivity, answerRequest, dismissSuggestion, findByHandle, friendList, inviteUrl, myTitleIds, removeFriend, requestFriend, type Activity, type FriendRow, type MiniTitle } from '../lib/friends';
-import { addToBacklog } from '../lib/remote';
+import { addToBacklog, loadItemLogs } from '../lib/remote';
 import { TIERS } from '../lib/scores';
 import { Poster } from '../components/Rows';
 import ScoreRing from '../components/ScoreRing';
@@ -36,7 +36,8 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
   const [feed, setFeed] = useState<Activity[]>([]);
   const [feedLoading, setFeedLoading] = useState(true);
   const [mine, setMine] = useState<Map<string, { id: string; section: string }>>(new Map());
-  const [card, setCard] = useState<{ id: string; section: string } | null>(null);   // my own card, opened from Activity or a friend's page
+  const [card, setCardState] = useState<{ id: string; section: string; logs?: unknown[] } | null>(null);
+  const setCard = (c: { id: string; section: string } | null) => { if (!c) { setCardState(null); return; } loadItemLogs(c.id).then((lg) => setCardState({ ...c, logs: lg })).catch(() => setCardState(c)); };   // my own card, opened from Activity or a friend's page
   useBackLayer(!!card, () => setCard(null));
   const [picker, setPicker] = useState<string | null>(null);   // the event whose reaction picker is open
   // a title someone else has: if it's in my lists — open my card; if not — the sheet with "Add to Backlog"
@@ -277,7 +278,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
       </div>}
       {card && <div className="card-layer">{card.section === 'tv'
         ? <ShowCard key={card.id} itemId={card.id} initial={null} settings={profile.settings} topPos={0} onClose={() => setCard(null)} onChanged={() => undefined} />
-        : <MovieCard key={card.id} game={['console', 'pc', 'retro'].includes(card.section)} book={card.section === 'books'} itemId={card.id} initial={null} settings={profile.settings} backlogCount={0} onClose={() => setCard(null)} onChanged={() => undefined} onOpenOther={(id) => setCard({ id, section: card.section })} />}</div>}
+        : <MovieCard key={card.id} game={['console', 'pc', 'retro'].includes(card.section)} book={card.section === 'books'} itemId={card.id} initial={null} initialLogs={card.logs as never} settings={profile.settings} backlogCount={0} onClose={() => setCard(null)} onChanged={() => undefined} onOpenOther={(id) => setCard({ id, section: card.section })} />}</div>}
       {friendOpen && <FriendPage id={friendOpen} onClose={() => setFriendOpen(null)} onTitle={(t) => openTitle(t)} />}
       {titleOpen && <div className="sheet-wrap over-page">
         <button className="sheet-scrim" aria-label="Close" onClick={() => setTitleOpen(null)} />

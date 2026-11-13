@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { LibItem, LogRow } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { loadEverything, loadMarkDates } from '../lib/remote';
-import { merged } from '../lib/logic';
+import { cardLogs, merged } from '../lib/logic';
 import { logSeasons, seasonsName } from '../lib/tv';
 import { TIERS } from '../lib/scores';
 import { ChevBtn, IconBack, IconMenu, ReplayIcon } from '../components/Icons';
@@ -232,7 +232,7 @@ export default function Stats({ onBack, onMenu, settings }: { onBack?: () => voi
 
       {card && settings && (card.section === 'tv'
         ? <ShowCard key={card.id} itemId={card.id} initial={card} settings={settings} topPos={0} onClose={() => setCard(null)} onChanged={() => undefined} />
-        : <MovieCard key={card.id} game={GAMES.includes(card.section)} book={card.section === 'books'} itemId={card.id} initial={card} settings={settings} backlogCount={0} onClose={() => setCard(null)} onChanged={() => undefined} onOpenOther={() => undefined} />)}
+        : <MovieCard key={card.id} game={GAMES.includes(card.section)} book={card.section === 'books'} itemId={card.id} initial={card} initialLogs={cardLogs(logs, card.id)} settings={settings} backlogCount={0} onClose={() => setCard(null)} onChanged={() => undefined} onOpenOther={() => undefined} />)}
     </div>
   );
 }

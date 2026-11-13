@@ -152,3 +152,10 @@ export function needsRefresh(t: { release_date?: string | null; fetched_at?: str
   const recent = !rel || rel > now - 180 * 864e5;
   return age > (recent ? 864e5 : 30 * 864e5);
 }
+
+/** A card's journal entries from lists already loaded — so the rating shows at once (the card then loads the full entries). */
+export function cardLogs(logs: LogRow[], itemId: string) {
+  return logs.filter((l) => (l.library_id ?? l.library?.id) === itemId)
+    .map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch, dropped: l.dropped, scope: l.scope, season_from: l.season_from, season_to: l.season_to, seasons: l.seasons }))
+    .sort((a, b) => b.watched_at.localeCompare(a.watched_at)) as never;
+}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibItem, LogRow, Mark, SeasonEps } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { loadEpisodes, loadEverything, loadMarks, pickTonight } from '../lib/remote';
-import { dateParts, merged } from '../lib/logic';
+import { dateParts, merged , cardLogs } from '../lib/logic';
 import { epLabel, epRuntime, isEnded, logSeasons, progress, seasonAir, seasonsName, showState, todayIso } from '../lib/tv';
 import { applyEpisodeMarks, startWatching } from '../lib/tvActions';
 import { TIERS } from '../lib/scores';
@@ -483,7 +483,7 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
 
       {open?.kind === 'tv' && <ShowCard key={open.id} itemId={open.id} initial={items.find((i) => i.id === open.id) ?? null} settings={settings} topPos={0}
         onClose={() => setOpen(null)} onChanged={load} />}
-      {open && open.kind !== 'tv' && <MovieCard key={open.id} game={open.kind === 'game'} book={open.kind === 'book'} itemId={open.id} initial={items.find((i) => i.id === open.id) ?? null} settings={settings} backlogCount={0}
+      {open && open.kind !== 'tv' && <MovieCard key={open.id} game={open.kind === 'game'} book={open.kind === 'book'} itemId={open.id} initial={items.find((i) => i.id === open.id) ?? null} initialLogs={cardLogs(logs, open.id)} settings={settings} backlogCount={0}
         onClose={() => setOpen(null)} onChanged={load} onOpenOther={(id) => { const it = items.find((i) => i.id === id); setOpen({ id, kind: it ? kindOf(it) : open.kind }); }} />}
     </div>
   );
