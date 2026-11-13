@@ -3,7 +3,8 @@ export type AccentId = 'blue' | 'violet' | 'teal' | 'coral' | 'amber';
 export type Scale = 5 | 10;
 
 export type View = 'list' | 'grid';
-export interface Settings { seenVersion?: string; onboarded?: boolean; tips?: string[]; theme: ThemeId; accent: AccentId; scale: Scale; view: View; posterScore: boolean; listMetascore: boolean; retroPlatforms?: string[]; nav?: { bar: string[]; side: string[]; start?: string }; tabs?: { order: string[]; def: string } }
+export interface HomeLayout { order: string[]; hidden: string[]; friends?: number; kinds?: string[]; horizon?: number }
+export interface Settings { home?: HomeLayout; seenVersion?: string; onboarded?: boolean; tips?: string[]; theme: ThemeId; accent: AccentId; scale: Scale; view: View; posterScore: boolean; listMetascore: boolean; retroPlatforms?: string[]; nav?: { bar: string[]; side: string[]; start?: string }; tabs?: { order: string[]; def: string } }
 export const DEFAULT_SETTINGS: Settings = { theme: 'dark', accent: 'blue', scale: 5, view: 'list', posterScore: true, listMetascore: true };
 
 export const THEMES: Record<ThemeId, Record<string, string>> = {

@@ -1380,3 +1380,21 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .sheet.whats-new { display: flex; flex-direction: column; max-height: 86vh; overflow: hidden; }
 .sheet.whats-new > .wn-list { flex: 1 1 auto; flex-shrink: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .sheet.whats-new > .btn { flex-shrink: 0; }
+
+/* Edit Home + This year */
+.sheet.home-editor { display: flex; flex-direction: column; max-height: 88vh; overflow: hidden; }
+.sheet.home-editor > .he-list { flex: 1 1 auto; flex-shrink: 1; min-height: 0; overflow-y: auto; }
+.he-row { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.he-row.off .stack-0 { opacity: .5; }
+.he-row .f-row { margin-top: 6px; }
+.he-arrows { display: flex; flex-direction: column; gap: 2px; }
+.he-arrows button { width: 30px; height: 22px; border: 1px solid var(--line); border-radius: 7px; background: transparent; color: var(--muted); font-size: 10px; }
+.he-arrows button:disabled { opacity: .3; }
+.switch-btn { border: 0; background: transparent; padding: 4px 0; }
+.edit-home { align-self: center; margin: 6px 0 18px; }
+.stats-widget { display: flex; flex-direction: column; gap: 8px; width: 100%; text-align: left; color: var(--ink); }
+.sw-line { font-size: 14px; }
+.sw-line b { font-size: 18px; }
+.sw-bar { height: 8px; }
+.sw-months { display: flex; align-items: flex-end; gap: 4px; height: 26px; }
+.sw-months i { flex: 1; background: var(--accent); border-radius: 3px; }

@@ -1,9 +1,17 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.20';
+export const APP_VERSION = '4.21';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.21',
+    title: 'Your Home',
+    items: [
+      { icon: '✎', title: 'Edit Home', text: 'At the bottom of Home (or in Profile and settings): turn blocks on and off, change their order, pick how many friends’ updates and how far ahead Coming up looks.' },
+      { icon: '📊', title: 'This year', text: 'A small stats block on Home: finished, hours, average, ratings and months. Tap it for Stats.' }
+    ]
+  },
   {
     version: '4.20',
     title: 'New Stats',

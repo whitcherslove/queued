@@ -1,3 +1,5 @@
+import { Fragment } from 'react';
+import HomeEditor from '../components/HomeEditor';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibItem, LogRow, Mark, SeasonEps } from '../lib/types';
 import type { Settings } from '../lib/theme';
@@ -33,7 +35,7 @@ const SEC_COLOR: Record<string, string> = { movies: '#E8714A', tv: '#9A8CF0', co
 const SEC_LABEL: Record<string, string> = { movies: 'Movie', tv: 'Show', console: 'Console', pc: 'PC', retro: 'Retro', books: 'Book' };
 
 /** Home: what's going on now — continue, coming up, recently finished, up next — and a way into Stats. */
-export default function Home({ settings, onMenu, onStats, onBack, onFriends }: { settings: Settings; onMenu: () => void; onStats: () => void; onBack?: () => void; onFriends?: () => void }) {
+export default function Home({ settings, onSettings, onMenu, onStats, onBack, onFriends }: { settings: Settings; onSettings?: (s: Settings) => void; onMenu: () => void; onStats: () => void; onBack?: () => void; onFriends?: () => void }) {
   const [items, setItems] = useState<LibItem[]>(homeCache?.items ?? []);
   const [logs, setLogs] = useState<LogRow[]>(homeCache?.logs ?? []);
   const [eps, setEps] = useState<SeasonEps[]>(homeCache?.eps ?? []);
@@ -66,7 +68,7 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
     setCoopInv((l) => l.filter((x) => x.id !== c.id));
     try { await answerCoop(c.id, yes); if (yes) load(); } catch { setCoopInv((l) => [c, ...l]); }
   };
-  useEffect(() => { activityFeed().then((a) => { const x = a.filter((e) => !e.mine).slice(0, 4); friendsCache = x; setFEvents(x); }).catch(() => undefined); }, []);
+  useEffect(() => { activityFeed().then((a) => { const x = a.filter((e) => !e.mine).slice(0, 12); friendsCache = x; setFEvents(x); }).catch(() => undefined); }, []);
 
   // --- Continue: shows with an episode ready, games in progress
   const STATE_ORDER: Record<string, number> = { progress: 0, newSeason: 1, lastChance: 2, caughtUp: 3 };
@@ -82,8 +84,16 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
     .sort((a, b) => String((b as LibItem & { updated_at?: string }).updated_at ?? b.started_on ?? '').localeCompare(String((a as LibItem & { updated_at?: string }).updated_at ?? a.started_on ?? ''))), [items]);
 
   // --- Coming up (next 30 days): new episodes, season premieres, releases from Backlog
+  // Edit Home: order, hidden blocks and a few options (kept in your profile)
+  const HOME_DEFAULT = ['progress', 'tonight', 'ready', 'recent', 'friends', 'coming', 'stats'];
+  const hl = settings.home;
+  const layout = [...(hl?.order ?? []).filter((x) => HOME_DEFAULT.includes(x)), ...HOME_DEFAULT.filter((x) => !(hl?.order ?? []).includes(x))];
+  const hidden = new Set(hl?.hidden ?? []);
+  const friendsN = hl?.friends ?? 4;
+  const kinds = hl?.kinds ?? ['Shows', 'Games', 'Books'];
+  const horizonDays = hl?.horizon ?? 180;
   const coming = useMemo(() => {
-    const limit = new Date(Date.now() + 180 * 864e5).toISOString().slice(0, 10);   // the next six months
+    const limit = new Date(Date.now() + horizonDays * 864e5).toISOString().slice(0, 10);   // your Coming up horizon
     const out: { it: LibItem; date: string; what: string }[] = [];
     const seasonsOf = (t: LibItem['title']) => ((t.data as { seasons?: { n?: number; season_number?: number; air_date: string | null }[] } | null)?.seasons ?? []);
     items.forEach((it) => {
@@ -105,7 +115,7 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
       }
     });
     return out.sort((a, b) => a.date.localeCompare(b.date)).slice(0, 80);
-  }, [items, logs, eps, marks, today]);
+  }, [items, logs, eps, marks, today, horizonDays]);
 
   const justOut = useMemo(() => {
     const since = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
@@ -296,34 +306,31 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
   };
   const verb = (it: LibItem) => (it.section === 'tv' ? 'Continue watching' : it.section === 'books' ? 'Continue reading' : 'Continue playing');
 
-  return (
-    <div className="app section-in">
-      <header className="top">
-        <div className="title-row">
-          {onBack ? <button className="icon-btn" aria-label="Back" onClick={onBack}><IconBack /></button> : <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>}
-          <div className="title-block">
-            <h1 className="section-title">{greeting}</h1>
-            <span className="muted small">{dateLine}{nowCount ? ' · ' + nowCount + ' in progress' : ''}</span>
-          </div>
-        </div>
-      </header>
+  const yearNow = new Date().getFullYear();
+  const ylogs = logs.filter((l) => !l.dropped && Number(l.watched_at.slice(0, 4)) === yearNow);
+  const yScored = ylogs.filter((l) => l.score != null);
+  const yAvg = yScored.length ? yScored.reduce((a, l) => a + Number(l.score), 0) / yScored.length : null;
+  const yHours = Math.round(ylogs.reduce((h, l) => { const t = l.library.title, d = (t.data ?? {}) as { ttb?: { main?: number | null }; pages?: number | null };
+    return h + (l.library.section === 'movies' ? (t.runtime ?? 110) / 60 : ['console', 'pc', 'retro'].includes(l.library.section) ? d.ttb?.main ?? 0 : l.library.section === 'books' ? ((d.pages ?? 300) * 1.5) / 60 : 0); }, 0));
+  const yMonths = Array.from({ length: 12 }, (_, m) => ylogs.filter((l) => new Date(l.watched_at).getMonth() === m).length);
+  const yMax = Math.max(1, ...yMonths);
+  const statsWidget = !loading && ylogs.length > 0 ? (
+    <button className="panel stats-widget" onClick={onStats}>
+      <span className="row nowrap"><span className="h2 grow">This year</span><span className="muted small">Stats ›</span></span>
+      <span className="sw-line"><b>{ylogs.length}</b> finished · <b>~{yHours}</b> h{yAvg != null && <> · avg <b>{settings.scale === 10 ? (Math.round(yAvg * 4) / 2).toFixed(1) : yAvg.toFixed(1)}</b></>}</span>
+      <span className="st-tierbar sw-bar">{TIERS.filter((t) => t.id !== 'dropped').map((t) => { const n = ylogs.filter((l) => l.tier === t.id).length; return n ? <span key={t.id} style={{ flex: n, background: t.color }} /> : null; })}</span>
+      <span className="sw-months">{yMonths.map((n, m) => <i key={m} style={{ height: Math.max(2, (n / yMax) * 26) + 'px', opacity: m > new Date().getMonth() ? 0.25 : 1 }} />)}</span>
+    </button>
+  ) : null;
+  const [editHome, setEditHome] = useState(false);
 
-      <main className="content home">
-        {coopInv.length > 0 && <section className="panel coop-home">
-          {coopInv.map((c) => (
-            <div key={c.id} className="coop-home-row">
-              <Poster t={{ title: c.title, poster_url: c.poster_url }} w={40} h={58} />
-              <span className="grow stack-0"><span className="small">🎮 <strong>{c.from_name || 'A friend'}</strong> says you {c.playing ? 'are playing' : 'played'} <strong>{c.title}</strong> together</span>
-                <span className="muted tiny">{[c.platform ? c.platform.toUpperCase() : '', c.finished_at ? 'finished ' + new Date(c.finished_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''].filter(Boolean).join(' · ')}</span>
-                <span className="row nowrap coop-home-btns"><button className="btn sm" onClick={() => answer(c, false)}>Not me</button><button className="btn primary sm" onClick={() => answer(c, true)}>Add</button></span></span>
-            </div>
-          ))}
-        </section>}
-        {loading && <div className="card-wait"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div>}
-
+  // Home blocks, in your order (Edit Home)
+  const block = (id: string) => {
+    switch (id) {
+      case 'progress': return (<>
         {/* In progress — one panel per kind, each with what's left */}
         {!loading && ([['Shows', showsNow.map((x) => ({ it: x.it, p: x.p as ReturnType<typeof progress> | null }))], ['Games', gamesNow.map((it) => ({ it, p: null }))], ['Books', booksNow.map((it) => ({ it, p: null }))]] as [string, { it: LibItem; p: ReturnType<typeof progress> | null }[]][])
-          .filter(([, list]) => list.length > 0).map(([title, list]) => (
+          .filter(([title, list]) => list.length > 0 && kinds.includes(title)).map(([title, list]) => (
           <section key={title} className={'panel kind-' + title.toLowerCase()}>
             <div className="panel-head"><span className="ph-icon">{title === 'Shows' ? <DuoTvMini /> : title === 'Books' ? <FormatIcon f="paper" /> : Ico.play}</span><span>{title === 'Shows' ? 'Watching' : title === 'Games' ? 'Playing' : 'Reading'}</span><span className="count-badge">{list.length}</span></div>
             {list.slice(0, 1).map(({ it, p }) => (
@@ -361,6 +368,8 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
           </section>
         ))}
 
+      </>);
+      case 'tonight': return (<>
         {/* Tonight's pick */}
         {!loading && (
           <section className="tonight">
@@ -390,6 +399,8 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
           </section>
         )}
 
+      </>);
+      case 'ready': return (<>
         {/* Ready to start: new seasons, last chances, and what just came out from your backlog — folded */}
         {!loading && ready.length > 0 && <section className="panel ready-panel">
           <button className="panel-head as-btn" aria-expanded={readyOpen} onClick={() => setReadyOpen(!readyOpen)}>
@@ -409,6 +420,8 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
           {readyOpen && !readyAll && readyList.length > 6 && <button className="link left" onClick={() => setReadyAll(true)}>Show all {readyList.length}</button>}
         </section>}
 
+      </>);
+      case 'recent': return (<>
         {/* Recently finished: picture on top, the cover over it, your rating and when */}
         {!loading && recent.length > 0 && <section className="panel">
           <div className="panel-head"><span className="ph-icon">{Ico.check}</span><span>Recently finished</span></div>
@@ -427,10 +440,12 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
           </div>
         </section>}
 
+      </>);
+      case 'friends': return (<>
         {/* Friends: the latest few events */}
         {!loading && fEvents.length > 0 && <section className="panel">
           <div className="panel-head"><span className="ph-icon"><DuoFriendsMini /></span><span>Friends</span>{onFriends && <button className="link" onClick={onFriends}>See all ›</button>}</div>
-          {fEvents.map((a) => { const tr = tierOf(a.tier); const who = a.name || (a.handle ? '@' + a.handle : 'Friend');
+          {fEvents.slice(0, friendsN).map((a) => { const tr = tierOf(a.tier); const who = a.name || (a.handle ? '@' + a.handle : 'Friend');
             const verb = a.kind === 'started' ? (a.section === 'books' ? 'started reading' : a.section === 'tv' || a.section === 'movies' ? 'started watching' : 'started playing')
               : a.kind === 'dropped' ? 'dropped' : a.kind === 'season_rated' ? 'rated ' + (a.seasons_label ?? 'a season') + ' of' : a.kind === 'show_rated' ? 'rated' : a.section === 'books' ? 'finished reading' : a.section === 'movies' ? 'watched' : a.section === 'tv' ? 'finished' : 'beat';
             return (
@@ -443,6 +458,8 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
             ); })}
         </section>}
 
+      </>);
+      case 'coming': return (<>
         {/* Coming up: what comes out in the next three months — shows, movies, games, books from your lists */}
         {!loading && (coming.length > 0 || justOut.length > 0) && <section className="panel">
           <div className="panel-head"><span className="ph-icon">{Ico.date}</span><span>Coming up</span><span className="count-badge">{coming.length}</span></div>
@@ -476,8 +493,42 @@ export default function Home({ settings, onMenu, onStats, onBack, onFriends }: {
 
 
 
+      </>);
+      case 'stats': return statsWidget;
+      default: return null;
+    }
+  };
+
+  return (
+    <div className="app section-in">
+      <header className="top">
+        <div className="title-row">
+          {onBack ? <button className="icon-btn" aria-label="Back" onClick={onBack}><IconBack /></button> : <button className="icon-btn" aria-label="Open menu" onClick={onMenu}><IconMenu /></button>}
+          <div className="title-block">
+            <h1 className="section-title">{greeting}</h1>
+            <span className="muted small">{dateLine}{nowCount ? ' · ' + nowCount + ' in progress' : ''}</span>
+          </div>
+        </div>
+      </header>
+
+      <main className="content home">
+        {coopInv.length > 0 && <section className="panel coop-home">
+          {coopInv.map((c) => (
+            <div key={c.id} className="coop-home-row">
+              <Poster t={{ title: c.title, poster_url: c.poster_url }} w={40} h={58} />
+              <span className="grow stack-0"><span className="small">🎮 <strong>{c.from_name || 'A friend'}</strong> says you {c.playing ? 'are playing' : 'played'} <strong>{c.title}</strong> together</span>
+                <span className="muted tiny">{[c.platform ? c.platform.toUpperCase() : '', c.finished_at ? 'finished ' + new Date(c.finished_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''].filter(Boolean).join(' · ')}</span>
+                <span className="row nowrap coop-home-btns"><button className="btn sm" onClick={() => answer(c, false)}>Not me</button><button className="btn primary sm" onClick={() => answer(c, true)}>Add</button></span></span>
+            </div>
+          ))}
+        </section>}
+        {loading && <div className="card-wait"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div>}
+
+        {layout.filter((id) => !hidden.has(id)).map((id) => <Fragment key={id}>{block(id)}</Fragment>)}
         {!loading && !nowCount && !coming.length && !recent.length && !upNext.length && <div className="empty">Add a movie, a show, a game or a book — your activity shows up here.</div>}
+        {!loading && <button className="link edit-home" onClick={() => setEditHome(true)}>✎ Edit Home</button>}
       </main>
+      {editHome && onSettings && <HomeEditor settings={settings} onSettings={onSettings} onClose={() => setEditHome(false)} />}
       {!loading && !open && <Tip id="home" />}
       {open && <Tip id="card" delay={1400} />}
 

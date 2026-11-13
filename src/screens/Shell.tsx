@@ -127,7 +127,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         ); })}
         {admin && <button className="drawer-item" onClick={() => { setDrawer(false); setAdminOpen(true); }}>Admin</button>}
         <button className="drawer-item" onClick={() => { setDrawer(false); setNewsOpen(true); }}>What’s new</button>
-        <span className="muted small drawer-foot">Queued · v4.20.4</span>
+        <span className="muted small drawer-foot">Queued · v4.21</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
@@ -135,7 +135,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
 
   if (section === 'home') return (
     <div className="screen">
-      <Home settings={profile.settings} onFriends={() => go('friends')} onBack={SIDE('home') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} onStats={() => go('stats')} />
+      <Home settings={profile.settings} onSettings={onSettings} onFriends={() => go('friends')} onBack={SIDE('home') ? () => go(lastBar) : undefined} onMenu={() => setDrawer(true)} onStats={() => go('stats')} />
       {nav}{drawerEl}{introEl}
     </div>
   );

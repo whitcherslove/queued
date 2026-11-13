@@ -1,3 +1,4 @@
+import HomeEditor from '../components/HomeEditor';
 import { setPageHidden } from '../lib/profile';
 import { initTips } from '../lib/tips';
 import { disablePush, enablePush, pushEnabled } from '../lib/push';
@@ -25,6 +26,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
   const [pushOn, setPushOn] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushNote, setPushNote] = useState('');
+  const [homeEdit, setHomeEdit] = useState(false);
   const [pageHidden, setPageHiddenState] = useState(!!profile.page_hidden);
   useEffect(() => { pushEnabled().then(setPushOn).catch(() => undefined); }, []);
   const [tabsOpen, setTabsOpen] = useState(false);
@@ -117,6 +119,11 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
           <button className="switch-row flat" onClick={() => { set({ tips: [] }); initTips([], (seen) => set({ tips: seen })); }}>
             <span className="stack-sm grow"><strong>Show tips again</strong><span className="muted small">The little hints on Home, lists, cards and Friends</span></span>
           </button>
+
+          <button className="switch-row flat" onClick={() => setHomeEdit(true)}>
+            <span className="stack-sm grow"><strong>Edit Home</strong><span className="muted small">Which blocks, in what order</span></span><span className="muted">›</span>
+          </button>
+          {homeEdit && <HomeEditor settings={profile.settings} onSettings={onSettings} onClose={() => setHomeEdit(false)} />}
 
           {/* navigation: what's in the bottom bar (and in which order) and what's in the side menu */}
           <button className="switch-row flat" onClick={() => setNavOpen(!navOpen)} aria-expanded={navOpen}>
