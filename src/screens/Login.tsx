@@ -1,3 +1,4 @@
+import Logo from '../components/Logo';
 import { FormEvent, useState } from 'react';
 import { supabase } from '../lib/supabase';
 
@@ -31,9 +32,9 @@ export default function Login() {
   };
 
   return (
-    <main className="login">
-      <h1 className="wordmark big">Queued</h1>
-      <p className="muted">Movies, shows and games — what you’ve seen and what’s next.</p>
+    <main className="login welcome-look">
+      <div className="login-brand"><Logo size={88} breathing /><h1 className="brand-text">QUEUED</h1></div>
+      <p className="login-sub">Movies, shows, games and books — what you’re in, what’s next, and what you thought of it.</p>
       {step === 'email' && (
         <>
           <button type="button" className="btn google" onClick={google} disabled={busy}>
@@ -47,7 +48,7 @@ export default function Login() {
         <form onSubmit={sendCode} className="stack">
           <label htmlFor="email" className="label">Email</label>
           <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
-          <button className="btn primary" disabled={busy}>{busy ? 'Sending…' : 'Send sign-in email'}</button>
+          <button className="btn primary grad" disabled={busy}>{busy ? 'Sending…' : 'Send sign-in email'}</button>
         </form>
       ) : (
         <form onSubmit={verify} className="stack">
@@ -55,7 +56,7 @@ export default function Login() {
           <p className="muted small">Using Queued from the home screen on iPhone? The link opens in Safari, so if the email also has a 6-digit code, type it here instead.</p>
           <label htmlFor="code" className="label">Code (if the email has one)</label>
           <input id="code" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
-          <button className="btn primary" disabled={busy || !code.trim()}>{busy ? 'Checking…' : 'Sign in with the code'}</button>
+          <button className="btn primary grad" disabled={busy || !code.trim()}>{busy ? 'Checking…' : 'Sign in with the code'}</button>
           <button type="button" className="btn ghost" onClick={() => { setStep('email'); setCode(''); }}>Use another email</button>
         </form>
       )}
