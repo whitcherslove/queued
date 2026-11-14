@@ -11,7 +11,7 @@ export default function Login() {
   const sendCode = async (e: FormEvent) => {
     e.preventDefault();
     setBusy(true); setError('');
-    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true } });
+    const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } });   // the link brings you back here
     setBusy(false);
     if (error) setError(error.message); else setStep('code');
   };
@@ -47,13 +47,15 @@ export default function Login() {
         <form onSubmit={sendCode} className="stack">
           <label htmlFor="email" className="label">Email</label>
           <input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@example.com" />
-          <button className="btn primary" disabled={busy}>{busy ? 'Sending…' : 'Send sign-in code'}</button>
+          <button className="btn primary" disabled={busy}>{busy ? 'Sending…' : 'Send sign-in email'}</button>
         </form>
       ) : (
         <form onSubmit={verify} className="stack">
-          <label htmlFor="code" className="label">Code from the email sent to {email}</label>
-          <input id="code" inputMode="numeric" autoComplete="one-time-code" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
-          <button className="btn primary" disabled={busy}>{busy ? 'Checking…' : 'Sign in'}</button>
+          <p className="small">We sent an email to <strong>{email}</strong>. <strong>Tap the link</strong> in it — you’ll be signed in.</p>
+          <p className="muted small">Using Queued from the home screen on iPhone? The link opens in Safari, so if the email also has a 6-digit code, type it here instead.</p>
+          <label htmlFor="code" className="label">Code (if the email has one)</label>
+          <input id="code" inputMode="numeric" autoComplete="one-time-code" value={code} onChange={(e) => setCode(e.target.value)} placeholder="123456" />
+          <button className="btn primary" disabled={busy || !code.trim()}>{busy ? 'Checking…' : 'Sign in with the code'}</button>
           <button type="button" className="btn ghost" onClick={() => { setStep('email'); setCode(''); }}>Use another email</button>
         </form>
       )}

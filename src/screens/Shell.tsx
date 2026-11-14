@@ -104,7 +104,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   const nav = (
     <nav className="bottom duo-bar" aria-label="Sections" style={{ '--n': BAR.length, '--i': Math.max(0, BAR.indexOf(section)), '--glide': SECTIONS.find((x) => x.id === section)?.color, ...(section === 'home' ? { '--glide-bg': 'linear-gradient(110deg, rgba(92,222,210,.18), rgba(255,172,150,.18), rgba(156,136,255,.18))' } : {}) } as CSSProperties}>
       {BAR.includes(section) && <span className="tab-glider" aria-hidden="true" />}
-      {SECTIONS.filter((s) => BAR.includes(s.id)).map((s) => (
+      {BAR.map((id) => SECTIONS.find((x) => x.id === id)).filter((s): s is (typeof SECTIONS)[number] => !!s).map((s) => (   // in your order — the same order the highlight uses
         <button key={s.id} aria-current={s.id === section ? 'page' : undefined} className={s.id === section ? 'on' : ''} style={{ ['--sec' as string]: s.color }} onClick={() => go(s.id)}>
           <span className="duo-icon">{s.icon}</span><span>{s.label}</span>
         </button>
@@ -127,7 +127,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         ); })}
         {admin && <button className="drawer-item" onClick={() => { setDrawer(false); setAdminOpen(true); }}>Admin</button>}
         <button className="drawer-item" onClick={() => { setDrawer(false); setNewsOpen(true); }}>What’s new</button>
-        <span className="muted small drawer-foot">Queued · v4.21</span>
+        <span className="muted small drawer-foot">Queued · v4.21.1</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
