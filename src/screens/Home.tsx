@@ -87,7 +87,8 @@ export default function Home({ settings, onSettings, onMenu, onStats, onBack, on
   }).filter((x) => x.it.status === 'playing' || x.st.state === 'newSeason' || x.st.state === 'lastChance')
     .sort((a, b) => Number(!!b.p?.nextEp) - Number(!!a.p?.nextEp) || STATE_ORDER[a.st.state] - STATE_ORDER[b.st.state] || (b.p?.lastSeen ?? '').localeCompare(a.p?.lastSeen ?? '')), [items, logs, eps, marks, today]); // eslint-disable-line react-hooks/exhaustive-deps
   const games = useMemo(() => items.filter((i) => ['console', 'pc', 'retro', 'books'].includes(i.section) && i.status === 'playing')
-    .sort((a, b) => String((b as LibItem & { updated_at?: string }).updated_at ?? b.started_on ?? '').localeCompare(String((a as LibItem & { updated_at?: string }).updated_at ?? a.started_on ?? ''))), [items]);
+    // what you moved forward last (progress changed, or just started) on top — other edits don't reorder
+    .sort((a, b) => { const k = (x: LibItem) => String((x as LibItem & { progress_at?: string }).progress_at ?? x.run_started_at ?? x.started_on ?? ''); return k(b).localeCompare(k(a)); }), [items]);
 
   // --- Coming up (next 30 days): new episodes, season premieres, releases from Backlog
   // Edit Home: order, hidden blocks and a few options (kept in your profile)
@@ -280,7 +281,7 @@ export default function Home({ settings, onSettings, onMenu, onStats, onBack, on
     // the AI sees every kind in balance: up to 30 candidates and 8 favourites per kind (newest favourites first)
     const kindKey = (sec: string) => (['console', 'pc', 'retro'].includes(sec) ? 'game' : sec);
     const perKind = <T,>(list: T[], sec: (x: T) => string, n: number) => { const seen: Record<string, number> = {}; return list.filter((x) => { const k = kindKey(sec(x)); seen[k] = (seen[k] ?? 0) + 1; return seen[k] <= n; }); };
-    const cands = perKind(filtered.slice().sort(() => Math.random() - 0.5), (i) => i.section, 30).map((i) => { const d = dataOf(i); return { id: i.id, kind: SEC_LABEL[i.section], title: i.title.title, year: i.title.year, genres: (i.title.genres ?? []).slice(0, 3), minutes: i.title.runtime ?? null, hoursToBeat: d.ttb?.main ?? null, pages: d.pages ?? null, metascore: i.title.metascore ?? null, upNext: i.up_next }; });
+    const cands = perKind(filtered.slice().sort(() => Math.random() - 0.5), (i) => i.section, 30).map((i) => { const d = dataOf(i); return { id: i.id, kind: SEC_LABEL[i.section], title: i.title.title, year: i.title.year, genres: (i.title.genres ?? []).slice(0, 3), minutes: i.title.runtime ?? null, hoursToBeat: d.ttb?.main ?? null, pages: d.pages ?? null, platform: ['console', 'pc', 'retro'].includes(i.section) ? (i as { platform?: string | null }).platform ?? null : null, metascore: i.title.metascore ?? null, upNext: i.up_next }; });
     const liked = perKind(logs.filter((l) => l.tier === 'ten' || l.tier === 'awesome').sort((a, b) => b.watched_at.localeCompare(a.watched_at)), (l) => l.library.section, 8)
       .map((l) => ({ title: l.library.title.title, kind: SEC_LABEL[l.library.section], rating: l.tier }));
     try { const r = await pickTonight(`Something for tonight${kind !== 'Any' ? ' — a ' + kind.toLowerCase() : ''}${mood ? ', in the mood for something ' + mood.toLowerCase() : ''}.`, cands, liked, seen.current); seen.current.push(r.id); setPick(r); }
