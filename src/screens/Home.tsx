@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibItem, LogRow, Mark, SeasonEps } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { loadEpisodes, loadEverything, loadMarks, pickTonight } from '../lib/remote';
-import { dateParts, merged , cardLogs } from '../lib/logic';
+import { dateParts, merged , byFinish, cardLogs } from '../lib/logic';
 import { epLabel, epRuntime, isEnded, logSeasons, progress, seasonAir, seasonsName, showState, todayIso } from '../lib/tv';
 import { applyEpisodeMarks, startWatching } from '../lib/tvActions';
 import { TIERS } from '../lib/scores';
@@ -143,7 +143,7 @@ export default function Home({ settings, onSettings, onMenu, onStats, onBack, on
     return out.sort((a, b) => b.date.localeCompare(a.date));
   }, [items, logs, eps, marks, today]);
   const outLabel = (date: string) => { const d = Math.round((new Date(today).getTime() - new Date(date).getTime()) / 864e5); return d <= 0 ? 'Out today' : d === 1 ? 'Out yesterday' : 'Out ' + d + ' d ago'; };
-  const recent = useMemo(() => logs.slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at)).slice(0, 14), [logs]);
+  const recent = useMemo(() => logs.slice().sort(byFinish).slice(0, 14), [logs]);
   const upNext = useMemo(() => items.filter((i) => i.status === 'backlog' && i.up_next).sort((a, b) => (a.position ?? 0) - (b.position ?? 0)), [items]);
 
   const watchedEp = async (it: LibItem, ep: { season: number; episode: number }) => {

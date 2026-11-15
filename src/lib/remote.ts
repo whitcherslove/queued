@@ -41,7 +41,7 @@ export async function loadLibrary(section: Section): Promise<LibItem[]> {
 export type LogLite = Omit<LogRow, 'library'>;
 export async function loadLogs(section: Section): Promise<LogLite[]> {
   return allPages<LogLite>((a, b) => supabase.from('logs')
-    .select('id, library_id, scope, season_from, season_to, seasons, watched_at, tier, score, rewatch, dropped, platform, coop, format, position, library:library!inner(section)')
+    .select('id, library_id, scope, season_from, season_to, seasons, watched_at, created_at, tier, score, rewatch, dropped, platform, coop, format, position, library:library!inner(section)')
     .eq('library.section', section).eq('folded', false).order('watched_at', { ascending: false }).order('id').range(a, b) as never);
 }
 

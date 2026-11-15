@@ -23,7 +23,7 @@ export interface CollectionPart { sourceId: string; title: string; year: number;
 
 export interface LogRow {
   id: string; library_id: string; scope: 'item' | 'season' | 'seasons' | 'show'; season_from: number | null; season_to: number | null; seasons?: number[] | null; dropped?: boolean;
-  watched_at: string; tier: string | null; score: number | null; rewatch: boolean; position: number | null;
+  watched_at: string; created_at?: string; tier: string | null; score: number | null; rewatch: boolean; position: number | null;
   library: LibItem;
 }
 

@@ -155,3 +155,11 @@ describe('journal order', () => {
     expect(sortLogs([l('old', '2026-01-01T00:00:00Z', 0), l('a', '2026-11-14T10:00:00Z', null), l('b', '2026-11-14T15:00:00Z', null)]).map((x: { id: string }) => x.id)).toEqual(['b', 'a', 'old']);
   });
 });
+
+describe('same day, picked later', () => {
+  it('Crash Course logged after Left 4 Dead (its date picked the next day) is on top', () => {
+    const l = (id: string, at: string, created: string) => ({ id, watched_at: at, created_at: created, position: null }) as never;
+    const out = sortLogs([l('l4d', '2026-11-14T16:23:00Z', '2026-11-14T16:23:03Z'), l('cc', '2026-11-14T11:28:59Z', '2026-11-15T11:28:59Z')]);
+    expect(out.map((x: { id: string }) => x.id)).toEqual(['cc', 'l4d']);
+  });
+});

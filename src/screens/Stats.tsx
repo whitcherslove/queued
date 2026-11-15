@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import type { LibItem, LogRow } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { loadEverything, loadMarkDates } from '../lib/remote';
-import { cardLogs, merged } from '../lib/logic';
+import { byFinish, cardLogs, merged } from '../lib/logic';
 import { logSeasons, seasonsName } from '../lib/tv';
 import { TIERS } from '../lib/scores';
 import { ChevBtn, IconBack, IconMenu, ReplayIcon } from '../components/Icons';
@@ -61,7 +61,7 @@ export default function Stats({ onBack, onMenu, settings }: { onBack?: () => voi
   const years = useMemo(() => { const m = new Map<number, number>(); logs.forEach((l) => { const y = Number(l.watched_at.slice(0, 4)); m.set(y, (m.get(y) ?? 0) + 1); }); return [...m.entries()].sort((a, b) => b[0] - a[0]); }, [logs]);
   const inYear = useMemo(() => (year ? logs.filter((l) => Number(l.watched_at.slice(0, 4)) === year) : logs), [logs, year]);
   const monthCounts = useMemo(() => { const c = Array(12).fill(0); inYear.forEach((l) => c[new Date(l.watched_at).getMonth()]++); return c; }, [inYear]);
-  const period = useMemo(() => (month === null ? inYear : inYear.filter((l) => new Date(l.watched_at).getMonth() === month)).slice().sort((a, b) => b.watched_at.localeCompare(a.watched_at)), [inYear, month]);
+  const period = useMemo(() => (month === null ? inYear : inYear.filter((l) => new Date(l.watched_at).getMonth() === month)).slice().sort(byFinish), [inYear, month]);
   const periodLabel = year ? (month !== null ? MONTHS[month] + ' ' + year : String(year)) : 'All time';
   const inPeriod = (iso: string) => (!year || Number(iso.slice(0, 4)) === year) && (month === null || new Date(iso).getMonth() === month);
 

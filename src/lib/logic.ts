@@ -52,14 +52,21 @@ export function splitBacklog(items: LibItem[]): { next: LibItem[]; rest: LibItem
 }
 
 /** Watched list: newest first unless the user set a custom order. */
+const dayNum = (iso: string) => { const d = new Date(iso); return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate(); };
+/** Newest finished first: by local day, then by when it was logged (then by time). */
+export function byFinish(a: { watched_at: string; created_at?: string }, b: { watched_at: string; created_at?: string }): number {
+  return dayNum(b.watched_at) - dayNum(a.watched_at) || (b.created_at ?? b.watched_at).localeCompare(a.created_at ?? a.watched_at) || b.watched_at.localeCompare(a.watched_at);
+}
+
 export function sortLogs(logs: LogRow[]): LogRow[] {
   const custom = logs.some((l) => l.position !== null);
-  // newest first by the moment you finished (date and time); in a custom order, the new entries (no position yet) go on top, newest first
+  // newest first: by the day you finished, and within one day by when you logged it
+  // (the time of a date picked later is just "now", so it can't tell which came first that day)
   return logs.slice().sort((a, b) => {
-    if (!custom || (a.position === null && b.position === null)) return b.watched_at.localeCompare(a.watched_at);
+    if (!custom || (a.position === null && b.position === null)) return byFinish(a, b);
     if (a.position === null) return -1;
     if (b.position === null) return 1;
-    return a.position - b.position || b.watched_at.localeCompare(a.watched_at);
+    return a.position - b.position || byFinish(a, b);
   });
 }
 
