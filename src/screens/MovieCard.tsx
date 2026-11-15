@@ -405,7 +405,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
         </button>
         <div className="hero-text">
           <h2>{t.title}</h2>
-          {game && addonOf(item.title) && <span className="hero-addon">{addonOf(item.title)!.label}{addonOf(item.title)!.parent ? ' for ' + addonOf(item.title)!.parent : ''}</span>}
+          {game && addonOf(t) && <span className="hero-addon">{addonOf(t)!.label}{addonOf(t)!.parent ? ' for ' + addonOf(t)!.parent : ''}</span>}
           <div className="row">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).map((c) => <span key={c} className="hero-chip">{c}</span>)}
             {game && heroPlat && <span className="hero-chip hero-plat"><PlatformIcon k={heroPlat} size={14} /></span>}</div>
           {t.directors.length > 0 && <span className="hero-sub">{t.directors.join(', ')}</span>}
@@ -854,6 +854,10 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
   const [uploading, setUploading] = useState<'' | 'poster' | 'backdrop'>('');
   const tmdbStatus = String((item.title.data as { status?: string } | null)?.status ?? '');
   const [showStatus, setShowStatus] = useState<string>((item.overrides as { status?: string })?.status ?? '');
+  // a game's type: IGDB's, unless you set your own
+  const igdbType = String((item.title.data as { type?: string } | null)?.type ?? '');
+  const igdbAddon = igdbType === 'dlc' || igdbType === 'expansion' ? igdbType : 'game';
+  const [addonPick, setAddonPick] = useState<string>((item.overrides as { addon?: string } | null)?.addon ?? igdbAddon);
   const endedNow = ['Ended', 'Canceled'].includes(showStatus || tmdbStatus);
   const isTmdb = item.title.source === 'tmdb' || kind === 'game' || kind === 'book';   // games pick from IGDB / RAWG, books from their editions
   const openPicker = async (k: 'poster' | 'backdrop') => {
@@ -909,7 +913,7 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
     const edited: Overrides = { title: f.title.trim() || item.title.title, release_date: f.release_date || null, runtime: Number.isFinite(rt as number) ? rt : null, directors: list(f.directors), genres: list(f.genres), metascore: ms, imdb_rating: im, backdrop_url: backdrop, poster_url: poster, ...(kind === 'tv' && showStatus ? { status: showStatus } : {}) };
     const keep = (item.overrides ?? {}) as { dlc_hidden?: string[]; overview?: string; pages?: number; audio_min?: number };
     const ttbN = Number(String(f.ttb_main).replace(',', '.'));
-    setBusy(true); await updateItem(item.id, { overrides: { ...diffOverrides(item.title, edited), ...(kind === 'tv' && showStatus && showStatus !== tmdbStatus ? { status: showStatus } : {}),
+    setBusy(true); await updateItem(item.id, { overrides: { ...diffOverrides(item.title, edited), ...(kind === 'tv' && showStatus && showStatus !== tmdbStatus ? { status: showStatus } : {}), ...(kind === 'game' && addonPick !== igdbAddon ? { addon: addonPick } : {}),
       ...(keep.overview ? { overview: keep.overview } : {}), ...(keep.pages ? { pages: keep.pages } : {}), ...(keep.audio_min ? { audio_min: keep.audio_min } : {}),
       ...(kind === 'game' && keep.dlc_hidden ? { dlc_hidden: keep.dlc_hidden } : {}), ...(kind === 'game' && (keep as { franchise_hidden?: string[] }).franchise_hidden ? { franchise_hidden: (keep as { franchise_hidden?: string[] }).franchise_hidden } : {}), ...((kind === 'game' || kind === 'book') && f.ttb_main && ttbN > 0 ? { ttb_main: Math.round(ttbN * 10) / 10 } : {}) } as never }); setBusy(false); onSaved();
   };
@@ -949,6 +953,14 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
         {kind !== 'book' && field('metascore', 'Metascore (0–100)', 'numeric', '64')}
         {kind !== 'game' && kind !== 'book' && field('imdb_rating', 'IMDb (0–10)', 'decimal', '6.8')}
         {kind === 'game' && field('ttb_main' as never, 'Time to beat, hours (your own — leave empty for IGDB)', 'decimal', '35')}
+        {kind === 'game' && (
+          <div className="stack-sm">
+            <span className="label">Type</span>
+            <div className="f-row">{([['game', 'Game'], ['dlc', 'DLC'], ['expansion', 'Expansion']] as const).map(([k, l]) => (
+              <button key={k} className={'f-chip' + (addonPick === k ? ' on' : '')} onClick={() => setAddonPick(k)}>{l}</button>))}</div>
+            <span className="muted small">{'IGDB says: ' + (({ dlc: 'DLC', expansion: 'Expansion', standalone: 'standalone add-on (shown as a game)' } as Record<string, string>)[igdbType] || 'game')}</span>
+          </div>
+        )}
         {kind === 'book' && field('ttb_main' as never, 'Time to read, hours (your own — leave empty to count by pages)', 'decimal', '9')}
         {Object.keys(item.overrides ?? {}).length > 0 && <button className="link left" onClick={clearEdits}>Clear my edits</button>}
         {confirm

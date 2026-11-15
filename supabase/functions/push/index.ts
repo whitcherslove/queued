@@ -69,9 +69,11 @@ async function telegramPost(db: any, id: string) {
   // details: platform / format, season, co-op friends
   const partners: { id: string; name: string }[] = [];
   if ((a.coop_with ?? []).length) { const { data: cp } = await db.from('profiles').select('id, display_name, handle').in('id', a.coop_with); (cp ?? []).forEach((x: any) => partners.push({ id: x.id, name: nameOf(x) })); }
+  const { data: libRow } = await db.from('library').select('overrides').eq('id', a.library_id).maybeSingle();
+  const myAddon: string | undefined = libRow?.overrides?.addon;
   const metaFor = (inChat: Set<string>) => {
     const names = partners.filter((x) => inChat.has(x.id)).map((x) => x.name);
-    const ad = a.title?.data?.type; const addon = isGame && ['dlc', 'expansion', 'standalone'].includes(ad) ? (ad === 'dlc' ? 'DLC' : ad === 'expansion' ? 'Expansion' : 'Standalone') + (a.title?.data?.parent?.name ? ' for ' + a.title.data.parent.name : '') : '';
+    const ad = myAddon ?? a.title?.data?.type;   // your own type from Edit details wins const addon = isGame && ['dlc', 'expansion'].includes(ad) ? (ad === 'dlc' ? 'DLC' : 'Expansion') + (a.title?.data?.parent?.name ? ' for ' + a.title.data.parent.name : '') : '';
     return [addon, isGame && a.platform ? PLAT[a.platform] ?? String(a.platform).toUpperCase() : '', a.section === 'books' && a.format ? FMT[a.format] ?? '' : '', a.section === 'tv' && a.seasons_label ? a.seasons_label : '', names.length ? 'with ' + names.join(', ') : ''].filter(Boolean).map(esc).join(' · ');
   };
   const scale = (p?.settings?.scale === 10 ? 10 : 5);

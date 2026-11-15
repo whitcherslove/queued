@@ -8,7 +8,7 @@ export const CHANGELOG: ChangeEntry[] = [
     version: '4.22',
     title: 'DLC',
     items: [
-      { icon: '🧩', title: 'DLC and expansions', text: 'Add-ons are marked DLC, Expansion or Standalone in lists, Stats and the card (“DLC for Left 4 Dead”). Filters: Games only or DLC & expansions.' }
+      { icon: '🧩', title: 'DLC and expansions', text: 'Add-ons are marked DLC or Expansion in lists, Stats and the card (“DLC for Left 4 Dead”). Wrong? Change it in the card’s Edit details → Type. Filters: Games only or DLC & expansions.' }
     ]
   },
   {

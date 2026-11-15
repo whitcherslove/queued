@@ -87,10 +87,12 @@ export function nextPosition(items: LibItem[]): number {
 
 /** Title with the user's own edits applied on top of the cached data. */
 export function merged(t: Title, o: Overrides | null | undefined): Title {
-  const { status, ...rest } = (o ?? {}) as Overrides;
+  const { status, addon, ...rest } = (o ?? {}) as Overrides & { addon?: 'game' | 'dlc' | 'expansion' };
   const out = { ...t, ...rest } as Title;
   // your own "has ended / still running" wins over TMDB (some shows are never updated there)
   if (status) out.data = { ...(t.data ?? {}), status };
+  // your own "game / DLC / expansion" wins over IGDB
+  if (addon) out.data = { ...((out.data ?? {}) as object), type: addon } as Title['data'];
   return out;
 }
 
@@ -173,9 +175,9 @@ export function cardLogs(logs: LogRow[], itemId: string) {
     .sort((a, b) => b.watched_at.localeCompare(a.watched_at)) as never;
 }
 
-/** A game's add-on label from IGDB: "DLC", "Expansion", "Standalone" — null for a regular game (or anything else). */
+/** A game's add-on label: "DLC" or "Expansion" (from IGDB, or your own in Edit details) — null for a game. */
 export function addonOf(t: { data?: unknown } | null | undefined): { label: string; parent: string | null } | null {
   const d = (t?.data ?? null) as { type?: string; parent?: { name?: string } | null } | null;
-  const label = d?.type === 'dlc' ? 'DLC' : d?.type === 'expansion' ? 'Expansion' : d?.type === 'standalone' ? 'Standalone' : null;
+  const label = d?.type === 'dlc' ? 'DLC' : d?.type === 'expansion' ? 'Expansion' : null;   // standalone add-ons count as regular games
   return label ? { label, parent: d?.parent?.name ?? null } : null;
 }
