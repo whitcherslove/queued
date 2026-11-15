@@ -1413,3 +1413,12 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 /* DLC / expansion mark */
 .type-pill.dlc { background: color-mix(in srgb, #A6D8FF 18%, transparent); color: #A6D8FF; margin-left: 6px; }
 .hero-addon { display: inline-block; margin: 2px 0 6px; font-size: 12px; font-weight: 800; letter-spacing: .3px; color: #A6D8FF; }
+
+/* picture picker: wide backgrounds you can actually see, posters bigger, the source on each */
+.bd-grid { grid-template-columns: 1fr; gap: 8px; max-height: 62vh; }
+@media (min-width: 640px) { .bd-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.bd-grid .bd-pick { height: auto; aspect-ratio: 16 / 9; }
+.pp-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-height: 62vh; }
+.bd-pick { border-width: 3px; }
+.pick-src { position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 999px; background: rgba(11,11,16,.72); color: #fff; font-size: 10px; font-weight: 800; letter-spacing: .3px; }
+.pick-on { position: absolute; right: 6px; top: 6px; width: 22px; height: 22px; border-radius: 999px; background: var(--accent); color: #0B0B10; font-size: 13px; font-weight: 900; display: grid; place-items: center; }

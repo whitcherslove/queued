@@ -89,7 +89,9 @@ async function telegramPost(db: any, id: string) {
     a.kind === 'finished' ? `\n${TG_EMOJI[a.tier] ?? ''} <b>${esc(TIER[a.tier] ?? a.tier)}</b>${score ? '  ·  <b>' + score + '</b>' : ''}` : ''
   ].filter(Boolean).join('\n');
   // the picture: the title's image + avatar in the corner + the rating badge (or "in progress" when started)
-  const base = a.title?.backdrop_url ?? a.title?.poster_url ?? null;
+  // your own picture from Edit details (background first, then poster) wins over the default one
+  const ov = (libRow?.overrides ?? {}) as { backdrop_url?: string | null; poster_url?: string | null };
+  const base = ov.backdrop_url ?? a.title?.backdrop_url ?? ov.poster_url ?? a.title?.poster_url ?? null;
   let photo = base;
   if (base && cfg.cloudinary_cloud) {
     let tr = 'c_scale,w_1280/';

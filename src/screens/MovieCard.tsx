@@ -851,6 +851,7 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
   const [poster, setPoster] = useState<string | null>(m.poster_url);
   const [pics, setPics] = useState<null | { backdrops: { thumb: string; full: string }[]; posters: { thumb: string; full: string }[] }>(null);
   const [picker, setPicker] = useState<'' | 'poster' | 'backdrop'>('');
+  const [picSrc, setPicSrc] = useState('');
   const [uploading, setUploading] = useState<'' | 'poster' | 'backdrop'>('');
   const tmdbStatus = String((item.title.data as { status?: string } | null)?.status ?? '');
   const [showStatus, setShowStatus] = useState<string>((item.overrides as { status?: string })?.status ?? '');
@@ -895,9 +896,25 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
         {picker === k && (!list
           ? <span className="muted small">Loading images…</span>
           : list.length === 0 ? <span className="muted small">No other images found.</span>
-          : <div className={k === 'poster' ? 'pp-grid' : 'bd-grid'}>{list.map((b) => (
-              <button key={b.full} className={'bd-pick' + (cur === b.full ? ' on' : '')} aria-pressed={cur === b.full} aria-label={'Use this ' + (k === 'poster' ? 'poster' : 'background')} onClick={() => set(b.full)}><img src={b.thumb} alt="" loading="lazy" /></button>
-            ))}</div>)}
+          : (() => {
+              // bigger pictures, with where each one comes from; filter by source when there are several
+              const src = (b: { thumb: string; full: string }) => (b as { label?: string }).label || (kind === 'book' ? 'Edition' : item.title.source === 'tmdb' ? 'TMDB' : 'IGDB');
+              const sources = [...new Set(list.map(src))];
+              const shown = picSrc && sources.includes(picSrc) ? list.filter((b) => src(b) === picSrc) : list;
+              return <>
+                {sources.length > 1 && <div className="f-row">
+                  <button className={'f-chip' + (!picSrc ? ' on' : '')} onClick={() => setPicSrc('')}>All · {list.length}</button>
+                  {sources.map((x) => <button key={x} className={'f-chip' + (picSrc === x ? ' on' : '')} onClick={() => setPicSrc(x)}>{x} · {list.filter((b) => src(b) === x).length}</button>)}
+                </div>}
+                <div className={k === 'poster' ? 'pp-grid' : 'bd-grid'}>{shown.map((b) => (
+                  <button key={b.full} className={'bd-pick' + (cur === b.full ? ' on' : '')} aria-pressed={cur === b.full} aria-label={'Use this ' + (k === 'poster' ? 'poster' : 'background') + ' from ' + src(b)} onClick={() => set(b.full)}>
+                    <img src={b.thumb} alt="" loading="lazy" />
+                    <span className="pick-src">{src(b)}</span>
+                    {cur === b.full && <span className="pick-on" aria-hidden="true">✓</span>}
+                  </button>
+                ))}</div>
+              </>;
+            })())}
       </div>
     );
   };

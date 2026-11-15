@@ -81,9 +81,15 @@ Deno.serve(async (req) => {
     // act as the signed-in user, so row level security proves the item is theirs
     const auth = req.headers.get('Authorization') ?? '';
     const userDb = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, { global: { headers: { Authorization: auth } } });
-    const { data: item, error } = await userDb.from('library').select('id, user_id, section, overrides, title:titles(*)').eq('id', libraryId).single();
+    const { data: item, error } = await userDb.from('library').select('id, user_id, section, platform, overrides, title:titles(*)').eq('id', libraryId).single();
     if (error || !item) return Response.json({ error: 'Not found' }, { status: 404, headers: CORS });
     const t: any = { ...(item as any).title, ...((item as any).overrides ?? {}) };
+    // the version you actually play: games often differ a lot between platforms (Harry Potter on PS1 vs PC vs Game Boy Color)
+    const PLAT_NAME: Record<string, string> = { ps5: 'PlayStation 5', ps4: 'PlayStation 4', ps3: 'PlayStation 3', ps2: 'PlayStation 2', ps1: 'PlayStation (PS1)', psp: 'PSP', vita: 'PS Vita',
+      'xbox-series': 'Xbox Series X|S', 'xbox-one': 'Xbox One', 'xbox-360': 'Xbox 360', xbox: 'Xbox', switch: 'Nintendo Switch', 'switch-2': 'Nintendo Switch 2', 'wii-u': 'Wii U', wii: 'Wii',
+      gamecube: 'GameCube', n64: 'Nintendo 64', snes: 'SNES', nes: 'NES', '3ds': 'Nintendo 3DS', ds: 'Nintendo DS', gba: 'Game Boy Advance', gbc: 'Game Boy Color', gb: 'Game Boy',
+      pc: 'PC', 'steam-deck': 'PC (Steam Deck)', psvr: 'PlayStation VR', 'psvr2-ps5': 'PlayStation VR2', 'psvr2-pc': 'PlayStation VR2 on PC' };
+    const myPlat = t.kind === 'game' && (item as any).platform ? PLAT_NAME[(item as any).platform] ?? String((item as any).platform) : '';
 
     const { data: history } = await userDb.from('chats').select('role, content').eq('library_id', libraryId).order('created_at').limit(20);
 
@@ -91,7 +97,8 @@ Deno.serve(async (req) => {
       `Title: ${t.title}${t.year ? ` (${t.year})` : ''}`,
       t.kind === 'game' ? 'Type: video game' : t.kind === 'book' ? 'Type: book' : t.kind === 'tv' ? 'Type: TV show' : 'Type: movie',
       t.directors?.length ? `${t.kind === 'game' ? 'Developer' : t.kind === 'book' ? 'Author' : t.kind === 'tv' ? 'Created by' : 'Director'}: ${t.directors.join(', ')}` : '',
-      t.kind === 'game' && t.data?.platforms?.length ? `Platforms: ${t.data.platforms.map((p: any) => p.name).join(', ')}` : '',
+      myPlat ? `The user plays the ${myPlat} version. Versions of a game can differ a lot between platforms (levels, chapters, length) — answer about THIS version.` : '',
+      t.kind === 'game' && t.data?.platforms?.length ? `Released on: ${t.data.platforms.map((p: any) => p.name).join(', ')}` : '',
       t.kind === 'game' && t.data?.ttb?.main ? `Time to beat (story): about ${t.data.ttb.main} h` : '',
       t.genres?.length ? `Genres: ${t.genres.join(', ')}` : '',
       t.overview ? `Overview: ${t.overview}` : ''
