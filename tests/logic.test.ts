@@ -147,3 +147,11 @@ describe('refresh policy', () => {
     expect(needsRefresh({ release_date: '2010-05-01', fetched_at: '2026-09-20T10:00:00Z' }, now)).toBe(true);
   });
 });
+
+describe('journal order', () => {
+  it('two finished the same day: the later one is on top, also after a custom order', () => {
+    const l = (id: string, at: string, position: number | null) => ({ id, watched_at: at, position }) as never;
+    expect(sortLogs([l('a', '2026-11-14T10:00:00Z', null), l('b', '2026-11-14T15:00:00Z', null)]).map((x: { id: string }) => x.id)).toEqual(['b', 'a']);
+    expect(sortLogs([l('old', '2026-01-01T00:00:00Z', 0), l('a', '2026-11-14T10:00:00Z', null), l('b', '2026-11-14T15:00:00Z', null)]).map((x: { id: string }) => x.id)).toEqual(['b', 'a', 'old']);
+  });
+});

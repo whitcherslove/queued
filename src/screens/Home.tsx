@@ -63,7 +63,13 @@ export default function Home({ settings, onSettings, onMenu, onStats, onBack, on
   const [fEvents, setFEvents] = useState<Activity[]>(friendsCache ?? []);
   // "played together" invites — right on Home, so they're not missed
   const [coopInv, setCoopInv] = useState<CoopInvite[]>([]);
-  useEffect(() => { myCoopInvites().then(setCoopInv).catch(() => undefined); }, []);
+  useEffect(() => {
+    const load = () => myCoopInvites().then(setCoopInv).catch(() => undefined);
+    load();
+    const onShow = () => { if (document.visibilityState === 'visible') load(); };   // came back to the app: new invites show up
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, []);
   const answer = async (c: CoopInvite, yes: boolean) => {
     setCoopInv((l) => l.filter((x) => x.id !== c.id));
     try { await answerCoop(c.id, yes); if (yes) load(); } catch { setCoopInv((l) => [c, ...l]); }

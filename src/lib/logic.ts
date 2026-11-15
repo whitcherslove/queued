@@ -54,7 +54,13 @@ export function splitBacklog(items: LibItem[]): { next: LibItem[]; rest: LibItem
 /** Watched list: newest first unless the user set a custom order. */
 export function sortLogs(logs: LogRow[]): LogRow[] {
   const custom = logs.some((l) => l.position !== null);
-  return logs.slice().sort((a, b) => custom ? (a.position ?? 0) - (b.position ?? 0) : b.watched_at.localeCompare(a.watched_at));
+  // newest first by the moment you finished (date and time); in a custom order, the new entries (no position yet) go on top, newest first
+  return logs.slice().sort((a, b) => {
+    if (!custom || (a.position === null && b.position === null)) return b.watched_at.localeCompare(a.watched_at);
+    if (a.position === null) return -1;
+    if (b.position === null) return 1;
+    return a.position - b.position || b.watched_at.localeCompare(a.watched_at);
+  });
 }
 
 export function matchLibrary(items: LibItem[], q: string): LibItem[] {

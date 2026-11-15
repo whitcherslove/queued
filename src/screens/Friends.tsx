@@ -64,7 +64,13 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
   };
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set());
   const [coop, setCoop] = useState<CoopInvite[]>([]);
-  useEffect(() => { myCoopInvites().then(setCoop).catch(() => undefined); }, []);
+  useEffect(() => {
+    const load = () => myCoopInvites().then(setCoop).catch(() => undefined);
+    load();
+    const onShow = () => { if (document.visibilityState === 'visible') load(); };   // came back to the app: new invites show up
+    document.addEventListener('visibilitychange', onShow);
+    return () => document.removeEventListener('visibilitychange', onShow);
+  }, []);
   const dayLabel = (iso: string) => { const d = new Date(iso); const t0 = new Date(); t0.setHours(0, 0, 0, 0); const diff = Math.round((t0.getTime() - new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()) / 864e5);
     return diff <= 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff < 7 ? d.toLocaleDateString('en-GB', { weekday: 'long' }) : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long' }); };
   const days = useMemo(() => {
