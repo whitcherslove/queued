@@ -295,6 +295,12 @@ async function details(db: any, igdbId: string, force = false, light = false) {
     },
     fetched_at: new Date().toISOString()
   };
+  // RAWG (or Metacritic) didn't answer this time: keep what we had from them, don't swap the background or lose the score
+  if (cached && !rawg) {
+    if (cached.backdrop_url && (cached.data as any)?.rawg_bg !== false) (row as any).backdrop_url = cached.backdrop_url;
+    if ((row as any).metascore == null && cached.metascore != null) (row as any).metascore = cached.metascore;
+  }
+  (row as any).data = { ...(row as any).data, rawg_bg: !!rawg?.background_image || (!rawg && (cached?.data as any)?.rawg_bg) || false };
   const { data, error } = await db.from('titles').upsert(row, { onConflict: 'kind,source,source_id' }).select('*').single();
   if (error) throw error;
   return data;
