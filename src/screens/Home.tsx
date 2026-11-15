@@ -524,7 +524,7 @@ export default function Home({ settings, onSettings, onMenu, onStats, onBack, on
               <Poster t={{ title: c.title, poster_url: c.poster_url }} w={40} h={58} />
               <span className="grow stack-0"><span className="small">🎮 <strong>{c.from_name || 'A friend'}</strong> says you {c.playing ? 'are playing' : 'played'} <strong>{c.title}</strong> together</span>
                 <span className="muted tiny">{[c.platform ? c.platform.toUpperCase() : '', c.finished_at ? 'finished ' + new Date(c.finished_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''].filter(Boolean).join(' · ')}</span>
-                <span className="row nowrap coop-home-btns"><button className="btn sm" onClick={() => answer(c, false)}>Not me</button><button className="btn primary sm" onClick={() => answer(c, true)}>Add</button></span></span>
+                <span className="row nowrap coop-home-btns"><button className="btn sm" onClick={() => answer(c, false)}>Not me</button><button className="btn primary sm" onClick={() => answer(c, true)}>Add to Playing</button></span></span>
             </div>
           ))}
         </section>}

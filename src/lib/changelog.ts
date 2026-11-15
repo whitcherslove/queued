@@ -59,7 +59,7 @@ export const CHANGELOG: ChangeEntry[] = [
     items: [
       { icon: '🗓️', title: 'Days and bursts', text: 'Activity is split by day, and several updates from one person in a row fold into one card.' },
       { icon: '🆕', title: 'Only what’s new', text: '“Finished” shows up in Activity only on the day it happened — past viewings and old entries stay out.' },
-      { icon: '🎮', title: 'Played together', text: 'Mark a co-op friend and they get “played together — Add?” in Friends → People. Co-op partners are named only to people who share a company with them.' }
+      { icon: '🎮', title: 'Played together', text: 'Mark a co-op friend and they get an invite on Home and in Friends → People. “Add to Playing” puts the game in their Playing — finishing and rating is up to each of you. Co-op partners are named only to people who share a company with them.' }
     ]
   },
   {

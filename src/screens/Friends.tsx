@@ -197,7 +197,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
               <span className="grow stack-0"><span className="small"><strong>{c.from_name || 'A friend'}</strong> says you {c.playing ? 'are playing' : 'played'} <strong>{c.title}</strong> together</span>
                 <span className="muted tiny">{[c.platform ? c.platform.toUpperCase() : '', c.finished_at ? 'finished ' + new Date(c.finished_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''].filter(Boolean).join(' · ')}</span></span>
               <button className="btn sm" onClick={async () => { await answerCoop(c.id, false).catch(() => undefined); setCoop(coop.filter((x) => x.id !== c.id)); }}>Not me</button>
-              <button className="btn primary sm" onClick={async () => { try { await answerCoop(c.id, true); setCoop(coop.filter((x) => x.id !== c.id)); setNote('Added to your lists — rate it when you like.'); } catch (e) { setNote((e as Error).message); } }}>Add</button>
+              <button className="btn primary sm" onClick={async () => { try { await answerCoop(c.id, true); setCoop(coop.filter((x) => x.id !== c.id)); setNote('Added to Playing — finish and rate it whenever you like.'); } catch (e) { setNote((e as Error).message); } }}>Add to Playing</button>
             </div>
           ))}
         </section>}
