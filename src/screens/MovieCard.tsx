@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMsg, CollectionPart, ItemLog, LibItem, Overrides, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
 import { DROPPED_COLOR, PICK_TIERS, TIERS, displayScore, imdbColor, metascoreColor, myScoreColor } from '../lib/scores';
-import { needsRefresh, diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText } from '../lib/logic';
+import { needsRefresh, diffOverrides, latestLog, localDay, withLocalDay, longDate, metacriticSearch, merged, money, nextPosition, parseNum, releaseText, runtimeText, addonOf } from '../lib/logic';
 import { shortCountries } from '../lib/logic';
 import {
   type Owned, translateText, bookImages, ensureBook, findOwnedBooks, estimateProgress, findOwnedGames, gameImages, ensureGame, addToBacklog, askAi, deleteLog, ensureTitle, ensureTitleByImdb, loadImages, uploadCover, findOwnedBySource, insertLog, loadChat, loadItem, loadItemLogs, removeFromLibrary, updateItem, updateLog
@@ -405,6 +405,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
         </button>
         <div className="hero-text">
           <h2>{t.title}</h2>
+          {game && addonOf(item.title) && <span className="hero-addon">{addonOf(item.title)!.label}{addonOf(item.title)!.parent ? ' for ' + addonOf(item.title)!.parent : ''}</span>}
           <div className="row">{[releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).map((c) => <span key={c} className="hero-chip">{c}</span>)}
             {game && heroPlat && <span className="hero-chip hero-plat"><PlatformIcon k={heroPlat} size={14} /></span>}</div>
           {t.directors.length > 0 && <span className="hero-sub">{t.directors.join(', ')}</span>}

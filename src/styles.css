@@ -1409,3 +1409,7 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .login.welcome-look input { background: var(--surface); }
 .btn.primary.grad { background: linear-gradient(100deg, #5CDED2, #FFAC96 55%, #9C88FF); color: #0B0B10; border: 0; }
 .btn.primary.grad:disabled { opacity: .55; }
+
+/* DLC / expansion mark */
+.type-pill.dlc { background: color-mix(in srgb, #A6D8FF 18%, transparent); color: #A6D8FF; margin-left: 6px; }
+.hero-addon { display: inline-block; margin: 2px 0 6px; font-size: 12px; font-weight: 800; letter-spacing: .3px; color: #A6D8FF; }

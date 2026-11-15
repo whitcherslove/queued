@@ -1,9 +1,10 @@
 import type { LibItem, LogRow } from './types';
 import { isEnded } from './tv';
+import { addonOf } from './logic';
 
 /** List filters (per section, remembered): the same few for every section, each read its own way. */
-export interface Filters { tiers: string[]; genres: string[]; decades: string[]; length: string | null; platforms: string[]; formats: string[]; doneWhen: string | null; coop: boolean; ended: boolean; released: boolean }
-export const NO_FILTERS: Filters = { tiers: [], genres: [], decades: [], length: null, platforms: [], formats: [], doneWhen: null, coop: false, ended: false, released: false };
+export interface Filters { tiers: string[]; genres: string[]; decades: string[]; length: string | null; platforms: string[]; formats: string[]; doneWhen: string | null; coop: boolean; ended: boolean; released: boolean; addon?: 'base' | 'addon' | null }
+export const NO_FILTERS: Filters = { tiers: [], genres: [], decades: [], length: null, platforms: [], formats: [], doneWhen: null, coop: false, ended: false, released: false, addon: null };
 export type Kind = 'movie' | 'tv' | 'game' | 'book';
 
 export const DECADES = [{ id: '2020', label: '2020s' }, { id: '2010', label: '2010s' }, { id: '2000', label: '2000s' }, { id: '1990', label: '90s' }, { id: 'old', label: 'Older' }];
@@ -26,7 +27,7 @@ function lengthOf(it: LibItem, kind: Kind): string | null {
 }
 
 export const activeCount = (f: Filters) =>
-  [f.tiers.length, f.genres.length, f.decades.length, f.length ? 1 : 0, f.platforms.length, f.formats.length, f.doneWhen ? 1 : 0, f.coop ? 1 : 0, f.ended ? 1 : 0, f.released ? 1 : 0].filter(Boolean).length;
+  [f.tiers.length, f.genres.length, f.decades.length, f.length ? 1 : 0, f.platforms.length, f.formats.length, f.doneWhen ? 1 : 0, f.coop ? 1 : 0, f.ended ? 1 : 0, f.released ? 1 : 0, f.addon ? 1 : 0].filter(Boolean).length;
 
 /** Does a title pass the filters? (the rating and "when finished" ones need a journal entry: see passLog) */
 export function passItem(it: LibItem, f: Filters, kind: Kind, today: string): boolean {
@@ -36,6 +37,7 @@ export function passItem(it: LibItem, f: Filters, kind: Kind, today: string): bo
   if (f.platforms.length && !f.platforms.includes((it as { platform?: string | null }).platform ?? '')) return false;
   if (f.formats.length && !f.formats.includes((it as { format?: string | null }).format ?? '')) return false;
   if (f.coop && !(it as { coop?: boolean }).coop) return false;
+  if (f.addon && (f.addon === 'addon') !== !!addonOf(it.title)) return false;
   if (f.ended && !isEnded(it.title)) return false;
   if (f.released && !(it.title.release_date ? it.title.release_date <= today : !!it.title.year)) return false;
   return true;

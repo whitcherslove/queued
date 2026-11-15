@@ -1,9 +1,16 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.21';
+export const APP_VERSION = '4.22';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.22',
+    title: 'DLC',
+    items: [
+      { icon: '🧩', title: 'DLC and expansions', text: 'Add-ons are marked DLC, Expansion or Standalone in lists, Stats and the card (“DLC for Left 4 Dead”). Filters: Games only or DLC & expansions.' }
+    ]
+  },
   {
     version: '4.21',
     title: 'Your Home',

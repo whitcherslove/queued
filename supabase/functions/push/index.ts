@@ -52,7 +52,7 @@ async function telegramPost(db: any, id: string) {
   if (!env('TELEGRAM_BOT_TOKEN')) return { skipped: 'no bot token' };
   const { data: cfgRows } = await db.from('app_config').select('key, value').in('key', ['cloudinary_cloud', 'site_url']);
   const cfg: Record<string, string> = Object.fromEntries((cfgRows ?? []).map((r: any) => [r.key, r.value]));
-  const { data: a } = await db.from('activity').select('*, title:titles(title, poster_url, backdrop_url)').eq('id', id).maybeSingle();
+  const { data: a } = await db.from('activity').select('*, title:titles(title, poster_url, backdrop_url, data)').eq('id', id).maybeSingle();
   if (!a) return { skipped: 'no event' };
   if (a.kind === 'finished' && !a.tier) return { skipped: 'not rated yet' };
   if (!['finished', 'started', 'dropped'].includes(a.kind)) return { skipped: 'not posted' };
@@ -71,7 +71,8 @@ async function telegramPost(db: any, id: string) {
   if ((a.coop_with ?? []).length) { const { data: cp } = await db.from('profiles').select('id, display_name, handle').in('id', a.coop_with); (cp ?? []).forEach((x: any) => partners.push({ id: x.id, name: nameOf(x) })); }
   const metaFor = (inChat: Set<string>) => {
     const names = partners.filter((x) => inChat.has(x.id)).map((x) => x.name);
-    return [isGame && a.platform ? PLAT[a.platform] ?? String(a.platform).toUpperCase() : '', a.section === 'books' && a.format ? FMT[a.format] ?? '' : '', a.section === 'tv' && a.seasons_label ? a.seasons_label : '', names.length ? 'with ' + names.join(', ') : ''].filter(Boolean).map(esc).join(' · ');
+    const ad = a.title?.data?.type; const addon = isGame && ['dlc', 'expansion', 'standalone'].includes(ad) ? (ad === 'dlc' ? 'DLC' : ad === 'expansion' ? 'Expansion' : 'Standalone') + (a.title?.data?.parent?.name ? ' for ' + a.title.data.parent.name : '') : '';
+    return [addon, isGame && a.platform ? PLAT[a.platform] ?? String(a.platform).toUpperCase() : '', a.section === 'books' && a.format ? FMT[a.format] ?? '' : '', a.section === 'tv' && a.seasons_label ? a.seasons_label : '', names.length ? 'with ' + names.join(', ') : ''].filter(Boolean).map(esc).join(' · ');
   };
   const scale = (p?.settings?.scale === 10 ? 10 : 5);
   const score = a.score != null ? (scale === 10 ? Math.round(Number(a.score) * 4) / 2 : Math.round(Number(a.score) * 2) / 2) + '/' + scale : '';

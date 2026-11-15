@@ -172,3 +172,10 @@ export function cardLogs(logs: LogRow[], itemId: string) {
     .map((l) => ({ id: l.id, watched_at: l.watched_at, tier: l.tier, score: l.score, rewatch: l.rewatch, dropped: l.dropped, scope: l.scope, season_from: l.season_from, season_to: l.season_to, seasons: l.seasons }))
     .sort((a, b) => b.watched_at.localeCompare(a.watched_at)) as never;
 }
+
+/** A game's add-on label from IGDB: "DLC", "Expansion", "Standalone" — null for a regular game (or anything else). */
+export function addonOf(t: { data?: unknown } | null | undefined): { label: string; parent: string | null } | null {
+  const d = (t?.data ?? null) as { type?: string; parent?: { name?: string } | null } | null;
+  const label = d?.type === 'dlc' ? 'DLC' : d?.type === 'expansion' ? 'Expansion' : d?.type === 'standalone' ? 'Standalone' : null;
+  return label ? { label, parent: d?.parent?.name ?? null } : null;
+}

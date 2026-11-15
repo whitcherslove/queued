@@ -20,6 +20,7 @@ import GameAddSheet, { type GameAddMode } from '../components/GameAddSheet';
 import PlatformIcon from '../components/PlatformIcon';
 import FormatIcon from '../components/FormatIcon';
 import Tip from '../components/Tip';
+import AddonPill from '../components/AddonPill';
 import { PICK_TIERS } from '../lib/scores';
 import { DECADES, DONE_WHEN, LENGTHS, NO_FILTERS, activeCount, passItem, passLog, type Filters } from '../lib/filters';
 import { listTip } from '../lib/tips';
@@ -370,7 +371,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
       <button className="row-main" {...longPress(it.id)} onPointerDown={() => { if (isTv) prefetchShowCard(it.id, it.title_id); }} onClick={() => !edit && setSheet(it)}>
         <Poster t={it.title} w={56} h={84}></Poster>
         <span className="row-text">
-          <span className="row-title">{it.title.title}</span>
+          <span className="row-title">{it.title.title}{isGame && <AddonPill t={it.title} />}</span>
           <span className="row-meta">{it.status === 'dropped' && <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped</span>}{isGame ? <><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}</> : isBook ? <><FormatIcon f={(it as BookItem).format} /><span className="dot-sep">·</span>{bookMeta(it)}</> : isTv ? scopeLabel(planOf(it), it.title) : [releaseText(it.title.release_date, it.title.year), runtimeText(it.title.runtime)].filter(Boolean).join(' · ')}{isGame && (it as GameItem).coop && <CoopIcon />}{it.rewatch && <RewIcon />}</span>
           <span className="row-meta">{isBook ? <BookRating t={it.title} /> : <Metascore v={it.title.metascore} size="sm" game={isGame} />}</span>
         </span>
@@ -410,7 +411,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         <button className="row-main" {...longPress(it.id)} onClick={() => setSheet(it)}>
           <Poster t={it.title} w={56} h={84} />
           <span className="row-text">
-            <span className="row-title">{it.title.title}{s2.isNew && <> <span className="new-pill">NEW</span></>}</span>
+            <span className="row-title">{it.title.title}{isGame && <AddonPill t={it.title} />}{s2.isNew && <> <span className="new-pill">NEW</span></>}</span>
             <span className="row-meta">{s2.line}{it.rewatch && <RewIcon />}</span>
             {s2.bar && <span className="row-meta"><span className="mini-bar w72"><span style={{ width: p.pct + '%' }} /></span><strong className="tiny">{p.pct}%</strong></span>}
           </span>
@@ -461,7 +462,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         <button className="row-main" {...longPress(l.id)} onClick={() => !edit && setSheet(l.library)}>
           <Poster t={t} w={56} h={84}>{settings.posterScore && <span className="poster-ring"><ScoreRing value={lScore} scale={settings.scale} size={24} fontSize={9} /></span>}</Poster>
           <span className="row-text">
-            <span className="row-title">{t.title}</span>
+            <span className="row-title">{t.title}{isGame && <AddonPill t={t} />}</span>
             <span className="row-meta">{isGame ? <><PlatformIcon k={(l as GameLog).platform ?? (l.library as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(l.library)}</> : isBook ? <><FormatIcon f={(l as GameLog & { format?: string | null }).format ?? (l.library as BookItem).format} /><span className="dot-sep">·</span>{bookMeta(l.library)}</> : isTv ? scopeLabel(logSeasons(l), t) : [releaseText(t.release_date, t.year), runtimeText(t.runtime)].filter(Boolean).join(' · ')}{isGame && (l as GameLog).coop && <CoopIcon />}{settings.listMetascore && <Metascore v={t.metascore} size="sm" game={isGame} />}</span>
             {l.dropped ? <span className="pill" style={{ background: DROPPED_COLOR, color: '#fff' }}>Dropped{tr ? ' · ' + tr.label : ''}</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : isTv && <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>Not rated</span>}
           </span>
@@ -592,6 +593,8 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
               <div className="f-row">{DONE_WHEN.map((d) => chip(filters.doneWhen === d.id, d.label, () => setFilters({ ...filters, doneWhen: filters.doneWhen === d.id ? null : d.id }), d.id))}</div>
               <div className="f-row">
                 {isGame && chip(filters.coop, '🎮 Co-op only', () => setFilters({ ...filters, coop: !filters.coop }), 'coop')}
+                {isGame && chip(filters.addon === 'base', 'Games only', () => setFilters({ ...filters, addon: filters.addon === 'base' ? null : 'base' }), 'base')}
+                {isGame && chip(filters.addon === 'addon', 'DLC & expansions', () => setFilters({ ...filters, addon: filters.addon === 'addon' ? null : 'addon' }), 'addon')}
                 {isTv && chip(filters.ended, 'Ended shows only', () => setFilters({ ...filters, ended: !filters.ended }), 'ended')}
                 {chip(filters.released, 'Out already', () => setFilters({ ...filters, released: !filters.released }), 'released')}
               </div>
@@ -741,7 +744,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
                   <button className="row-main" {...longPress(it.id)} onClick={() => setSheet(it)}>
                     <Poster t={it.title} w={56} h={84} />
                     <span className="row-text">
-                      <span className="row-title">{it.title.title}</span>
+                      <span className="row-title">{it.title.title}{isGame && <AddonPill t={it.title} />}</span>
                       <span className="row-meta">{isBook ? <><FormatIcon f={(it as BookItem).format} /><span className="dot-sep">·</span>{bookMeta(it)}</> : <><PlatformIcon k={(it as GameItem).platform} /><span className="dot-sep">·</span>{gameMeta(it)}</>}{(it as GameItem).coop && <CoopIcon />}{it.rewatch && <RewIcon />}</span>
                       <span className="row-meta"><span className="mini-bar w72"><span style={{ width: ((it as GameItem & { progress?: number | null }).progress ?? 0) + '%' }} /></span><strong className="tiny">{(it as GameItem & { progress?: number | null }).progress ?? 0}%</strong></span>
                     </span>
