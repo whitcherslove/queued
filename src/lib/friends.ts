@@ -44,7 +44,7 @@ export async function activityFeed(before?: string): Promise<Activity[]> {
   if (error) throw error;
   return (data ?? []) as Activity[];
 }
-export interface MiniTitle { title_id?: string; title: string; poster_url: string | null; section?: string; tier?: string | null; score?: number | null; dropped?: boolean; seasons_label?: string | null; platform?: string | null; format?: string | null; at?: string }
+export interface MiniTitle { pct?: number | null; title_id?: string; title: string; poster_url: string | null; section?: string; tier?: string | null; score?: number | null; dropped?: boolean; seasons_label?: string | null; platform?: string | null; format?: string | null; at?: string }
 export interface FriendSummary {
   hidden?: boolean;   // they keep their page private
   profile: { name: string | null; handle: string | null; avatar_url: string | null } | null;
@@ -88,4 +88,12 @@ export async function setReaction(activityId: string, emoji: string, on: boolean
   const q = on ? supabase.from('activity_reactions').insert({ activity_id: activityId, user_id: uid, emoji })
     : supabase.from('activity_reactions').delete().eq('activity_id', activityId).eq('user_id', uid).eq('emoji', emoji);
   const { error } = await q; if (error && !/duplicate/i.test(error.message)) throw error;
+}
+
+/** Your card: friends who have this title — playing (with progress), finished (with rating), in their backlog. */
+export interface FriendOnTitle { id: string; name: string | null; avatar_url: string | null; status: 'playing' | 'done' | 'backlog'; platform: string | null; tier: string | null; score: number | null; pct?: number | null; label?: string }
+export async function friendsOnTitle(titleId: string): Promise<FriendOnTitle[]> {
+  const { data, error } = await supabase.rpc('friends_on_title', { t: titleId });
+  if (error) return [];
+  return (data ?? []) as FriendOnTitle[];
 }

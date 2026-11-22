@@ -71,16 +71,20 @@ async function rawgGame(slug: string, name: string, year: number | null) {
   const key = env('RAWG_API_KEY'); if (!key) { rawgNote = 'RAWG_API_KEY is not set'; return null; }
   // IGDB slugs sometimes carry a "--1" suffix ("hades--1"); RAWG uses the plain one ("hades")
   const clean = slug.replace(/--\d+$/, '');
+  // the same year (±1) or it's another game with the same name (Unpacking 2021 vs an old one, Syndicate 2012 vs 1993)
+  const yearOk = (released: string | null | undefined) => !year || !released || Math.abs(Number(String(released).slice(0, 4)) - year) <= 1;
   let r = await fetchT(`https://api.rawg.io/api/games/${encodeURIComponent(clean)}?key=${key}`, { headers: RAWG_HEADERS });
-  if (r.ok) { const j = await r.json(); if (j?.id) return j; }
+  if (r.ok) { const j = await r.json(); if (j?.id && yearOk(j.released)) return j; }
   if (r.status === 401 || r.status === 403) { rawgNote = 'RAWG refused the key (' + r.status + ')'; return null; }
   if (r.status >= 500) { rawgNote = r.status === 599 ? 'RAWG timed out' : 'RAWG is down (' + r.status + ')'; return null; }
   // fall back to a precise search by name (+ year)
-  r = await fetchT(`https://api.rawg.io/api/games?key=${key}&search=${encodeURIComponent(name)}&search_precise=true&page_size=5`, { headers: RAWG_HEADERS });
+  r = await fetchT(`https://api.rawg.io/api/games?key=${key}&search=${encodeURIComponent(name)}&search_precise=true&page_size=10`, { headers: RAWG_HEADERS });
   if (!r.ok) { rawgNote = 'RAWG search ' + r.status; return null; }
   const list = (await r.json()).results ?? [];
   const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '');
-  const hit = list.find((g: any) => norm(g.name) === norm(name) && (!year || String(g.released ?? '').startsWith(String(year)))) ?? list.find((g: any) => norm(g.name) === norm(name));
+  // the same name AND the same year (±1); a same-named game from another year is a different game — better nothing than the wrong pictures
+  const hit = list.find((g: any) => norm(g.name) === norm(name) && yearOk(g.released))
+    ?? list.find((g: any) => norm(g.name).startsWith(norm(name)) && year && yearOk(g.released) && g.released);
   if (!hit) { rawgNote = 'RAWG: no match for "' + name + '"'; return null; }
   const d = await fetchT(`https://api.rawg.io/api/games/${hit.id}?key=${key}`, { headers: RAWG_HEADERS });
   return d.ok ? await d.json() : hit;
@@ -296,7 +300,7 @@ async function details(db: any, igdbId: string, force = false, light = false) {
     fetched_at: new Date().toISOString()
   };
   // RAWG (or Metacritic) didn't answer this time: keep what we had from them, don't swap the background or lose the score
-  if (cached && !rawg) {
+  if (cached && !rawg && /timed out|is down|skipped|error|refused|search \d/.test(rawgNote)) {   // an outage — not "RAWG has no such game"
     if (cached.backdrop_url && (cached.data as any)?.rawg_bg !== false) (row as any).backdrop_url = cached.backdrop_url;
     if ((row as any).metascore == null && cached.metascore != null) (row as any).metascore = cached.metascore;
   }

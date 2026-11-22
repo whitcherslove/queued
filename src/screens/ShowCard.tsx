@@ -18,6 +18,7 @@ import Overview from '../components/Overview';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import ScopeSheet from '../components/ScopeSheet';
 import { ChevBtn, IconBack, MoreBtn } from '../components/Icons';
+import FriendsOnTitle from '../components/FriendsOnTitle';
 import { useBackLayer } from '../lib/back';
 import { usePress } from '../lib/press';
 import { useLongPress } from '../lib/longpress';
@@ -606,6 +607,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
         </section>
 
 
+        <FriendsOnTitle titleId={item.title_id} kind={'tv'} />
         <section className={'card ai' + (aiPress.pressed ? ' pressed' : '')}>
           <button className="ai-head" {...aiPress.bind} onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>
             <span className="accent-text" aria-hidden="true">✦</span><span className="h2">Ask AI</span>

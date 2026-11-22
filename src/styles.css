@@ -1428,3 +1428,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .hero-cover .hero-text { max-width: 50%; }
 @media (max-width: 360px) { .hero img.hero-book { height: 62%; right: 6%; } }
 @media (min-width: 900px) { .hero img.hero-book { right: 14%; } }
+
+/* friends' progress */
+.fp-prog { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.fp-bar { flex: 1; max-width: 160px; height: 5px; border-radius: 999px; background: var(--surface2); overflow: hidden; }
+.fp-bar i { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.fot { gap: 0; }
+.fot-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }

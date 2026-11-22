@@ -22,6 +22,7 @@ import FormatIcon from '../components/FormatIcon';
 import { FORMATS, formatLabel, positionMinutes, readHours } from '../lib/formats';
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import { ChevBtn, IconBack, MoreBtn, ReplayIcon } from '../components/Icons';
+import FriendsOnTitle from '../components/FriendsOnTitle';
 import { useBackLayer } from '../lib/back';
 import { usePress } from '../lib/press';
 
@@ -748,6 +749,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
           </section>
         )}
 
+        <FriendsOnTitle titleId={item.title_id} kind={game ? 'game' : book ? 'book' : 'movie'} />
         <section className={'card ai' + (aiPress.pressed ? ' pressed' : '')}>
           <button className="ai-head" {...aiPress.bind} onClick={() => setAiOpen(!aiOpen)} aria-expanded={aiOpen}>
             <span className="accent-text" aria-hidden="true">✦</span><span className="h2">Ask AI</span>

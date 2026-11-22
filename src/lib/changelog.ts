@@ -1,9 +1,17 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.22';
+export const APP_VERSION = '4.23';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.23',
+    title: 'Friends’ progress',
+    items: [
+      { icon: '📈', title: 'How far friends are', text: 'A friend’s page shows progress for what they’re in: percent for games, pages for books, the episode and a bar for shows.' },
+      { icon: '👥', title: 'Friends in your card', text: 'Open anything: see which friends are in it now (with progress), who finished it (with their rating) and who has it in the backlog.' }
+    ]
+  },
   {
     version: '4.22',
     title: 'DLC',

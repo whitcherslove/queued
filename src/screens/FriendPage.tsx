@@ -58,6 +58,7 @@ export default function FriendPage({ id, onClose, onTitle }: { id: string; onClo
                 <Poster t={{ title: t.title, poster_url: t.poster_url }} w={30} h={44} />
                 <span className="grow stack-0"><span className="row-title ellipsis">{t.title}</span>
                   <span className="muted small now-kind">{t.section === 'books' ? <FormatIcon f={t.format} size={11} /> : t.platform ? <PlatformIcon k={t.platform} size={10} /> : null}{t.section === 'tv' ? 'Watching' : t.section === 'books' ? 'Reading' : t.section === 'movies' ? 'Watching' : 'Playing'}</span></span>
+                  {(t as { label?: string }).label && <span className="fp-prog">{t.pct != null && <span className="fp-bar"><i style={{ width: Math.max(2, Math.min(100, t.pct)) + '%' }} /></span>}<span className="muted tiny">{(t as { label?: string }).label}</span></span>}
               </button>
             ))}
           </section>}
