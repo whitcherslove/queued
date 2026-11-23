@@ -21,11 +21,12 @@ export default function FriendsOnTitle({ titleId, kind }: { titleId: string | nu
           <div key={f.id} className="fot-row">
             <Avatar url={f.avatar_url} email={f.name ?? '?'} size={30} />
             <span className="grow stack-0">
-              <span className="small"><strong>{f.name ?? 'Friend'}</strong> <span className="muted">{f.status === 'playing' ? 'is ' + doing : f.status === 'done' ? done : 'has it in the backlog'}</span>
+              <span className="small"><strong>{f.name ?? 'Friend'}</strong> <span className="muted">{f.status === 'playing' ? 'is ' + doing : f.status === 'done' ? done : f.status === 'dropped' ? 'dropped it' : 'has it in the backlog'}</span>
                 {kind === 'game' && f.platform && <> <PlatformIcon k={f.platform} size={10} /></>}</span>
-              {f.status === 'playing' && f.label && <span className="fp-prog">{f.pct != null && <span className="fp-bar"><i style={{ width: Math.max(2, Math.min(100, f.pct)) + '%' }} /></span>}<span className="muted tiny">{f.label}</span></span>}
+              {(f.status === 'playing' || f.status === 'dropped') && f.label && <span className={'fp-prog' + (f.status === 'dropped' ? ' stopped' : '')}>{f.status === 'dropped' && <span className="muted tiny">stopped at</span>}{f.pct != null && <span className="fp-bar"><i style={{ width: Math.max(2, Math.min(100, f.pct)) + '%' }} /></span>}<span className="muted tiny">{f.label}</span></span>}
             </span>
             {f.status === 'done' && tier && <span className="tier-under" style={{ background: tier.color }}>{tier.label}</span>}
+            {f.status === 'dropped' && <span className="tier-under" style={{ background: '#A98BE0' }}>Dropped</span>}
           </div>
         ); })}
       {list.length > 3 && <button className="link left" onClick={() => setAll(!all)}>{all ? 'Show less' : '+' + (list.length - 3) + ' more'}</button>}
