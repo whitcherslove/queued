@@ -1,3 +1,4 @@
+import { notify } from '../lib/dialog';
 import { useEffect, useMemo, useState } from 'react';
 import type { LibItem, LogRow } from '../lib/types';
 import type { Settings } from '../lib/theme';
@@ -115,7 +116,7 @@ export default function Stats({ onBack, onMenu, settings }: { onBack?: () => voi
 
   const share = async () => {
     const text = `My ${periodLabel} in Queued: ${period.length} finished · ~${totalHours} h${avg != null ? ' · average ' + shown(avg) + '/' + scale : ''}` + (top.length ? `\n10 out of 10: ${top.slice(0, 5).map((l) => l.library.title.title).join(', ')}` : '');
-    try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); alert('Copied — paste it anywhere.'); } } catch { /* cancelled */ }
+    try { if (navigator.share) await navigator.share({ text }); else { await navigator.clipboard.writeText(text); notify('Copied — paste it anywhere.'); } } catch { /* cancelled */ }
   };
 
   // ---------- rows ----------

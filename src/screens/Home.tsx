@@ -1,3 +1,5 @@
+import { useWhenBack } from '../lib/useWhenBack';
+import { notify } from '../lib/dialog';
 import { Fragment } from 'react';
 import HomeEditor from '../components/HomeEditor';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -60,6 +62,7 @@ export default function Home({ settings, onSettings, onMenu, onStats, onBack, on
     } finally { setLoading(false); }
   }, []);
   useEffect(() => { load(); }, [load]);
+  useWhenBack(() => { load(); });   // back after a while: fresh data (another device, friends)
   const [fEvents, setFEvents] = useState<Activity[]>(friendsCache ?? []);
   // "played together" invites — right on Home, so they're not missed
   const [coopInv, setCoopInv] = useState<CoopInvite[]>([]);
@@ -72,7 +75,7 @@ export default function Home({ settings, onSettings, onMenu, onStats, onBack, on
   }, []);
   const answer = async (c: CoopInvite, yes: boolean) => {
     setCoopInv((l) => l.filter((x) => x.id !== c.id));
-    try { await answerCoop(c.id, yes); if (yes) load(); } catch { setCoopInv((l) => [c, ...l]); }
+    try { await answerCoop(c.id, yes); if (yes) { load(); notify('Added to Playing ✓'); } } catch { setCoopInv((l) => [c, ...l]); notify(navigator.onLine ? 'Couldn’t answer — try again' : 'You’re offline'); }
   };
   useEffect(() => { activityFeed().then((a) => { const x = a.filter((e) => !e.mine).slice(0, 12); friendsCache = x; setFEvents(x); }).catch(() => undefined); }, []);
 

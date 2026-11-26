@@ -15,3 +15,16 @@ describe('filters', () => {
     expect(passLog(log, { ...NO_FILTERS, doneWhen: 'last' }, 'movie', '2026-11-13')).toBe(false);
   });
 });
+
+describe('filters by playthrough', () => {
+  it('a PC playthrough of a game now set to Steam Deck does not pass "Steam Deck"', () => {
+    const lib = { id: 'i', status: 'done', platform: 'steam-deck', coop: false, title: { title: 'Halo', year: 2001, genres: [], data: {} } };
+    const pc = { watched_at: '2024-09-08T10:00:00Z', tier: 'awesome', platform: 'pc', coop: true, library: lib } as never;
+    const deck = { watched_at: '2026-01-08T10:00:00Z', tier: 'awesome', platform: 'steam-deck', coop: false, library: lib } as never;
+    const f = { ...NO_FILTERS, platforms: ['steam-deck'] };
+    expect(passLog(pc, f, 'game', '2026-11-26')).toBe(false);
+    expect(passLog(deck, f, 'game', '2026-11-26')).toBe(true);
+    expect(passLog(pc, { ...NO_FILTERS, coop: true }, 'game', '2026-11-26')).toBe(true);
+    expect(passLog(deck, { ...NO_FILTERS, coop: true }, 'game', '2026-11-26')).toBe(false);
+  });
+});

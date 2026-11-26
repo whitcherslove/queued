@@ -1,3 +1,4 @@
+import { askConfirm } from '../lib/dialog';
 import { useEffect, useState } from 'react';
 import { IconBack } from '../components/Icons';
 import Avatar from '../components/Avatar';
@@ -98,8 +99,8 @@ export default function Admin({ onBack }: { onBack: () => void }) {
           <button className="btn" onClick={run(() => adminUserAction(who.id, 'reset_intro'), 'They’ll see the welcome, What’s new and tips again.')}>Show welcome & tips again</button>
           {!who.telegram_off && <button className="btn" onClick={run(() => adminUserAction(who.id, 'telegram_off'), 'Their Telegram posts are off.')}>Turn off their Telegram posts</button>}
           <button className="btn danger" onClick={run(async () => {
-            if (!confirm('Delete ' + (who.name || who.email) + ' and everything they have? This can’t be undone.')) return;
-            if (!confirm('Really delete? Their lists, ratings, friends and feed go too.')) return;
+            if (!await askConfirm('Delete ' + (who.name || who.email) + ' and everything they have? This can’t be undone.')) return;
+            if (!await askConfirm('Really delete? Their lists, ratings, friends and feed go too.')) return;
             await adminUserAction(who.id, 'delete'); setWho(null);
           }, 'Deleted.')}>Delete account</button>
           <button className="btn" onClick={() => setWho(null)}>Close</button>

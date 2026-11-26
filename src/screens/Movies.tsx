@@ -1,3 +1,4 @@
+import { useWhenBack } from '../lib/useWhenBack';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Section, LibItem, LogRow, Mark, SearchHit, SeasonEps, Title } from '../lib/types';
 import type { Settings } from '../lib/theme';
@@ -158,6 +159,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
     catch (e) { setError('Couldn’t load your lists. Check your connection and pull to refresh.'); }
     setLoading(false);
   }, [section]);
+  useWhenBack(() => { refresh(); });   // back after a while: fresh data
   useEffect(() => { refresh(); }, [refresh]);
 
   /** Once a day per device and section: refresh up to 15 movies / games whose data is due (upcoming and new ones first). */
@@ -572,7 +574,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
         const all = isGame ? allGames : items;
         const count = new Map<string, number>(); all.forEach((i) => (i.title.genres ?? []).forEach((g) => count.set(g, (count.get(g) ?? 0) + 1)));
         const genres = [...count.entries()].sort((a, b) => b[1] - a[1]).slice(0, 16).map(([g]) => g);
-        const plats = [...new Set(all.map((i) => (i as { platform?: string | null }).platform).filter(Boolean) as string[])];
+        const plats = [...new Set([...all.map((i) => (i as { platform?: string | null }).platform), ...logs.map((l) => (l as { platform?: string | null }).platform)].filter(Boolean) as string[])];   // the games' and the playthroughs' platforms
         const tog = (k: 'tiers' | 'genres' | 'decades' | 'platforms' | 'formats', v: string) => setFilters({ ...filters, [k]: filters[k].includes(v) ? filters[k].filter((x) => x !== v) : [...filters[k], v] });
         const chip = (on: boolean, label: React.ReactNode, onClick: () => void, key: string) => <button key={key} className={'f-chip' + (on ? ' on' : '')} aria-pressed={on} onClick={onClick}>{label}</button>;
         return (

@@ -3,6 +3,7 @@ import { friendsOnTitle, type FriendOnTitle } from '../lib/friends';
 import { TIERS } from '../lib/scores';
 import Avatar from './Avatar';
 import PlatformIcon from './PlatformIcon';
+import ProgressLine from './ProgressLine';
 
 /** "Friends" in a card: who's in it now (with progress), who finished it (with rating), who has it in the backlog. */
 export default function FriendsOnTitle({ titleId, kind }: { titleId: string | null | undefined; kind: 'movie' | 'tv' | 'game' | 'book' }) {
@@ -23,7 +24,7 @@ export default function FriendsOnTitle({ titleId, kind }: { titleId: string | nu
             <span className="grow stack-0">
               <span className="small"><strong>{f.name ?? 'Friend'}</strong> <span className="muted">{f.status === 'playing' ? 'is ' + doing : f.status === 'done' ? done : f.status === 'dropped' ? 'dropped it' : 'has it in the backlog'}</span>
                 {kind === 'game' && f.platform && <> <PlatformIcon k={f.platform} size={10} /></>}</span>
-              {(f.status === 'playing' || f.status === 'dropped') && f.label && <span className={'fp-prog' + (f.status === 'dropped' ? ' stopped' : '')}>{f.status === 'dropped' && <span className="muted tiny">stopped at</span>}{f.pct != null && <span className="fp-bar"><i style={{ width: Math.max(2, Math.min(100, f.pct)) + '%' }} /></span>}<span className="muted tiny">{f.label}</span></span>}
+              {(f.status === 'playing' || f.status === 'dropped') && f.label && <ProgressLine pct={f.pct ?? null} label={f.label} stopped={f.status === 'dropped'} />}
             </span>
             {f.status === 'done' && tier && <span className="tier-under" style={{ background: tier.color }}>{tier.label}</span>}
             {f.status === 'dropped' && <span className="tier-under" style={{ background: '#A98BE0' }}>Dropped</span>}

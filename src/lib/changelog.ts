@@ -1,9 +1,19 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.23';
+export const APP_VERSION = '4.24';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.24',
+    title: 'Smoother',
+    items: [
+      { icon: '🔔', title: 'Notifications open the app', text: 'Tapping a notification brings Queued up on the right screen, even when it was already open.' },
+      { icon: '🎯', title: 'Filters by playthrough', text: 'In Finished, platform and co-op filters look at each playthrough — a PC run no longer shows up under Steam Deck.' },
+      { icon: '💬', title: 'Clearer feedback', text: 'Buttons say what happened (“Added ✓”, “Couldn’t save”), questions open in the app’s own windows, an Offline bar shows when there’s no connection, and lists refresh when you come back.' },
+      { icon: '📈', title: 'Friends’ progress bars', text: 'The same bar and percent as in Playing on Home.' }
+    ]
+  },
   {
     version: '4.23',
     title: 'Friends’ progress',

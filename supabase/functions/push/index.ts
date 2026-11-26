@@ -194,7 +194,7 @@ Deno.serve(async (req) => {
     }
     if (b.type === 'coop') {
       const [{ data: p }, { data: t }] = await Promise.all([db.from('profiles').select('display_name, handle').eq('id', b.from).maybeSingle(), db.from('titles').select('title, kind').eq('id', b.title_id).maybeSingle()]);
-      const n = await sendTo(db, [b.to], { title: `${nameOf(p)} played ${t?.title ?? 'a game'} with you 🎮`, body: 'Add it to your lists? Open Friends → People.', url: '/?open=friends', tag: 'coop-' + b.title_id });
+      const n = await sendTo(db, [b.to], { title: `${nameOf(p)} played ${t?.title ?? 'a game'} with you 🎮`, body: 'Add it to your Playing? Tap to see the invite.', url: '/?open=home', tag: 'coop-' + b.title_id });
       return Response.json({ sent: n });
     }
     if (b.type === 'releases') {

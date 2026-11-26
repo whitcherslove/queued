@@ -1,3 +1,5 @@
+import OfflineBar from './components/OfflineBar';
+import DialogHost from './components/DialogHost';
 import { Brand } from './components/Logo';
 import { useEffect, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
@@ -83,5 +85,5 @@ export default function App() {
   if (!ready) return <main className="center-screen"><Brand size={132} animated /></main>;
   if (!session) return <>{hasInvite() && <div className="invite-banner" role="status">👋 You’ve been invited to Queued. Sign in — you’ll be friends right after.</div>}<Login /></>;
   if (!profile) return <main className="center-screen"><Brand size={132} animated /></main>;
-  return <>{claiming && <div className="toast" role="status">{claiming}</div>}{friendNote && <div className="sheet-wrap invite-result"><button className="sheet-scrim" aria-label="Close" onClick={() => setFriendNote('')} /><div className="sheet" role="dialog" aria-label="Invite"><strong className="sheet-title">Invite</strong><span>{friendNote}</span><button className="btn primary" onClick={() => setFriendNote('')}>OK</button></div></div>}<Shell profile={profile} onProfile={setProfile} onSettings={updateSettings} /></>;
+  return <><DialogHost /><OfflineBar />{claiming && <div className="toast" role="status">{claiming}</div>}{friendNote && <div className="sheet-wrap invite-result"><button className="sheet-scrim" aria-label="Close" onClick={() => setFriendNote('')} /><div className="sheet" role="dialog" aria-label="Invite"><strong className="sheet-title">Invite</strong><span>{friendNote}</span><button className="btn primary" onClick={() => setFriendNote('')}>OK</button></div></div>}<Shell profile={profile} onProfile={setProfile} onSettings={updateSettings} /></>;
 }

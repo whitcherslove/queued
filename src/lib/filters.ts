@@ -43,7 +43,10 @@ export function passItem(it: LibItem, f: Filters, kind: Kind, today: string): bo
   return true;
 }
 export function passLog(l: LogRow, f: Filters, kind: Kind, today: string): boolean {
-  if (!passItem(l.library, { ...f, released: false }, kind, today)) return false;
+  // a playthrough is checked by ITS platform and co-op (played on PC and on Steam Deck → two different entries)
+  const lp = l as LogRow & { platform?: string | null; coop?: boolean | null };
+  const asPlayed = { ...l.library, platform: lp.platform ?? (l.library as { platform?: string | null }).platform, coop: lp.coop ?? (l.library as { coop?: boolean }).coop } as LibItem;
+  if (!passItem(asPlayed, { ...f, released: false }, kind, today)) return false;
   if (f.tiers.length && !f.tiers.includes(l.tier ?? 'none')) return false;
   if (f.doneWhen) {
     const y = Number(l.watched_at.slice(0, 4)), now = Number(today.slice(0, 4));

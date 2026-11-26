@@ -1,3 +1,4 @@
+import { askConfirm, askText } from '../lib/dialog';
 import { useEffect, useState } from 'react';
 import Avatar from '../components/Avatar';
 import PlatformIcon from '../components/PlatformIcon';
@@ -69,7 +70,7 @@ export function PlatformsTab({ say }: { say: (m: string) => void }) {
           </div>}
           {!form.isNew && !form.preview && <span className="muted tiny">Now: <PlatformIcon k={form.key} size={14} /></span>}
           <button className="btn primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
-          {!form.isNew && list.some((p) => p.key === form.key) && <button className="btn danger" onClick={async () => { if (!confirm('Remove this from Admin? Built-in platforms go back to their usual logo.')) return; await deleteCustomPlatform(form.key).catch(() => undefined); setForm(null); say('Removed. Restart the app to see the built-in again.'); load(); }}>Remove</button>}
+          {!form.isNew && list.some((p) => p.key === form.key) && <button className="btn danger" onClick={async () => { if (!await askConfirm('Remove this from Admin? Built-in platforms go back to their usual logo.')) return; await deleteCustomPlatform(form.key).catch(() => undefined); setForm(null); say('Removed. Restart the app to see the built-in again.'); load(); }}>Remove</button>}
           <button className="btn" onClick={() => setForm(null)}>Cancel</button>
         </div>
       </div>}
@@ -122,7 +123,7 @@ export function NewsTab({ say }: { say: (m: string) => void }) {
               say(isNewest ? 'Saved — everyone sees it the next time they open the app.' : 'Saved (an older version — people who saw newer ones won’t get it).'); load();
             } catch (e) { say((e as Error).message); }
           }}>Save</button>
-          {dbVersions.has(form.version) && <button className="btn danger" onClick={async () => { if (!confirm('Delete this entry?')) return; await deleteChangelog(form.version).catch(() => undefined); setForm(null); load(); }}>Delete</button>}
+          {dbVersions.has(form.version) && <button className="btn danger" onClick={async () => { if (!await askConfirm('Delete this entry?')) return; await deleteChangelog(form.version).catch(() => undefined); setForm(null); load(); }}>Delete</button>}
           <button className="btn" onClick={() => setForm(null)}>Cancel</button>
         </div>
       </div>}
@@ -142,15 +143,15 @@ export function TelegramTab({ say }: { say: (m: string) => void }) {
         <div key={g.id} className="tg-group">
           <div className="row nowrap"><strong className="grow">{g.title}</strong>{!g.chat_id ? <span className="muted tiny">no chat</span> : g.active ? <span className="muted tiny">{g.posts_7d} posts this week</span> : <span className="tier-under none">bot removed</span>}</div>
           <div className="row nowrap tg-owner">
-            <button className="link" onClick={act(async () => { const t = prompt('New name', g.title); if (t && t.trim() && t !== g.title) await renameTgGroup(g.id, t); })}>Rename</button>
-            <button className="link" onClick={act(async () => { const c = prompt('Telegram chat ID (like -100…)', g.chat_id ? String(g.chat_id) : ''); if (c && /^-?\d+$/.test(c.trim())) await adminTgConnect(g.id, Number(c.trim())); })}>{g.chat_id ? 'Change chat' : 'Connect chat by ID'}</button>
+            <button className="link" onClick={act(async () => { const t = await askText('New name', g.title); if (t && t.trim() && t !== g.title) await renameTgGroup(g.id, t); })}>Rename</button>
+            <button className="link" onClick={act(async () => { const c = await askText('Telegram chat ID (like -100…)', g.chat_id ? String(g.chat_id) : ''); if (c && /^-?\d+$/.test(c.trim())) await adminTgConnect(g.id, Number(c.trim())); })}>{g.chat_id ? 'Change chat' : 'Connect chat by ID'}</button>
             <span className="grow" />
-            <button className="link danger" onClick={act(async () => { if (confirm('Delete ' + g.title + ' for everyone? The bot leaves the chat.')) await deleteTgGroup(g.id); })}>Delete</button>
+            <button className="link danger" onClick={act(async () => { if (await askConfirm('Delete ' + g.title + ' for everyone? The bot leaves the chat.')) await deleteTgGroup(g.id); })}>Delete</button>
           </div>
           <div className="tg-members">{g.members.map((m) => (
             <span key={m.id} className="tg-member"><Avatar url={m.avatar_url} email={m.name ?? '?'} size={22} />{m.id === g.owner && <span aria-label="owner">👑</span>}{m.name ?? 'Friend'}{!m.posting && <span className="muted tiny"> · muted</span>}
-              {m.id !== g.owner && <button className="tg-friend" aria-label={'Make ' + (m.name ?? '') + ' the owner'} onClick={act(async () => { if (confirm('Make ' + (m.name ?? 'them') + ' the owner of ' + g.title + '?')) await transferTgOwner(g.id, m.id); })}>👑</button>}
-              <button className="tg-remove" aria-label={'Remove ' + (m.name ?? '')} onClick={async () => { if (!confirm('Remove ' + (m.name ?? 'them') + ' from ' + g.title + '?')) return; try { await adminTgRemove(g.id, m.id); load(); } catch (e) { say((e as Error).message); } }}>×</button></span>
+              {m.id !== g.owner && <button className="tg-friend" aria-label={'Make ' + (m.name ?? '') + ' the owner'} onClick={act(async () => { if (await askConfirm('Make ' + (m.name ?? 'them') + ' the owner of ' + g.title + '?')) await transferTgOwner(g.id, m.id); })}>👑</button>}
+              <button className="tg-remove" aria-label={'Remove ' + (m.name ?? '')} onClick={async () => { if (!await askConfirm('Remove ' + (m.name ?? 'them') + ' from ' + g.title + '?')) return; try { await adminTgRemove(g.id, m.id); load(); } catch (e) { say((e as Error).message); } }}>×</button></span>
           ))}</div>
           <button className="btn sm" onClick={async () => { try { await adminTgTest(g.id); say('Test message sent to ' + g.title + '.'); setTimeout(load, 1500); } catch (e) { say((e as Error).message); } }}>Send a test message</button>
         </div>

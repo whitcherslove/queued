@@ -88,6 +88,16 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
     if (doc.startViewTransition && !calm && id !== section) doc.startViewTransition(() => flushSync(apply));
     else apply();
   };
+  // a notification tapped while the app is already open: the service worker tells us where to go
+  useEffect(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const onMsg = (e: MessageEvent) => {
+      if (e.data?.type !== 'open') return;
+      try { const o = new URL(e.data.url).searchParams.get('open'); if (o && (SECTIONS as { id: string }[]).some((x) => x.id === o)) go(o as SectionId); } catch { /* ignore */ }
+    };
+    navigator.serviceWorker.addEventListener('message', onMsg);
+    return () => navigator.serviceWorker.removeEventListener('message', onMsg);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Retro lives in the side menu: back (arrow, gesture) returns to the tab you came from
   useBackLayer(SIDE(section), () => setSection(lastBar));
   const [tab, setTab] = useState(0);
@@ -127,7 +137,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         ); })}
         {admin && <button className="drawer-item" onClick={() => { setDrawer(false); setAdminOpen(true); }}>Admin</button>}
         <button className="drawer-item" onClick={() => { setDrawer(false); setNewsOpen(true); }}>What’s new</button>
-        <span className="muted small drawer-foot">Queued · v4.23.1</span>
+        <span className="muted small drawer-foot">Queued · v4.24</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>

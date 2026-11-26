@@ -1,3 +1,4 @@
+import { askConfirm, notify } from '../lib/dialog';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import QRCode from 'qrcode';
 import type { Profile } from '../lib/profile';
@@ -37,7 +38,8 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
   const [feedLoading, setFeedLoading] = useState(true);
   const [mine, setMine] = useState<Map<string, { id: string; section: string }>>(new Map());
   const [card, setCardState] = useState<{ id: string; section: string; logs?: unknown[] } | null>(null);
-  const setCard = (c: { id: string; section: string } | null) => { if (!c) { setCardState(null); return; } loadItemLogs(c.id).then((lg) => setCardState({ ...c, logs: lg })).catch(() => setCardState(c)); };   // my own card, opened from Activity or a friend's page
+  const [opening, setOpening] = useState(false);
+  const setCard = (c: { id: string; section: string } | null) => { if (!c) { setCardState(null); return; } setOpening(true); loadItemLogs(c.id).then((lg) => setCardState({ ...c, logs: lg })).catch(() => setCardState(c)).finally(() => setOpening(false)); };   // my own card, opened from Activity or a friend's page
   useBackLayer(!!card, () => setCard(null));
   const [picker, setPicker] = useState<string | null>(null);   // the event whose reaction picker is open
   // a title someone else has: if it's in my lists — open my card; if not — the sheet with "Add to Backlog"
@@ -90,7 +92,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
     const next = on ? (had ? cur.map((r) => r.emoji === emoji ? { ...r, count: r.count + 1, mine: true } : r) : [...cur, { emoji, count: 1, mine: true }])
       : cur.map((r) => r.emoji === emoji ? { ...r, count: r.count - 1, mine: false } : r).filter((r) => r.count > 0);
     setFeed((f) => f.map((x) => x.id === a.id ? { ...x, reactions: next } : x));
-    try { await setReaction(a.id, emoji, on); } catch { setFeed((f) => f.map((x) => x.id === a.id ? { ...x, reactions: cur } : x)); }
+    try { await setReaction(a.id, emoji, on); } catch { setFeed((f) => f.map((x) => x.id === a.id ? { ...x, reactions: cur } : x)); notify(navigator.onLine ? 'Couldn’t react — try again' : 'You’re offline'); }
   };
   const reactBar = (a: Activity) => {
     const used = (a.reactions ?? []).filter((r) => r.count > 0);
@@ -135,8 +137,8 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
   ); };
   const addTitle = async (t: MiniTitle & { section?: string; platform?: string | null }) => {
     if (!t.title_id || !t.section) return;
-    try { await addToBacklog(t.title_id, t.section as never, 0, (['console', 'pc', 'retro'].includes(t.section) ? { platform: t.platform ?? null } : t.section === 'books' ? { format: 'paper' } : {}) as never); myTitleIds().then(setMine).catch(() => undefined); setNote('Added to your Backlog.'); }
-    catch { setNote('Couldn’t add it. Try again.'); }
+    try { await addToBacklog(t.title_id, t.section as never, 0, (['console', 'pc', 'retro'].includes(t.section) ? { platform: t.platform ?? null } : t.section === 'books' ? { format: 'paper' } : {}) as never); notify('Added to your Backlog ✓'); myTitleIds().then(setMine).catch(() => undefined); setNote('Added to your Backlog.'); }
+    catch { notify(navigator.onLine ? 'Couldn’t add it — try again' : 'You’re offline — nothing was added'); }
     setTitleOpen(null);
   };
 
@@ -264,7 +266,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
             <div key={r.id!} className="friend-row">
               <button className="friend-open" onClick={() => { onOpenFriend?.(r); setFriendOpen(r.other); }}><Avatar url={r.avatar_url} email={r.handle ?? r.name ?? '?'} size={40} />
                 <span className="grow stack-0"><strong>{label(r)}</strong>{r.handle && r.name && <span className="muted small">@{r.handle}</span>}</span></button>
-              <button className="link danger" disabled={!!busy} onClick={act('r' + r.id, async () => { if (confirm('Remove ' + label(r) + ' from friends?')) await removeFriend(r.id!); })}>Remove</button>
+              <button className="link danger" disabled={!!busy} onClick={act('r' + r.id, async () => { if (await askConfirm('Remove ' + label(r) + ' from friends?')) await removeFriend(r.id!); })}>Remove</button>
             </div>
           ))}
           {sent.length > 0 && <span className="muted small">Waiting for: {sent.map(label).join(', ')}</span>}
@@ -282,6 +284,7 @@ export default function Friends({ profile, onProfile, onBack, onMenu, onOpenFrie
             <button className="btn danger grow" onClick={async () => { const d = delAsk; setDelAsk(null); try { await deleteActivity(d.id); setFeed((f) => f.filter((x) => x.id !== d.id)); } catch { setNote('Couldn’t delete it.'); } }}>Delete</button></div>
         </div>
       </div>}
+      {opening && <div className="opening-veil" aria-hidden="true"><span className="spinner" /></div>}
       {card && <div className="card-layer">{card.section === 'tv'
         ? <ShowCard key={card.id} itemId={card.id} initial={null} settings={profile.settings} topPos={0} onClose={() => setCard(null)} onChanged={() => undefined} />
         : <MovieCard key={card.id} game={['console', 'pc', 'retro'].includes(card.section)} book={card.section === 'books'} itemId={card.id} initial={null} initialLogs={card.logs as never} settings={profile.settings} backlogCount={0} onClose={() => setCard(null)} onChanged={() => undefined} onOpenOther={(id) => setCard({ id, section: card.section })} />}</div>}
