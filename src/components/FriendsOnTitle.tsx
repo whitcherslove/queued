@@ -26,8 +26,8 @@ export default function FriendsOnTitle({ titleId, kind }: { titleId: string | nu
                 {kind === 'game' && f.platform && <> <PlatformIcon k={f.platform} size={10} /></>}</span>
               {(f.status === 'playing' || f.status === 'dropped') && f.label && <ProgressLine pct={f.pct ?? null} label={f.label} stopped={f.status === 'dropped'} />}
             </span>
-            {f.status === 'done' && tier && <span className="tier-under" style={{ background: tier.color }}>{tier.label}</span>}
-            {f.status === 'dropped' && <span className="tier-under" style={{ background: '#A98BE0' }}>Dropped</span>}
+            {(f.status === 'done' || f.status === 'dropped') && tier && <span className="tier-under" style={{ background: tier.color }}>{tier.label}</span>}
+            {f.status === 'dropped' && <span className="tier-under" style={{ background: '#A98BE0', color: '#fff' }}>Dropped</span>}
           </div>
         ); })}
       {list.length > 3 && <button className="link left" onClick={() => setAll(!all)}>{all ? 'Show less' : '+' + (list.length - 3) + ' more'}</button>}
