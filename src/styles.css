@@ -1455,3 +1455,5 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .offline-bar { position: fixed; top: env(safe-area-inset-top, 0px); left: 0; right: 0; z-index: 70; text-align: center; padding: 6px 12px; font-size: 12px; font-weight: 800; background: #DE3C49; color: #fff; }
 .opening-veil { position: fixed; inset: 0; z-index: 27; display: grid; place-items: center; background: color-mix(in srgb, var(--bg) 55%, transparent); animation: tip-in .15s ease-out; }
 .fot-row .tier-under + .tier-under { margin-left: 4px; }
+.now-row .stack-0 { min-width: 0; }
+.now-row .prog-line { margin-top: 6px; }

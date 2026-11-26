@@ -58,8 +58,8 @@ export default function FriendPage({ id, onClose, onTitle }: { id: string; onClo
               <button key={i} className="now-row" onClick={() => onTitle(t)}>
                 <Poster t={{ title: t.title, poster_url: t.poster_url }} w={30} h={44} />
                 <span className="grow stack-0"><span className="row-title ellipsis">{t.title}</span>
-                  <span className="muted small now-kind">{t.section === 'books' ? <FormatIcon f={t.format} size={11} /> : t.platform ? <PlatformIcon k={t.platform} size={10} /> : null}{t.section === 'tv' ? 'Watching' : t.section === 'books' ? 'Reading' : t.section === 'movies' ? 'Watching' : 'Playing'}</span></span>
-                  {(t as { label?: string }).label && <ProgressLine pct={t.pct ?? null} label={(t as { label?: string }).label!} />}
+                  <span className="muted small now-kind">{t.section === 'books' ? <FormatIcon f={t.format} size={11} /> : t.platform ? <PlatformIcon k={t.platform} size={10} /> : null}{t.section === 'tv' ? 'Watching' : t.section === 'books' ? 'Reading' : t.section === 'movies' ? 'Watching' : 'Playing'}</span>
+                  {(t as { label?: string }).label && <ProgressLine pct={t.pct ?? null} label={(t as { label?: string }).label!} />}</span>
               </button>
             ))}
           </section>}
