@@ -23,7 +23,7 @@ import { FORMATS, formatLabel, positionMinutes, readHours } from '../lib/formats
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import { ChevBtn, IconBack, MoreBtn, ReplayIcon } from '../components/Icons';
 import FriendsOnTitle from '../components/FriendsOnTitle';
-import SteamCard from '../components/SteamCard';
+import SteamCard, { SteamPerfect } from '../components/SteamCard';
 import Platinum, { canPlatinum } from '../components/Platinum';
 import { useBackLayer } from '../lib/back';
 import { usePress } from '../lib/press';
@@ -517,6 +517,7 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
               {!logsReady ? null : !last ? <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>{W.notYet}</span> : tr ? <span className="pill" style={{ background: tr.color, color: '#17161A' }}>{tr.label}</span> : <span className="pill" style={{ background: 'var(--surface2)', color: 'var(--muted)' }}>{W.notYet}</span>}
               {rewOn && <span className="rew-icon" role="img" aria-label="Rewatch">{EYE_PLUS}</span>}
               {game && item.platinum && <Platinum size={22} />}
+              {game && item.steam_complete && <SteamPerfect size={22} />}
               {score !== null && <ScoreRing value={score} scale={scale} size={30} fontSize={11} />}
             </button>
           ) : (
@@ -577,12 +578,14 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
 
         {/* Steam: right under the status block — for every game in PC games */}
         {game && (item.section === 'pc' || ['pc', 'steam-deck'].includes(String((item as { platform?: string | null }).platform ?? ''))) && (   // every game in PC games (PC, Steam Deck, PS VR2 on PC…)
-          <SteamCard item={item as never} ttbMain={ttb?.main}
+          <SteamCard item={item as never} ready={full} ttbMain={ttb?.main}
             firstRun={!item.rewatch && logs.filter((l) => !l.dropped).length === (item.status === 'done' ? 1 : 0)}
             lastFinished={logs.filter((l) => !l.dropped).map((l) => l.watched_at).sort().slice(-1)[0] ?? null}
             onStart={() => startPlaying()}
             onReplay={guard(async () => { const now = new Date().toISOString(); await updateItem(item.id, { status: 'playing', rewatch: true, progress: 0, run_started_at: now, started_on: localDay(now), up_next: false } as never); })}
-            onPatch={(patch) => { setItem({ ...item, ...patch } as never); if (patch.overrides) updateItem(item.id, { overrides: patch.overrides } as never).catch(() => undefined); }} />
+            onPatch={(patch) => { const was = item as { steam_complete?: boolean; steam_appid?: number | null }; setItem({ ...item, ...patch } as never);
+              if (patch.overrides) updateItem(item.id, { overrides: patch.overrides } as never).then(onChanged).catch(() => undefined);
+              else if (!!patch.steam_complete !== !!was.steam_complete || (patch.steam_appid ?? null) !== (was.steam_appid ?? null)) onChanged(); }} />
         )}
         {/* Lower part (details, collection, viewings, AI) appears in one piece once the full card is loaded */}
         {!full ? <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div> : (

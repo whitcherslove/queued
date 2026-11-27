@@ -1511,3 +1511,10 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .vv-dialog { position: relative; width: 100%; max-width: 480px; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,.45); overflow: hidden; }
 .vv-dialog > * { flex-shrink: 0; }
 .vv-dialog > .steam-list { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; }
+
+.steam-card.tappable { cursor: pointer; transition: transform .12s ease; }
+.steam-card.tappable:active { transform: scale(.985); }
+.steam-relink { border-top: 1px solid var(--line); padding-top: 10px; gap: 10px; }
+
+.steam-skel { height: 14px; border-radius: 6px; background: linear-gradient(90deg, var(--surface2), color-mix(in srgb, var(--surface2) 60%, var(--ink) 8%), var(--surface2)); background-size: 200% 100%; animation: skel 1.2s ease-in-out infinite; }
+@keyframes skel { to { background-position: -200% 0; } }

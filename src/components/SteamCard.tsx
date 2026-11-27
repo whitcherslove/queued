@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { appIdFromInput, paceLine, steamConnected, steamHint, steamLink, steamOwned, steamRefresh, steamResolve, useSteam, type AchPick } from '../lib/steam';
 import { ChevBtn } from './Icons';
 import { notify } from '../lib/dialog';
@@ -18,27 +19,28 @@ export interface SteamItem { id: string; status: string; platform?: string | nul
  * Steam in a game's card, right under the status block. Numbers come from what the app already loaded
  * (no waiting); if they're a few hours old, this game is refreshed in the background.
  */
-export default function SteamCard({ item, ttbMain, firstRun, lastFinished, onStart, onReplay, onPatch }: {
-  item: SteamItem; ttbMain: number | null | undefined; firstRun: boolean; lastFinished: string | null;
+export default function SteamCard({ item, ready, ttbMain, firstRun, lastFinished, onStart, onReplay, onPatch }: {
+  item: SteamItem; ready: boolean; ttbMain: number | null | undefined; firstRun: boolean; lastFinished: string | null;
   onStart: () => void; onReplay: () => void; onPatch: (p: Record<string, unknown>) => void;
 }) {
   const [appid, setAppid] = useState<number | null | undefined>(item.steam_appid);
-  const [complete, setComplete] = useState(!!item.steam_complete);
+  // the full game (loaded right after the card opens) already knows its Steam link — take it
+  useEffect(() => { if (item.steam_appid !== undefined && item.steam_appid !== null) setAppid(item.steam_appid); }, [item.steam_appid]);
   const [open, setOpen] = useState(false);
   const [linking, setLinking] = useState(false);
   const [busy, setBusy] = useState(false);
   const asked = useRef(false);
   const s = useSteam(appid);
   const on = steamConnected();
-  const apply = (r: { appid: number; complete: boolean }) => { setAppid(r.appid); setComplete(r.complete); onPatch({ steam_appid: r.appid, steam_complete: r.complete }); };
+  const apply = (r: { appid: number; complete: boolean }) => { setAppid(r.appid); onPatch({ steam_appid: r.appid, steam_complete: r.complete }); };
 
   useEffect(() => {
-    if (!on || asked.current) return;
+    if (!on || !ready || asked.current) return;   // wait for the full game: it may already know its Steam link
     if (appid === null || appid === undefined) { asked.current = true; steamResolve(item.id).then(apply).catch(() => setAppid(0)); return; }   // not linked yet
     if (appid > 0 && s && (Date.now() - new Date(s.updated_at).getTime() > 3 * 3600e3 || (s.playtime_min > 0 && !s.ach_checked_at))) {
       asked.current = true; setBusy(true); steamRefresh(item.id).then(apply).catch(() => undefined).finally(() => setBusy(false));   // quietly, in the background
     }
-  }, [appid, s?.updated_at]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [appid, s?.updated_at, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!on || appid === 0) return null;   // no Steam, or "Not on Steam"
   const refresh = async () => { setBusy(true); try { apply(await steamRefresh(item.id)); } catch (e) { notify((e as Error).message); } setBusy(false); };
@@ -47,11 +49,12 @@ export default function SteamCard({ item, ttbMain, firstRun, lastFinished, onSta
   const notNow = () => onPatch({ overrides: { ...((item.overrides as object) ?? {}), steam_hint_off: new Date().toISOString() } });
   const sheet = linking && <LinkSheet current={appid ?? null} onClose={() => setLinking(false)} onPick={setLink} />;
 
-  if (appid === null || appid === undefined) return <div className="card steam-card link-only"><SteamLogo /><span className="grow muted small">Linking to Steam…</span></div>;
+  // not known yet: a quiet placeholder of the same height, no "Linking…" text
+  if (appid === null || appid === undefined) return <div className="card steam-card link-only" aria-busy="true"><SteamLogo /><span className="grow steam-skel" /></div>;
   if (!s) return (
     <>
       <section className="card steam-card">
-        <div className="row nowrap"><SteamLogo /><button className="link grow steam-linked" onClick={() => setLinking(true)}>Linked game ›</button></div>
+        <div className="row nowrap"><SteamLogo /><span className="grow steam-linked">Linked game</span><button className="btn sm" onClick={() => setLinking(true)}>Change</button></div>
         <span className="muted small">Not in your Steam library yet — hours and achievements appear once you own it.</span>
       </section>
       {sheet}
@@ -64,17 +67,17 @@ export default function SteamCard({ item, ttbMain, firstRun, lastFinished, onSta
   const tiles = [s.ach_rarest && { k: 'Rarest', a: s.ach_rarest, sub: s.ach_rarest.pct != null ? s.ach_rarest.pct + '%' : '' },
     s.ach_latest && { k: 'Latest', a: s.ach_latest, sub: ago(s.ach_latest.at) },
     s.ach_easiest && { k: 'Easiest left', a: s.ach_easiest, sub: s.ach_easiest.pct != null ? s.ach_easiest.pct + '%' : '', locked: true }].filter(Boolean) as { k: string; a: AchPick; sub: string; locked?: boolean }[];
-  const canOpen = !!pace || tiles.length > 0 || showDeck;
   const pc = Math.max(0, s.playtime_min - s.playtime_deck_min), deck = s.playtime_deck_min;
   return (
     <>
-      <section className="card steam-card">
+      <section className={'card steam-card tappable' + (open ? ' open' : '')} role="button" tabIndex={0} aria-expanded={open}
+        onClick={(e) => { if ((e.target as HTMLElement).closest('button, a, input')) return; setOpen(!open); }}
+        onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) setOpen(!open); }}>
         <div className="row nowrap">
           <SteamLogo />
-          <button className="link grow steam-linked" onClick={() => setLinking(true)}>{s.name ?? 'Steam game'} ›</button>
-          {complete && <SteamPerfect size={20} />}
+          <span className="grow steam-linked">{s.name ?? 'Steam game'}</span>
           <button className={'icon-btn sm steam-refresh' + (busy ? ' spinning' : '')} aria-label="Refresh from Steam" disabled={busy} onClick={refresh}>↻</button>
-          {canOpen && <button className="icon-btn sm" aria-label={open ? 'Less' : 'More'} onClick={() => setOpen(!open)}><ChevBtn open={open} size={28} /></button>}
+          <button className="icon-btn sm" aria-label={open ? 'Less' : 'More'} onClick={() => setOpen(!open)}><ChevBtn open={open} size={28} /></button>
         </div>
         <div className="steam-facts">
           <span><b>{hrs(s.playtime_min)}</b>
@@ -100,6 +103,7 @@ export default function SteamCard({ item, ttbMain, firstRun, lastFinished, onSta
             ))}
             {showDeck && <div className="steam-tile"><img className="ach-icon round" src={`/deck/${s.deck}.png`} alt="" /><span className="muted tiny">Steam Deck</span><span className="tiny steam-tile-name">{DECK[s.deck!]}</span></div>}
           </div>}
+          <div className="row nowrap steam-relink"><span className="grow muted tiny">Wrong game?</span><button className="btn sm" onClick={() => setLinking(true)}>Change Steam game</button></div>
         </div>}
       </section>
       {sheet}
@@ -131,7 +135,7 @@ function LinkSheet({ current, onClose, onPick }: { current: number | null; onClo
   const box = useVisibleBox();
   useEffect(() => { const o = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = o; }; }, []);
   const h = Math.min(560, box.height - 32);
-  return (
+  return createPortal(
     <div className="vv-modal" style={{ top: box.top, height: box.height }}>
       <button className="sheet-scrim" aria-label="Close" onClick={onClose} />
       <div className="vv-dialog steam-link" role="dialog" aria-modal="true" aria-label="Link to Steam" style={{ height: h }}>
@@ -150,6 +154,7 @@ function LinkSheet({ current, onClose, onPick }: { current: number | null; onClo
           </>}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
