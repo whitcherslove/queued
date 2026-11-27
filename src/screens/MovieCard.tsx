@@ -25,7 +25,6 @@ import { ChevBtn, IconBack, MoreBtn, ReplayIcon } from '../components/Icons';
 import FriendsOnTitle from '../components/FriendsOnTitle';
 import SteamCard from '../components/SteamCard';
 import Platinum, { canPlatinum } from '../components/Platinum';
-import { prefetchSteam } from '../lib/steam';
 import { useBackLayer } from '../lib/back';
 import { usePress } from '../lib/press';
 
@@ -49,8 +48,6 @@ export const EXT_ICON = EXT;
 const PIN = <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4.5l4.5 4.5-3 1.5-3.5 3.5.5 4-1.5 1.5-3.5-3.5L4 20M8.5 11.5L12.5 15.5M15 4.5L12 7.5 8.5 7 7 8.5l3.5 3.5" /></svg>;
 
 export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
-  // the Steam block starts loading together with the card (not after it)
-  useEffect(() => { if (game) prefetchSteam(itemId); }, [itemId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
   const [full, setFull] = useState(!!initial?.title?.data);
@@ -580,9 +577,12 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
 
         {/* Steam: right under the status block — for every game in PC games */}
         {game && (item.section === 'pc' || ['pc', 'steam-deck'].includes(String((item as { platform?: string | null }).platform ?? ''))) && (   // every game in PC games (PC, Steam Deck, PS VR2 on PC…)
-          <SteamCard libraryId={item.id} status={item.status} progress={(item as { progress?: number | null }).progress ?? null} ttbMain={ttb?.main}
+          <SteamCard item={item as never} ttbMain={ttb?.main}
             firstRun={!item.rewatch && logs.filter((l) => !l.dropped).length === (item.status === 'done' ? 1 : 0)}
-            onStart={() => startPlaying()} />
+            lastFinished={logs.filter((l) => !l.dropped).map((l) => l.watched_at).sort().slice(-1)[0] ?? null}
+            onStart={() => startPlaying()}
+            onReplay={guard(async () => { const now = new Date().toISOString(); await updateItem(item.id, { status: 'playing', rewatch: true, progress: 0, run_started_at: now, started_on: localDay(now), up_next: false } as never); })}
+            onPatch={(patch) => { setItem({ ...item, ...patch } as never); if (patch.overrides) updateItem(item.id, { overrides: patch.overrides } as never).catch(() => undefined); }} />
         )}
         {/* Lower part (details, collection, viewings, AI) appears in one piece once the full card is loaded */}
         {!full ? <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div> : (

@@ -5,6 +5,7 @@ import Avatar from './Avatar';
 import PlatformIcon from './PlatformIcon';
 import ProgressLine from './ProgressLine';
 import Platinum from './Platinum';
+import { SteamPerfect } from './SteamCard';
 
 /** "Friends" in a card: who's in it now (with progress), who finished it (with rating), who has it in the backlog. */
 export default function FriendsOnTitle({ titleId, kind }: { titleId: string | null | undefined; kind: 'movie' | 'tv' | 'game' | 'book' }) {
@@ -24,7 +25,7 @@ export default function FriendsOnTitle({ titleId, kind }: { titleId: string | nu
             <Avatar url={f.avatar_url} email={f.name ?? '?'} size={30} />
             <span className="grow stack-0">
               <span className="small"><strong>{f.name ?? 'Friend'}</strong> <span className="muted">{f.status === 'playing' ? 'is ' + doing : f.status === 'done' ? done : f.status === 'dropped' ? 'dropped it' : 'has it in the backlog'}</span>
-                {kind === 'game' && f.platform && <> <PlatformIcon k={f.platform} size={10} /></>}{f.platinum && <> <Platinum size={14} /></>}</span>
+                {kind === 'game' && f.platform && <> <PlatformIcon k={f.platform} size={10} /></>}{f.platinum && <> <Platinum size={14} /></>}{f.steam_complete && <> <SteamPerfect size={14} /></>}</span>
               {(f.status === 'playing' || f.status === 'dropped') && f.label && <ProgressLine pct={f.pct ?? null} label={f.label} stopped={f.status === 'dropped'} />}
             </span>
             {(f.status === 'done' || f.status === 'dropped') && tier && <span className="tier-under" style={{ background: tier.color }}>{tier.label}</span>}

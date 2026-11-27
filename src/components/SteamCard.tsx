@@ -1,75 +1,105 @@
 import { useEffect, useRef, useState } from 'react';
-import { appIdFromInput, paceLine, steamCard, steamLink, steamOwned, takeSteam, type SteamCardData } from '../lib/steam';
+import { appIdFromInput, paceLine, steamConnected, steamHint, steamLink, steamOwned, steamRefresh, steamResolve, useSteam, type AchPick } from '../lib/steam';
 import { ChevBtn } from './Icons';
 import { notify } from '../lib/dialog';
 import { useBackLayer } from '../lib/back';
+import { useVisibleBox } from '../lib/useVisibleBox';
 
 const hrs = (min: number) => (min >= 600 ? Math.round(min / 60) : Math.round(min / 6) / 10) + ' h';
 const ago = (iso: string | null) => { if (!iso) return 'never'; const d = Math.floor((Date.now() - new Date(iso).getTime()) / 864e5);
   return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? d + ' days ago' : d < 365 ? Math.round(d / 30) + ' months ago' : new Date(iso).getFullYear() + ''; };
-const seen = new Map<string, SteamCardData>();   // last numbers per game, so reopening a card shows them at once
 const SteamLogo = () => <img className="plat-logo steam-logo" src="/steam-logo.png" alt="Steam" />;
+export const SteamPerfect = ({ size = 16 }: { size?: number }) => <img className="steam-perfect" src="/steam-perfect.png" width={size} height={size} alt="Every Steam achievement" title="Every Steam achievement" />;
+const DECK: Record<string, string> = { verified: 'Verified', playable: 'Playable', unsupported: 'Unsupported', unknown: 'Unknown' };
+
+export interface SteamItem { id: string; status: string; platform?: string | null; steam_appid?: number | null; steam_complete?: boolean; overrides?: unknown; progress?: number | null }
 
 /**
- * Steam in a game's card (right under the status block): hours (and on Steam Deck), achievements, last played; ↻ refreshes.
- * Unfolded, while you're playing it for the first time: how your pace compares with most players.
+ * Steam in a game's card, right under the status block. Numbers come from what the app already loaded
+ * (no waiting); if they're a few hours old, this game is refreshed in the background.
  */
-export default function SteamCard({ libraryId, status, progress, ttbMain, firstRun, onStart }: {
-  libraryId: string; status: string; progress: number | null; ttbMain: number | null | undefined;
-  firstRun: boolean;   // Steam hours count every run — the pace line only makes sense on the first playthrough
-  onStart: () => void;
+export default function SteamCard({ item, ttbMain, firstRun, lastFinished, onStart, onReplay, onPatch }: {
+  item: SteamItem; ttbMain: number | null | undefined; firstRun: boolean; lastFinished: string | null;
+  onStart: () => void; onReplay: () => void; onPatch: (p: Record<string, unknown>) => void;
 }) {
-  const [d, setD] = useState<SteamCardData | null>(seen.get(libraryId) ?? null);
+  const [appid, setAppid] = useState<number | null | undefined>(item.steam_appid);
+  const [complete, setComplete] = useState(!!item.steam_complete);
   const [open, setOpen] = useState(false);
   const [linking, setLinking] = useState(false);
   const [busy, setBusy] = useState(false);
-  const alive = useRef(true);
-  useEffect(() => () => { alive.current = false; }, []);
-  const apply = (x: SteamCardData) => {
-    if (!alive.current) return;
-    if (x.connected && x.appid && !x.stats && d?.stats && d.appid === x.appid) return;   // a blip — keep what's on screen
-    seen.set(libraryId, x); setD(x);
-    // fresh numbers were being fetched in the background: ask again once
-    if (x.refreshing) setTimeout(() => steamCard(libraryId).then((y) => { if (alive.current && y.stats) { const z = { ...y, refreshing: false }; seen.set(libraryId, z); setD(z); } }).catch(() => undefined), 5000);
-  };
-  useEffect(() => { takeSteam(libraryId).then(apply).catch(() => undefined); }, [libraryId]); // eslint-disable-line react-hooks/exhaustive-deps
-  const refresh = async () => { setBusy(true); try { apply(await steamCard(libraryId, true)); } catch (e) { notify((e as Error).message); } setBusy(false); };
-  const setLink = async (appid: number | null) => { try { await steamLink(libraryId, appid); setLinking(false); setBusy(true); apply(await steamCard(libraryId, true)); } catch (e) { notify((e as Error).message); } setBusy(false); };
+  const asked = useRef(false);
+  const s = useSteam(appid);
+  const on = steamConnected();
+  const apply = (r: { appid: number; complete: boolean }) => { setAppid(r.appid); setComplete(r.complete); onPatch({ steam_appid: r.appid, steam_complete: r.complete }); };
 
-  if (!d || !d.connected || d.appid === 0) return null;   // no Steam connected, or "Not on Steam"
-  const sheet = linking && <LinkSheet current={d.appid ?? null} onClose={() => setLinking(false)} onPick={setLink} />;
-  if (!d.appid || !d.stats) return (
+  useEffect(() => {
+    if (!on || asked.current) return;
+    if (appid === null || appid === undefined) { asked.current = true; steamResolve(item.id).then(apply).catch(() => setAppid(0)); return; }   // not linked yet
+    if (appid > 0 && s && (Date.now() - new Date(s.updated_at).getTime() > 3 * 3600e3 || (s.playtime_min > 0 && !s.ach_checked_at))) {
+      asked.current = true; setBusy(true); steamRefresh(item.id).then(apply).catch(() => undefined).finally(() => setBusy(false));   // quietly, in the background
+    }
+  }, [appid, s?.updated_at]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!on || appid === 0) return null;   // no Steam, or "Not on Steam"
+  const refresh = async () => { setBusy(true); try { apply(await steamRefresh(item.id)); } catch (e) { notify((e as Error).message); } setBusy(false); };
+  const setLink = async (a: number | null) => { setLinking(false); setBusy(true); try { apply(await steamLink(item.id, a)); } catch (e) { notify((e as Error).message); } setBusy(false); };
+  const hintOff = (item.overrides as { steam_hint_off?: string } | null)?.steam_hint_off;
+  const notNow = () => onPatch({ overrides: { ...((item.overrides as object) ?? {}), steam_hint_off: new Date().toISOString() } });
+  const sheet = linking && <LinkSheet current={appid ?? null} onClose={() => setLinking(false)} onPick={setLink} />;
+
+  if (appid === null || appid === undefined) return <div className="card steam-card link-only"><SteamLogo /><span className="grow muted small">Linking to Steam…</span></div>;
+  if (!s) return (
     <>
-      <div className="card steam-card link-only">
-        <SteamLogo /><span className="grow muted small">{d.appid ? 'Not in your Steam library' : 'Not linked to Steam yet'}</span>
-        <button className="btn sm" onClick={() => setLinking(true)}>Link</button>
-        <button className="btn sm" onClick={() => setLink(0)}>Not on Steam</button>
-      </div>
+      <section className="card steam-card">
+        <div className="row nowrap"><SteamLogo /><button className="link grow steam-linked" onClick={() => setLinking(true)}>Linked game ›</button></div>
+        <span className="muted small">Not in your Steam library yet — hours and achievements appear once you own it.</span>
+      </section>
       {sheet}
     </>
   );
-  const s = d.stats, hours = s.playtime_min / 60, pct = s.ach_total ? Math.round((s.ach_done ?? 0) * 100 / s.ach_total) : null;
-  const pace = firstRun && status === 'playing' ? paceLine(hours, ttbMain, progress, libraryId) : null;   // only while playing it for the first time
-  const nudgeStart = status === 'backlog' && s.playtime_2w_min > 0;
+  const pct = s.ach_total ? Math.round((s.ach_done ?? 0) * 100 / s.ach_total) : null;
+  const pace = firstRun && item.status === 'playing' ? paceLine(s.playtime_min / 60, ttbMain, item.progress ?? null, item.id) : null;
+  const hint = steamHint(s, item.status, lastFinished, hintOff);
+  const showDeck = item.platform === 'steam-deck' && !!s.deck;
+  const tiles = [s.ach_rarest && { k: 'Rarest', a: s.ach_rarest, sub: s.ach_rarest.pct != null ? s.ach_rarest.pct + '%' : '' },
+    s.ach_latest && { k: 'Latest', a: s.ach_latest, sub: ago(s.ach_latest.at) },
+    s.ach_easiest && { k: 'Easiest left', a: s.ach_easiest, sub: s.ach_easiest.pct != null ? s.ach_easiest.pct + '%' : '', locked: true }].filter(Boolean) as { k: string; a: AchPick; sub: string; locked?: boolean }[];
+  const canOpen = !!pace || tiles.length > 0 || showDeck;
+  const pc = Math.max(0, s.playtime_min - s.playtime_deck_min), deck = s.playtime_deck_min;
   return (
     <>
       <section className="card steam-card">
         <div className="row nowrap">
           <SteamLogo />
           <button className="link grow steam-linked" onClick={() => setLinking(true)}>{s.name ?? 'Steam game'} ›</button>
-          <button className={'icon-btn sm steam-refresh' + (busy || d.refreshing ? ' spinning' : '')} aria-label="Refresh from Steam" disabled={busy} onClick={refresh}>↻</button>
-          {(pace || nudgeStart) && <button className="icon-btn sm" aria-label={open ? 'Less' : 'More'} onClick={() => setOpen(!open)}><ChevBtn open={open} size={28} /></button>}
+          {complete && <SteamPerfect size={20} />}
+          <button className={'icon-btn sm steam-refresh' + (busy ? ' spinning' : '')} aria-label="Refresh from Steam" disabled={busy} onClick={refresh}>↻</button>
+          {canOpen && <button className="icon-btn sm" aria-label={open ? 'Less' : 'More'} onClick={() => setOpen(!open)}><ChevBtn open={open} size={28} /></button>}
         </div>
         <div className="steam-facts">
-          <span><b>{hrs(s.playtime_min)}</b><span className="muted tiny">{s.playtime_deck_min > 0 ? hrs(Math.max(0, s.playtime_min - s.playtime_deck_min)) + ' on PC · ' + hrs(s.playtime_deck_min) + ' on Deck' : 'played'}</span></span>
+          <span><b>{hrs(s.playtime_min)}</b>
+            {pc >= 6 && <span className="muted tiny">{hrs(pc)} on PC</span>}
+            {deck >= 6 && <span className="muted tiny">{hrs(deck)} on Deck</span>}</span>
           {s.ach_total ? <span><b>{s.ach_done}/{s.ach_total}</b><span className="muted tiny">achievements</span><span className="mini-bar"><span style={{ width: (pct ?? 0) + '%' }} /></span></span>
-            : s.ach_total == null && s.playtime_min > 0 ? <span><b className="muted">…</b><span className="muted tiny">achievements</span></span> : null}
-          <span><b>{ago(s.last_played)}</b><span className="muted tiny">last played</span></span>
+            : !s.ach_checked_at && s.playtime_min > 0 ? <span><b className="muted">…</b><span className="muted tiny">achievements</span></span> : <span />}
+          <span><b>{ago(s.last_played)}</b><span className="muted tiny">last played</span>{s.playtime_2w_min > 0 && <span className="muted tiny">{hrs(s.playtime_2w_min)} · 2 weeks</span>}</span>
         </div>
-        {nudgeStart && !open && <span className="steam-nudge-dot" aria-hidden="true" />}
+        {hint && <div className="steam-hint">
+          <span className="grow small">{hint === 'start' ? 'You’ve been playing this on Steam' : 'Playing again?'}</span>
+          <button className="btn sm primary" onClick={hint === 'start' ? onStart : onReplay}>{hint === 'start' ? 'Move to Playing' : 'Start a replay'}</button>
+          <button className="link" onClick={notNow}>Not now</button>
+        </div>}
         {open && <div className="stack-sm steam-more">
-          {pace && <span className="steam-pace">{pace}<span className="muted tiny"> {Math.round(hours)} h of ~{Math.round(ttbMain ?? 0)} h · progress {Math.round(progress ?? 0)}%</span></span>}
-          {nudgeStart && <button className="btn sm primary" onClick={onStart}>You’ve been playing this on Steam — move to Playing</button>}
+          {pace && <span className="steam-pace">{pace}<span className="muted tiny"> {Math.round(s.playtime_min / 60)} h of ~{Math.round(ttbMain ?? 0)} h · progress {Math.round(item.progress ?? 0)}%</span></span>}
+          {(tiles.length > 0 || showDeck) && <div className="steam-tiles">
+            {tiles.map((t) => (
+              <button key={t.k} className="steam-tile" onClick={() => notify(t.a.name + (t.a.pct != null ? ' · ' + t.a.pct + '% of players' : ''))}>
+                {t.a.icon ? <img className={'ach-icon' + (t.locked ? ' locked' : '')} src={t.a.icon} alt="" loading="lazy" /> : <span className="ach-icon" />}
+                <span className="muted tiny">{t.k}</span><span className="tiny steam-tile-name">{t.a.name}</span><span className="muted tiny">{t.sub}</span>
+              </button>
+            ))}
+            {showDeck && <div className="steam-tile"><img className="ach-icon round" src={`/deck/${s.deck}.png`} alt="" /><span className="muted tiny">Steam Deck</span><span className="tiny steam-tile-name">{DECK[s.deck!]}</span></div>}
+          </div>}
         </div>}
       </section>
       {sheet}
@@ -77,7 +107,7 @@ export default function SteamCard({ libraryId, status, progress, ttbMain, firstR
   );
 }
 
-/** Which Steam game this is: your Steam library, the Steam Store, or a pasted Store link. Full-height, so the keyboard doesn't push it around. */
+/** Which Steam game this is: your Steam library, the Steam Store, or a pasted Store link. Full height, from the top. */
 function LinkSheet({ current, onClose, onPick }: { current: number | null; onClose: () => void; onPick: (appid: number | null) => void }) {
   useBackLayer(true, onClose);
   const [q, setQ] = useState('');
@@ -97,12 +127,16 @@ function LinkSheet({ current, onClose, onPick }: { current: number | null; onClo
       <span className="grow">{g.name}</span>{g.playtime_min !== undefined && <span className="muted tiny">{g.playtime_min ? hrs(g.playtime_min) : 'not played'}</span>}
     </button>
   );
+  // a centred window that keeps to the visible part of the screen: the keyboard can't push it around
+  const box = useVisibleBox();
+  useEffect(() => { const o = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = o; }; }, []);
+  const h = Math.min(560, box.height - 32);
   return (
-    <div className="sheet-wrap sheet-top">
+    <div className="vv-modal" style={{ top: box.top, height: box.height }}>
       <button className="sheet-scrim" aria-label="Close" onClick={onClose} />
-      <div className="sheet steam-link" role="dialog" aria-label="Link to Steam">
+      <div className="vv-dialog steam-link" role="dialog" aria-modal="true" aria-label="Link to Steam" style={{ height: h }}>
         <div className="row nowrap"><strong className="grow">Which Steam game is it?</strong><button className="link" onClick={onClose}>Close</button></div>
-        <input className="text-input" autoFocus placeholder="Search, or paste a Steam Store link" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="text-input" placeholder="Search, or paste a Steam Store link" value={q} onChange={(e) => setQ(e.target.value)} enterKeyHint="search" />
         <div className="row nowrap"><button className="btn sm grow" onClick={() => onPick(null)}>Automatic</button><button className="btn sm grow" onClick={() => onPick(0)}>Not on Steam</button></div>
         {pasted && <button className="btn primary" onClick={() => onPick(pasted)}>Use Steam app {pasted}</button>}
         <div className="steam-list">

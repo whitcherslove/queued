@@ -1,9 +1,18 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.26';
+export const APP_VERSION = '4.27';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.27',
+    title: 'Steam, deeper',
+    items: [
+      { icon: '⚡', title: 'Instant', text: 'Steam numbers load with the app and show up together with the card. They refresh every night and in the background when you open a game.' },
+      { icon: '🏅', title: 'Achievements', text: 'Unfold the Steam block: your rarest achievement, the latest one, and the easiest one left — plus the Steam Deck status. Every achievement earned? The game gets a badge everywhere.' },
+      { icon: '🎮', title: 'Playing on Steam', text: 'A game in your Backlog you’ve been playing on Steam (or a finished one you’re playing again) shows up on Home and in its card: Move to Playing, Start a replay, or Not now.' }
+    ]
+  },
   {
     version: '4.26',
     title: 'Platinum',

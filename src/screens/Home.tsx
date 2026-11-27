@@ -1,3 +1,4 @@
+import { steamHint, useSteamAll } from '../lib/steam';
 import { useWhenBack } from '../lib/useWhenBack';
 import { notify } from '../lib/dialog';
 import { Fragment } from 'react';
@@ -5,7 +6,7 @@ import HomeEditor from '../components/HomeEditor';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { LibItem, LogRow, Mark, SeasonEps } from '../lib/types';
 import type { Settings } from '../lib/theme';
-import { loadEpisodes, loadEverything, loadMarks, pickTonight } from '../lib/remote';
+import { loadEpisodes, loadEverything, loadMarks, pickTonight, updateItem } from '../lib/remote';
 import { dateParts, merged , byFinish, cardLogs } from '../lib/logic';
 import { epLabel, epRuntime, isEnded, logSeasons, progress, seasonAir, seasonsName, showState, todayIso } from '../lib/tv';
 import { applyEpisodeMarks, startWatching } from '../lib/tvActions';
@@ -333,6 +334,22 @@ export default function Home({ settings, onSettings, onMenu, onStats, onBack, on
     </button>
   ) : null;
   const [editHome, setEditHome] = useState(false);
+  // Steam: "you've been playing this" — games in Backlog (or finished ones you're playing again)
+  const steamAll = useSteamAll();
+  const steamNow = useMemo(() => items.filter((i) => (i.steam_appid ?? 0) > 0).map((it) => {
+    const last = logs.filter((l) => l.library.id === it.id && !l.dropped).map((l) => l.watched_at).sort().slice(-1)[0] ?? null;
+    const kind = steamHint(steamAll[it.steam_appid!] ?? null, it.status, last, (it.overrides as { steam_hint_off?: string } | null)?.steam_hint_off);
+    return kind ? { it, kind } : null;
+  }).filter(Boolean).slice(0, 3) as { it: LibItem; kind: 'start' | 'replay' }[], [items, logs, steamAll]);
+  const steamAct = async (it: LibItem, kind: 'start' | 'replay' | 'off') => {
+    const now = new Date().toISOString();
+    try {
+      if (kind === 'off') await updateItem(it.id, { overrides: { ...((it.overrides as object) ?? {}), steam_hint_off: now } } as never);
+      else await updateItem(it.id, { status: 'playing', progress: 0, run_started_at: now, started_on: now.slice(0, 10), up_next: false, ...(kind === 'replay' ? { rewatch: true } : {}) } as never);
+      if (kind !== 'off') notify(kind === 'start' ? 'Moved to Playing ✓' : 'Replay started ✓');
+      load();
+    } catch { notify('Couldn’t save — try again'); }
+  };
 
   // Home blocks, in your order (Edit Home)
   const block = (id: string) => {
@@ -529,6 +546,18 @@ export default function Home({ settings, onSettings, onMenu, onStats, onBack, on
               <span className="grow stack-0"><span className="small">🎮 <strong>{c.from_name || 'A friend'}</strong> says you {c.playing ? 'are playing' : 'played'} <strong>{c.title}</strong> together</span>
                 <span className="muted tiny">{[c.platform ? c.platform.toUpperCase() : '', c.finished_at ? 'finished ' + new Date(c.finished_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''].filter(Boolean).join(' · ')}</span>
                 <span className="row nowrap coop-home-btns"><button className="btn sm" onClick={() => answer(c, false)}>Not me</button><button className="btn primary sm" onClick={() => answer(c, true)}>Add to Playing</button></span></span>
+            </div>
+          ))}
+        </section>}
+        {steamNow.length > 0 && <section className="panel coop-home steam-home">
+          {steamNow.map(({ it, kind }) => (
+            <div key={it.id} className="coop-home-row">
+              <Poster t={{ title: it.title.title, poster_url: it.title.poster_url }} w={40} h={58} />
+              <span className="grow stack-0"><span className="small"><img className="plat-logo steam-logo" src="/steam-logo.png" alt="Steam" /> {kind === 'start' ? 'You’ve been playing' : 'Playing again?'} <strong>{it.title.title}</strong></span>
+                <span className="row nowrap coop-home-btns">
+                  <button className="btn sm" onClick={() => steamAct(it, 'off')}>Not now</button>
+                  <button className="btn primary sm" onClick={() => steamAct(it, kind)}>{kind === 'start' ? 'Move to Playing' : 'Start a replay'}</button>
+                </span></span>
             </div>
           ))}
         </section>}

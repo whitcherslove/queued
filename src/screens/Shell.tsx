@@ -1,3 +1,4 @@
+import { loadMySteam, setSteamConnected } from '../lib/steam';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { flushSync } from 'react-dom';
 import type { Profile } from '../lib/profile';
@@ -47,6 +48,11 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
   // platforms from Admin: the last known list right away, then the fresh one
   const [, setPlatTick] = useState(0);
   useState(() => { try { registerCustomPlatforms(JSON.parse(localStorage.getItem('queued.platforms') ?? '[]')); } catch { /* none yet */ } return 0; });
+  // Steam: remember whether it's connected; after Home is drawn, one quick read of your Steam numbers
+  useEffect(() => {
+    const on = !!profile.steam_name; setSteamConnected(on);
+    if (on) { const t = setTimeout(() => loadMySteam().catch(() => undefined), 600); return () => clearTimeout(t); }
+  }, [profile.steam_name]);
   useEffect(() => { loadCustomPlatforms().then((l) => { registerCustomPlatforms(l); try { localStorage.setItem('queued.platforms', JSON.stringify(l)); } catch { /* full */ } setPlatTick((x) => x + 1); }).catch(() => undefined); }, []);
   useEffect(() => { loadChangelogDb().then(setDbChangelog).catch(() => undefined).finally(() => {
     const st = profile.settings; const APP_VERSION = latestVersion();
@@ -137,7 +143,7 @@ export default function Shell({ profile, onProfile, onSettings }: Props) {
         ); })}
         {admin && <button className="drawer-item" onClick={() => { setDrawer(false); setAdminOpen(true); }}>Admin</button>}
         <button className="drawer-item" onClick={() => { setDrawer(false); setNewsOpen(true); }}>What’s new</button>
-        <span className="muted small drawer-foot">Queued · v4.26</span>
+        <span className="muted small drawer-foot">Queued · v4.27.1</span>
       </nav>
       <button className="drawer-scrim" aria-label="Close menu" onClick={() => setDrawer(false)} />
     </div>
