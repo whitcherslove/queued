@@ -7,7 +7,7 @@ import { useBackLayer } from '../lib/back';
 const hrs = (min: number) => (min >= 600 ? Math.round(min / 60) : Math.round(min / 6) / 10) + ' h';
 const ago = (iso: string | null) => { if (!iso) return 'never'; const d = Math.floor((Date.now() - new Date(iso).getTime()) / 864e5);
   return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? d + ' days ago' : d < 365 ? Math.round(d / 30) + ' months ago' : new Date(iso).getFullYear() + ''; };
-const SteamLogo = () => <img className="plat-logo steam-logo" src="/plogos/steam-deck.png" alt="Steam" />;
+const SteamLogo = () => <img className="plat-logo steam-logo" src="/steam-logo.png" alt="Steam" />;
 
 /**
  * Steam in a game's card (right under the status block): hours (and on Steam Deck), achievements, last played; ↻ refreshes.

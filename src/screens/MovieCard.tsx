@@ -571,8 +571,8 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
         </section>
 
 
-        {/* Steam: right under the status block — only when the game's platform is PC or Steam Deck */}
-        {game && ['pc', 'steam-deck'].includes(String((item as { platform?: string | null }).platform ?? '')) && (   // only for PC / Steam Deck
+        {/* Steam: right under the status block — for every game in PC games */}
+        {game && (item.section === 'pc' || ['pc', 'steam-deck'].includes(String((item as { platform?: string | null }).platform ?? ''))) && (   // every game in PC games (PC, Steam Deck, PS VR2 on PC…)
           <SteamCard libraryId={item.id} status={item.status} progress={(item as { progress?: number | null }).progress ?? null} ttbMain={ttb?.main}
             firstRun={!item.rewatch && logs.filter((l) => !l.dropped).length === (item.status === 'done' ? 1 : 0)}
             onStart={() => startPlaying()} />
