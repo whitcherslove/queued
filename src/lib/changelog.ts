@@ -1,9 +1,17 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.25';
+export const APP_VERSION = '4.26';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.26',
+    title: 'Platinum',
+    items: [
+      { icon: '🏆', title: 'Platinum trophies', text: 'PlayStation games: open My take and switch on Platinum. The trophy shows next to your rating, in your lists, in Stats and to friends.' },
+      { icon: '🎮', title: 'Steam, smoother', text: 'Hours on PC and on Steam Deck, the block no longer flickers, and “Not on Steam” can be undone in Edit details.' }
+    ]
+  },
   {
     version: '4.25',
     title: 'Steam',

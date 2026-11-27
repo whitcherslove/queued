@@ -7,6 +7,7 @@ import { useBackLayer } from '../lib/back';
 const hrs = (min: number) => (min >= 600 ? Math.round(min / 60) : Math.round(min / 6) / 10) + ' h';
 const ago = (iso: string | null) => { if (!iso) return 'never'; const d = Math.floor((Date.now() - new Date(iso).getTime()) / 864e5);
   return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? d + ' days ago' : d < 365 ? Math.round(d / 30) + ' months ago' : new Date(iso).getFullYear() + ''; };
+const seen = new Map<string, SteamCardData>();   // last numbers per game, so reopening a card shows them at once
 const SteamLogo = () => <img className="plat-logo steam-logo" src="/steam-logo.png" alt="Steam" />;
 
 /**
@@ -18,7 +19,7 @@ export default function SteamCard({ libraryId, status, progress, ttbMain, firstR
   firstRun: boolean;   // Steam hours count every run — the pace line only makes sense on the first playthrough
   onStart: () => void;
 }) {
-  const [d, setD] = useState<SteamCardData | null>(null);
+  const [d, setD] = useState<SteamCardData | null>(seen.get(libraryId) ?? null);
   const [open, setOpen] = useState(false);
   const [linking, setLinking] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -26,11 +27,12 @@ export default function SteamCard({ libraryId, status, progress, ttbMain, firstR
   useEffect(() => () => { alive.current = false; }, []);
   const apply = (x: SteamCardData) => {
     if (!alive.current) return;
-    setD(x);
+    if (x.connected && x.appid && !x.stats && d?.stats && d.appid === x.appid) return;   // a blip — keep what's on screen
+    seen.set(libraryId, x); setD(x);
     // fresh numbers were being fetched in the background: ask again once
-    if (x.refreshing) setTimeout(() => steamCard(libraryId).then((y) => alive.current && setD({ ...y, refreshing: false })).catch(() => undefined), 5000);
+    if (x.refreshing) setTimeout(() => steamCard(libraryId).then((y) => { if (alive.current && y.stats) { const z = { ...y, refreshing: false }; seen.set(libraryId, z); setD(z); } }).catch(() => undefined), 5000);
   };
-  useEffect(() => { takeSteam(libraryId).then(apply).catch(() => setD(null)); }, [libraryId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { takeSteam(libraryId).then(apply).catch(() => undefined); }, [libraryId]); // eslint-disable-line react-hooks/exhaustive-deps
   const refresh = async () => { setBusy(true); try { apply(await steamCard(libraryId, true)); } catch (e) { notify((e as Error).message); } setBusy(false); };
   const setLink = async (appid: number | null) => { try { await steamLink(libraryId, appid); setLinking(false); setBusy(true); apply(await steamCard(libraryId, true)); } catch (e) { notify((e as Error).message); } setBusy(false); };
 
@@ -59,7 +61,7 @@ export default function SteamCard({ libraryId, status, progress, ttbMain, firstR
           {(pace || nudgeStart) && <button className="icon-btn sm" aria-label={open ? 'Less' : 'More'} onClick={() => setOpen(!open)}><ChevBtn open={open} size={28} /></button>}
         </div>
         <div className="steam-facts">
-          <span><b>{hrs(s.playtime_min)}</b><span className="muted tiny">played{s.playtime_deck_min > 0 ? ' · ' + hrs(s.playtime_deck_min) + ' on Deck' : ''}</span></span>
+          <span><b>{hrs(s.playtime_min)}</b><span className="muted tiny">{s.playtime_deck_min > 0 ? hrs(Math.max(0, s.playtime_min - s.playtime_deck_min)) + ' on PC · ' + hrs(s.playtime_deck_min) + ' on Deck' : 'played'}</span></span>
           {s.ach_total ? <span><b>{s.ach_done}/{s.ach_total}</b><span className="muted tiny">achievements</span><span className="mini-bar"><span style={{ width: (pct ?? 0) + '%' }} /></span></span>
             : s.ach_total == null && s.playtime_min > 0 ? <span><b className="muted">…</b><span className="muted tiny">achievements</span></span> : null}
           <span><b>{ago(s.last_played)}</b><span className="muted tiny">last played</span></span>

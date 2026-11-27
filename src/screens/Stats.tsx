@@ -13,6 +13,7 @@ import ShowCard from './ShowCard';
 import MovieCard from './MovieCard';
 import { EyePlus } from './Movies';
 import AddonPill from '../components/AddonPill';
+import Platinum from '../components/Platinum';
 import { useBackLayer } from '../lib/back';
 import ScoreRing from '../components/ScoreRing';
 
@@ -134,7 +135,7 @@ export default function Stats({ onBack, onMenu, settings }: { onBack?: () => voi
     return (
       <button key={l.id} className="st-row game" onClick={() => setCard(l.library)}>
         <Poster t={{ title: l.library.title.title, poster_url: l.library.title.poster_url }} w={34} h={50} />
-        <span className="grow stack-0 st-main"><span className="st-title">{l.library.title.title}<AddonPill t={l.library.title} />{l.rewatch && <span className="rew-mini" role="img" aria-label="Replay"><ReplayIcon size={13} /></span>}</span>
+        <span className="grow stack-0 st-main"><span className="st-title">{l.library.title.title}<AddonPill t={l.library.title} />{l.library.platinum && <Platinum size={15} />}{l.rewatch && <span className="rew-mini" role="img" aria-label="Replay"><ReplayIcon size={13} /></span>}</span>
           <span className="st-ref muted tiny">{plat ? <PlatformIcon k={plat} size={10} /> : <span />}<span className="st-year">{l.library.title.year ?? ''}</span><span>{fmtDate(l.watched_at)}</span></span></span>
         <span className="st-rate">{rate(l)}{l.score != null && <ScoreRing value={Number(l.score)} scale={scale} size={30} fontSize={11} />}</span>
       </button>

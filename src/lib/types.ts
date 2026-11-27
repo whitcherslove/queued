@@ -13,7 +13,7 @@ export type Overrides = Partial<Pick<Title, 'title' | 'release_date' | 'runtime'
 
 export interface LibItem {
   id: string; title_id: string; section: Section; status: Status; up_next: boolean; position: number;
-  tier: string | null; score: number | null; rewatch?: boolean; overrides: Overrides; title: Title;
+  tier: string | null; score: number | null; rewatch?: boolean; platinum?: boolean; overrides: Overrides; title: Title;
   plan_from?: number | null; plan_to?: number | null; plan_seasons?: number[] | null; run_started_at?: string | null; started_on?: string | null;
 }
 

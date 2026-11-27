@@ -1486,3 +1486,9 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .sheet-wrap.sheet-top .sheet.steam-link { height: 86vh; border-radius: 22px; margin: 0 8px; }
 .steam-group { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin: 10px 0 2px; }
 .steam-empty { padding: 14px 0; }
+
+/* platinum trophy */
+.platinum { display: inline-block; vertical-align: -3px; margin-left: 5px; object-fit: contain; filter: drop-shadow(0 0 4px rgba(120, 190, 255, .45)); }
+.platinum.off { opacity: .3; filter: grayscale(1); }
+.take-line .platinum { margin-left: 0; }
+.steam-undo { padding: 8px 0; border-top: 1px solid var(--line); gap: 10px; }
