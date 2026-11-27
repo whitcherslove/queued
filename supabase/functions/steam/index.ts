@@ -51,8 +51,19 @@ async function resolveLib(db: any, lib: any): Promise<number> {
     appid = (await steamAppIds(db, [lib.title.source_id]))[lib.title.source_id] ?? 0;
     await db.from('titles').update({ data: { ...(lib.title.data ?? {}), steam_appid: appid } }).eq('id', lib.title.id);
   } else appid = 0;
+  if (!appid && mine === undefined && lib.user_id) appid = await byName(db, lib.user_id, lib.title?.title);
   if (lib.steam_appid !== appid) await db.from('library').update({ steam_appid: appid }).eq('id', lib.id);
   return appid;
+}
+/** IGDB didn't know the Steam id: look for the same name in your Steam library (Red Faction: Guerrilla → "Red Faction Guerrilla Re-Mars-tered") */
+async function byName(db: any, uid: string, title: string | undefined): Promise<number> {
+  if (!title) return 0;
+  const norm = (x: string) => x.toLowerCase().replace(/[™®©:’'\-–—.,!?]/g, ' ').replace(/\s+/g, ' ').trim();
+  const t = norm(title);
+  const { data } = await db.from('steam_stats').select('appid, name').eq('user_id', uid).ilike('name', '%' + title.split(/[:\-–—]/)[0].trim().replace(/[%_]/g, '') + '%').limit(20);
+  const list = (data ?? []).map((r: any) => ({ appid: r.appid, n: norm(r.name ?? '') }));
+  const hit = list.find((r: any) => r.n === t) ?? list.find((r: any) => r.n.startsWith(t + ' ')) ?? (list.length === 1 && list[0].n.includes(t) ? list[0] : null);
+  return hit?.appid ?? 0;
 }
 
 // ---------- Steam data ----------
@@ -79,7 +90,7 @@ async function achievementsFull(steamid: string, appid: number) {
   const meta = new Map<string, any>(((schema?.game?.availableGameStats?.achievements ?? []) as any[]).map((a) => [a.name, a]));
   const pct = new Map<string, number>(((global?.achievementpercentages?.achievements ?? []) as any[]).map((a) => [a.name, Number(a.percent)]));
   const view = (a: any, locked = false) => { const m = meta.get(a.apiname) ?? {};
-    return { name: m.displayName ?? a.apiname, icon: ICON(appid, locked ? (m.icongray ?? m.icon) : m.icon) ?? null, pct: pct.has(a.apiname) ? Math.round(pct.get(a.apiname)! * 10) / 10 : null, at: a.unlocktime ? new Date(a.unlocktime * 1000).toISOString() : null }; };
+    return { name: m.displayName ?? a.apiname, desc: m.description ?? '', icon: ICON(appid, locked ? (m.icongray ?? m.icon) : m.icon) ?? null, pct: pct.has(a.apiname) ? Math.round(pct.get(a.apiname)! * 10) / 10 : null, at: a.unlocktime ? new Date(a.unlocktime * 1000).toISOString() : null }; };
   const got = mine.filter((a) => a.achieved === 1), left = mine.filter((a) => a.achieved !== 1);
   const byPct = (l: any[]) => l.filter((a) => pct.has(a.apiname)).sort((x, y) => pct.get(x.apiname)! - pct.get(y.apiname)!);
   const rarest = byPct(got)[0], easiest = byPct(left).slice(-1)[0], latest = [...got].sort((x, y) => (y.unlocktime ?? 0) - (x.unlocktime ?? 0))[0];
@@ -106,14 +117,14 @@ async function syncUser(db: any, uid: string, steamid: string, limit = 40) {
   const prev = new Map<number, any>((before ?? []).map((r: any) => [r.appid, r]));
   await saveOwned(db, uid, games);
   // link PC games that aren't linked yet
-  const { data: libs } = await db.from('library').select('id, steam_appid, overrides, platform, section, title:titles(id, source, source_id, data)').eq('user_id', uid);
+  const { data: libs } = await db.from('library').select('id, user_id, steam_appid, overrides, platform, section, title:titles(id, title, source, source_id, data)').eq('user_id', uid);
   const pcs = (libs ?? []).filter((l: any) => l.section === 'pc' || ['pc', 'steam-deck'].includes(l.platform));
   const missing = pcs.filter((l: any) => l.steam_appid == null && l.overrides?.steam_appid == null && l.title?.data?.steam_appid === undefined && l.title?.source === 'igdb');
   if (missing.length) {
     const ids = await steamAppIds(db, [...new Set(missing.map((l: any) => l.title.source_id))] as string[]);
     for (const l of missing) await db.from('titles').update({ data: { ...(l.title.data ?? {}), steam_appid: ids[l.title.source_id] ?? 0 } }).eq('id', l.title.id).then(() => { l.title.data = { ...(l.title.data ?? {}), steam_appid: ids[l.title.source_id] ?? 0 }; });
   }
-  for (const l of pcs) if (l.steam_appid == null || l.overrides?.steam_appid != null) await resolveLib(db, l);
+  for (const l of pcs) if (l.steam_appid == null || l.overrides?.steam_appid != null || (l.steam_appid === 0 && l.overrides?.steam_appid === undefined)) await resolveLib(db, l);   // "not found" gets another try by name
   // details: linked games played since the last check, or never checked
   const owned = new Map<number, any>(games.map((g) => [g.appid, g]));
   const linked = pcs.map((l: any) => ({ appid: Number(l.overrides?.steam_appid ?? l.title?.data?.steam_appid ?? l.steam_appid ?? 0), deck: l.platform === 'steam-deck' })).filter((x: any) => x.appid > 0 && owned.has(x.appid));
@@ -137,7 +148,7 @@ Deno.serve(async (req) => {
       const { data: s } = await db.from('app_config').select('value').eq('key', 'push_secret').maybeSingle();
       if (!s?.value || s.value !== secret) return json({ error: 'Bad secret' }, 401);
       if (b.action === 'resolve') {
-        const { data: lib } = await db.from('library').select('id, user_id, steam_appid, platform, overrides, title:titles(id, source, source_id, data)').eq('id', b.library_id).maybeSingle();
+        const { data: lib } = await db.from('library').select('id, user_id, steam_appid, platform, overrides, title:titles(id, title, source, source_id, data)').eq('id', b.library_id).maybeSingle();
         if (!lib) return json({ ok: false });
         const { data: p } = await db.from('profiles').select('steam_id').eq('id', lib.user_id).maybeSingle();
         const appid = await resolveLib(db, lib);
@@ -201,7 +212,7 @@ Deno.serve(async (req) => {
     }
 
     if (b.action === 'link' || b.action === 'refresh' || b.action === 'resolve') {
-      const { data: lib } = await db.from('library').select('id, steam_appid, platform, overrides, title:titles(id, source, source_id, data)').eq('id', b.libraryId).eq('user_id', uid).maybeSingle();
+      const { data: lib } = await db.from('library').select('id, user_id, steam_appid, platform, overrides, title:titles(id, title, source, source_id, data)').eq('id', b.libraryId).eq('user_id', uid).maybeSingle();
       if (!lib) return json({ error: 'Not your game' }, 404);
       if (b.action === 'link') {
         const ov = { ...(lib.overrides ?? {}) } as any;

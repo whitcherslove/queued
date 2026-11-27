@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { supabase } from './supabase';
 
-export interface AchPick { name: string; icon: string | null; pct: number | null; at: string | null }
+export interface AchPick { name: string; desc?: string; icon: string | null; pct: number | null; at: string | null }
 export interface SteamStats {
   appid: number; name: string | null; playtime_min: number; playtime_deck_min: number; playtime_2w_min: number; last_played: string | null;
   ach_done: number | null; ach_total: number | null; ach_rarest: AchPick | null; ach_latest: AchPick | null; ach_easiest: AchPick | null;

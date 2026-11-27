@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { appIdFromInput, paceLine, steamConnected, steamHint, steamLink, steamOwned, steamRefresh, steamResolve, useSteam, type AchPick } from '../lib/steam';
+import { appIdFromInput, paceLine, steamConnected, steamHint, steamLink, steamOwned, steamRefresh, steamResolve, useSteam } from '../lib/steam';
 import { ChevBtn } from './Icons';
 import { notify } from '../lib/dialog';
 import { useBackLayer } from '../lib/back';
@@ -37,12 +37,13 @@ export default function SteamCard({ item, ready, ttbMain, firstRun, lastFinished
   useEffect(() => {
     if (!on || !ready || asked.current) return;   // wait for the full game: it may already know its Steam link
     if (appid === null || appid === undefined) { asked.current = true; steamResolve(item.id).then(apply).catch(() => setAppid(0)); return; }   // not linked yet
-    if (appid > 0 && s && (Date.now() - new Date(s.updated_at).getTime() > 3 * 3600e3 || (s.playtime_min > 0 && !s.ach_checked_at))) {
+    if (appid > 0 && s && (Date.now() - new Date(s.updated_at).getTime() > 3 * 3600e3 || (s.playtime_min > 0 && !s.ach_checked_at) || (!!s.ach_rarest && s.ach_rarest.desc === undefined))) {
       asked.current = true; setBusy(true); steamRefresh(item.id).then(apply).catch(() => undefined).finally(() => setBusy(false));   // quietly, in the background
     }
   }, [appid, s?.updated_at, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!on || appid === 0) return null;   // no Steam, or "Not on Steam"
+  const saidNo = (item.overrides as { steam_appid?: number } | null)?.steam_appid === 0;
+  if (!on || saidNo) return null;   // no Steam, or you said "Not on Steam"
   const refresh = async () => { setBusy(true); try { apply(await steamRefresh(item.id)); } catch (e) { notify((e as Error).message); } setBusy(false); };
   const setLink = async (a: number | null) => { setLinking(false); setBusy(true); try { apply(await steamLink(item.id, a)); } catch (e) { notify((e as Error).message); } setBusy(false); };
   const hintOff = (item.overrides as { steam_hint_off?: string } | null)?.steam_hint_off;
@@ -51,6 +52,16 @@ export default function SteamCard({ item, ready, ttbMain, firstRun, lastFinished
 
   // not known yet: a quiet placeholder of the same height, no "Linking…" text
   if (appid === null || appid === undefined) return <div className="card steam-card link-only" aria-busy="true"><SteamLogo /><span className="grow steam-skel" /></div>;
+  if (appid === 0) return (
+    <>
+      <div className="card steam-card link-only">
+        <SteamLogo /><span className="grow muted small">Not linked to Steam yet</span>
+        <button className="btn sm" onClick={() => setLinking(true)}>Link</button>
+        <button className="btn sm" onClick={() => setLink(0)}>Not on Steam</button>
+      </div>
+      {sheet}
+    </>
+  );
   if (!s) return (
     <>
       <section className="card steam-card">
@@ -64,9 +75,7 @@ export default function SteamCard({ item, ready, ttbMain, firstRun, lastFinished
   const pace = firstRun && item.status === 'playing' ? paceLine(s.playtime_min / 60, ttbMain, item.progress ?? null, item.id) : null;
   const hint = steamHint(s, item.status, lastFinished, hintOff);
   const showDeck = item.platform === 'steam-deck' && !!s.deck;
-  const tiles = [s.ach_rarest && { k: 'Rarest', a: s.ach_rarest, sub: s.ach_rarest.pct != null ? s.ach_rarest.pct + '%' : '' },
-    s.ach_latest && { k: 'Latest', a: s.ach_latest, sub: ago(s.ach_latest.at) },
-    s.ach_easiest && { k: 'Easiest left', a: s.ach_easiest, sub: s.ach_easiest.pct != null ? s.ach_easiest.pct + '%' : '', locked: true }].filter(Boolean) as { k: string; a: AchPick; sub: string; locked?: boolean }[];
+  const rare = s.ach_rarest;
   const pc = Math.max(0, s.playtime_min - s.playtime_deck_min), deck = s.playtime_deck_min;
   return (
     <>
@@ -94,13 +103,12 @@ export default function SteamCard({ item, ready, ttbMain, firstRun, lastFinished
         </div>}
         {open && <div className="stack-sm steam-more">
           {pace && <span className="steam-pace">{pace}<span className="muted tiny"> {Math.round(s.playtime_min / 60)} h of ~{Math.round(ttbMain ?? 0)} h · progress {Math.round(item.progress ?? 0)}%</span></span>}
-          {(tiles.length > 0 || showDeck) && <div className="steam-tiles">
-            {tiles.map((t) => (
-              <button key={t.k} className="steam-tile" onClick={() => notify(t.a.name + (t.a.pct != null ? ' · ' + t.a.pct + '% of players' : ''))}>
-                {t.a.icon ? <img className={'ach-icon' + (t.locked ? ' locked' : '')} src={t.a.icon} alt="" loading="lazy" /> : <span className="ach-icon" />}
-                <span className="muted tiny">{t.k}</span><span className="tiny steam-tile-name">{t.a.name}</span><span className="muted tiny">{t.sub}</span>
-              </button>
-            ))}
+          {(rare || showDeck) && <div className="steam-tiles">
+            {rare && <div className="steam-rare">
+              {rare.icon ? <img className="ach-icon" src={rare.icon} alt="" loading="lazy" /> : <span className="ach-icon" />}
+              <span className="grow stack-0"><span className="muted tiny">Your rarest achievement{rare.pct != null ? ' · ' + rare.pct + '% of players' : ''}</span>
+                <span className="small steam-rare-name">{rare.name}</span>{rare.desc && <span className="muted tiny">{rare.desc}</span>}</span>
+            </div>}
             {showDeck && <div className="steam-tile"><img className="ach-icon round" src={`/deck/${s.deck}.png`} alt="" /><span className="muted tiny">Steam Deck</span><span className="tiny steam-tile-name">{DECK[s.deck!]}</span></div>}
           </div>}
           <div className="row nowrap steam-relink"><span className="grow muted tiny">Wrong game?</span><button className="btn sm" onClick={() => setLinking(true)}>Change Steam game</button></div>

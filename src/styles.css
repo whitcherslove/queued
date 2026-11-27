@@ -1518,3 +1518,9 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 
 .steam-skel { height: 14px; border-radius: 6px; background: linear-gradient(90deg, var(--surface2), color-mix(in srgb, var(--surface2) 60%, var(--ink) 8%), var(--surface2)); background-size: 200% 100%; animation: skel 1.2s ease-in-out infinite; }
 @keyframes skel { to { background-position: -200% 0; } }
+
+.steam-tiles { grid-auto-flow: row; grid-template-columns: 1fr auto; }
+.steam-rare { display: flex; align-items: center; gap: 10px; padding: 10px; border-radius: 12px; background: var(--surface2); min-width: 0; }
+.steam-rare .ach-icon { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex: none; background: var(--surface); }
+.steam-rare-name { font-weight: 800; }
+.steam-tiles .steam-tile { width: 84px; }
