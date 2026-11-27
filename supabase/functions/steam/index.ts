@@ -64,9 +64,9 @@ async function achievements(steamid: string, appid: number): Promise<{ done: num
   try {
     const j = await steamGet('/ISteamUserStats/GetPlayerAchievements/v1/', { steamid, appid: String(appid) });
     const list = j?.playerstats?.achievements;
-    if (!Array.isArray(list) || !list.length) return null;
+    if (!Array.isArray(list) || !list.length) return { done: 0, total: 0 };   // the game has no achievements
     return { done: list.filter((a: any) => a.achieved === 1).length, total: list.length };
-  } catch { return null; }                          // no achievements, or the game has no stats
+  } catch { return { done: 0, total: 0 }; }                                  // no stats for this game
 }
 async function syncAll(db: any, uid: string, steamid: string, focusAppIds: number[] = []) {
   const games = await ownedGames(steamid);
@@ -79,6 +79,20 @@ async function syncAll(db: any, uid: string, steamid: string, focusAppIds: numbe
   await Promise.all(want.map(async (appid) => { const a = await achievements(steamid, appid); if (a) await db.from('steam_stats').update({ ach_done: a.done, ach_total: a.total }).eq('user_id', uid).eq('appid', appid); }));
   await db.from('profiles').update({ steam_synced_at: new Date().toISOString() }).eq('id', uid);
   return { games: games.length };
+}
+
+async function refreshOne(db: any, uid: string, steamid: string, appid: number) {
+  const games = await ownedGames(steamid).catch(() => [] as any[]);
+  const g = games.find((x) => x.appid === appid);
+  if (games.length) {
+    const rows = games.map((x) => ({ user_id: uid, appid: x.appid, name: x.name ?? null, playtime_min: x.playtime_forever ?? 0, playtime_deck_min: x.playtime_deck_forever ?? 0,
+      playtime_2w_min: x.playtime_2weeks ?? 0, last_played: x.rtime_last_played ? new Date(x.rtime_last_played * 1000).toISOString() : null, updated_at: new Date().toISOString() }));
+    for (let i = 0; i < rows.length; i += 400) await db.from('steam_stats').upsert(rows.slice(i, i + 400), { onConflict: 'user_id,appid' });
+  }
+  if (g && (g.playtime_forever ?? 0) > 0) {
+    const a = await achievements(steamid, appid);
+    if (a) await db.from('steam_stats').update({ ach_done: a.done, ach_total: a.total }).eq('user_id', uid).eq('appid', appid);
+  }
 }
 
 Deno.serve(async (req) => {
@@ -124,7 +138,12 @@ Deno.serve(async (req) => {
       let qb = db.from('steam_stats').select('appid, name, playtime_min').eq('user_id', uid).order('playtime_min', { ascending: false }).limit(30);
       if (q) qb = qb.ilike('name', '%' + q.replace(/[%_]/g, '') + '%');
       const { data } = await qb;
-      return json({ connected: true, games: data ?? [] });
+      let store: { appid: number; name: string }[] = [];
+      if (q) {
+        const r = await fetchT('https://store.steampowered.com/api/storesearch/?l=english&cc=US&term=' + encodeURIComponent(q), {}, 6000);
+        if (r.ok) store = ((await r.json())?.items ?? []).slice(0, 10).map((x: any) => ({ appid: Number(x.id), name: String(x.name) }));
+      }
+      return json({ connected: true, games: data ?? [], store });
     }
 
     if (b.action === 'link') {
@@ -136,16 +155,20 @@ Deno.serve(async (req) => {
       return json({ ok: true });
     }
 
-    if (b.action === 'card') {
+    if (b.action === 'card' || b.action === 'refresh') {
       const { data: lib } = await db.from('library').select('id, overrides, title:titles(id, source, source_id, data)').eq('id', b.libraryId).eq('user_id', uid).maybeSingle();
       if (!lib) return json({ connected: true, appid: null });
       const appid = await appIdFor(db, lib);
       if (!appid) return json({ connected: true, appid, steamName: me.steam_name });
-      let { data: st } = await db.from('steam_stats').select('*').eq('user_id', uid).eq('appid', appid).maybeSingle();
-      // a few hours old → fresh numbers for this game (and its achievements)
-      if (!st || Date.now() - new Date(st.updated_at).getTime() > 3 * 3600e3 || (st.playtime_min > 0 && st.ach_total == null && b.force)) {
-        await syncAll(db, uid, me.steam_id, [appid]).catch(() => undefined);
-        ({ data: st } = await db.from('steam_stats').select('*').eq('user_id', uid).eq('appid', appid).maybeSingle());
+      const read = async () => (await db.from('steam_stats').select('*').eq('user_id', uid).eq('appid', appid).maybeSingle()).data;
+      let st = await read();
+      const stale = !st || Date.now() - new Date(st.updated_at).getTime() > 3 * 3600e3 || (st.playtime_min > 0 && st.ach_total == null);
+      if (b.action === 'refresh' || !st) { await refreshOne(db, uid, me.steam_id, appid).catch(() => undefined); st = await read(); }
+      else if (stale) {
+        // answer now with what we have; fresh numbers land in the background (the app asks again in a few seconds)
+        const job = refreshOne(db, uid, me.steam_id, appid).catch(() => undefined);
+        try { (globalThis as any).EdgeRuntime?.waitUntil(job); } catch { /* older runtime: it still runs while we answer */ }
+        return json({ connected: true, appid, steamName: me.steam_name, stats: st, refreshing: true });
       }
       return json({ connected: true, appid, steamName: me.steam_name, stats: st ?? null });
     }

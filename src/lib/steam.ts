@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 export interface SteamStats { appid: number; name: string | null; playtime_min: number; playtime_deck_min: number; playtime_2w_min: number; last_played: string | null; ach_done: number | null; ach_total: number | null; updated_at: string }
-export interface SteamCardData { connected: boolean; appid?: number | null; steamName?: string | null; stats?: SteamStats | null; error?: string }
+export interface SteamCardData { connected: boolean; appid?: number | null; steamName?: string | null; stats?: SteamStats | null; refreshing?: boolean; error?: string }
 
 const call = async <T,>(body: Record<string, unknown>): Promise<T> => {
   const { data, error } = await supabase.functions.invoke('steam', { body });
@@ -12,8 +12,12 @@ const call = async <T,>(body: Record<string, unknown>): Promise<T> => {
 export const steamConnect = (profile: string) => call<{ ok: boolean; name?: string; games?: number; error?: string }>({ action: 'connect', profile });
 export const steamDisconnect = () => call<{ ok: boolean }>({ action: 'disconnect' });
 export const steamSync = () => call<{ connected: boolean; games?: number }>({ action: 'sync' });
-export const steamCard = (libraryId: string, force = false) => call<SteamCardData>({ action: 'card', libraryId, force });
-export const steamOwned = (q: string) => call<{ connected: boolean; games: { appid: number; name: string; playtime_min: number }[] }>({ action: 'owned', q });
+export const steamCard = (libraryId: string, refresh = false) => call<SteamCardData>({ action: refresh ? 'refresh' : 'card', libraryId });
+/** Started as soon as a game's card opens, so the Steam block arrives together with the rest. */
+const early = new Map<string, Promise<SteamCardData>>();
+export function prefetchSteam(libraryId: string) { if (!early.has(libraryId)) early.set(libraryId, steamCard(libraryId).catch(() => ({ connected: false }))); setTimeout(() => early.delete(libraryId), 15000); }
+export const takeSteam = (libraryId: string) => early.get(libraryId) ?? steamCard(libraryId);
+export const steamOwned = (q: string) => call<{ connected: boolean; games: { appid: number; name: string; playtime_min: number }[]; store?: { appid: number; name: string }[] }>({ action: 'owned', q });
 /** appid: a Steam app id, 0 = "Not on Steam", null = back to automatic */
 export const steamLink = (libraryId: string, appid: number | null) => call<{ ok: boolean }>({ action: 'link', libraryId, appid });
 /** "store.steampowered.com/app/1145360/Hades/" or just "1145360" → 1145360 */

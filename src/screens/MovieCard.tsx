@@ -24,6 +24,7 @@ import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import { ChevBtn, IconBack, MoreBtn, ReplayIcon } from '../components/Icons';
 import FriendsOnTitle from '../components/FriendsOnTitle';
 import SteamCard from '../components/SteamCard';
+import { prefetchSteam } from '../lib/steam';
 import { useBackLayer } from '../lib/back';
 import { usePress } from '../lib/press';
 
@@ -47,6 +48,8 @@ export const EXT_ICON = EXT;
 const PIN = <svg aria-hidden="true" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 4.5l4.5 4.5-3 1.5-3.5 3.5.5 4-1.5 1.5-3.5-3.5L4 20M8.5 11.5L12.5 15.5M15 4.5L12 7.5 8.5 7 7 8.5l3.5 3.5" /></svg>;
 
 export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext, enterFrom, openTake, initial, initialLogs, initialOwned, settings, onClose, onChanged, onOpenOther, backlogCount }: Props) {
+  // the Steam block starts loading together with the card (not after it)
+  useEffect(() => { if (game) prefetchSteam(itemId); }, [itemId]); // eslint-disable-line react-hooks/exhaustive-deps
   const [item, setItem] = useState<LibItem | null>(initial ?? null);
   const [logsReady, setLogsReady] = useState(!!initial && !!initialLogs);
   const [full, setFull] = useState(!!initial?.title?.data);
@@ -331,14 +334,14 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
   const watchedIt = guard(async () => {
     // a rewatch starts from what you thought last time — adjust it if your opinion changed
     await insertLog(item.id, { watched_at: new Date().toISOString(), tier: item.rewatch ? last?.tier ?? null : null, score: item.rewatch ? last?.score ?? null : null, rewatch: !!item.rewatch, ...(game ? { platform: gItem.platform ?? null, coop: !!gItem.coop, coop_with: (gItem as { coop_with?: string[] | null }).coop_with ?? null } : {}), ...(book ? { format: bItem.format ?? null } : {}) } as never);
-    await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
+    await updateItem(item.id, { status: 'done', up_next: false, rewatch: false, ...(game || book ? { progress: 100 } : {}) } as never);   // finished = 100%
     setJustWatched(true); setTakeOpen(true);
     window.setTimeout(() => document.getElementById('my-take')?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 250);
   });
   /** Rating a movie you haven't logged yet = "I watched it today" with that rating */
   const rateFirst = (patch: { tier?: string; score?: number }) => guard(async () => {
     await insertLog(item.id, { watched_at: new Date().toISOString(), tier: patch.tier ?? null, score: patch.score ?? null, rewatch: !!item.rewatch });
-    await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
+    await updateItem(item.id, { status: 'done', up_next: false, rewatch: false, ...(game || book ? { progress: 100 } : {}) } as never);   // finished = 100%
     setJustWatched(true);
   })();
   const markDidntFinish = guard(async () => { await insertLog(item.id, { dropped: true, tier: null, score: null, rewatch: !!item.rewatch, watched_at: new Date().toISOString(), ...(game ? { platform: gItem.platform ?? null, coop: !!gItem.coop, coop_with: (gItem as { coop_with?: string[] | null }).coop_with ?? null } : {}), ...(book ? { format: bItem.format ?? null } : {}) } as never); await updateItem(item.id, { status: 'done', up_next: false, rewatch: false }); });
@@ -568,8 +571,8 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
         </section>
 
 
-        {/* Steam: right under the status block, for games you play on PC or Steam Deck */}
-        {game && (item.section === 'pc' || ['pc', 'steam-deck'].includes(String((item as { platform?: string | null }).platform ?? ''))) && (
+        {/* Steam: right under the status block — only when the game's platform is PC or Steam Deck */}
+        {game && ['pc', 'steam-deck'].includes(String((item as { platform?: string | null }).platform ?? '')) && (   // only for PC / Steam Deck
           <SteamCard libraryId={item.id} status={item.status} progress={(item as { progress?: number | null }).progress ?? null} ttbMain={ttb?.main}
             firstRun={!item.rewatch && logs.filter((l) => !l.dropped).length === (item.status === 'done' ? 1 : 0)}
             onStart={() => startPlaying()} />

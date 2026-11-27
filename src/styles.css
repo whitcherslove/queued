@@ -1476,3 +1476,13 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .steam-pick img { width: 64px; height: 24px; object-fit: cover; border-radius: 4px; flex: none; }
 .steam-pick.on { color: var(--accent); }
 .steam-account { padding: 12px 0; border-top: 1px solid var(--line); }
+
+.steam-logo { height: 16px; width: auto; flex: none; }
+.steam-refresh { font-size: 16px; line-height: 1; }
+.steam-refresh.spinning { animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+/* the link sheet: from the top and full height, so the keyboard doesn't shove it around */
+.sheet-wrap.sheet-top { justify-content: flex-start; padding-top: calc(12px + env(safe-area-inset-top, 0px)); }
+.sheet-wrap.sheet-top .sheet.steam-link { height: 86vh; border-radius: 22px; margin: 0 8px; }
+.steam-group { font-size: 11px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: var(--muted); margin: 10px 0 2px; }
+.steam-empty { padding: 14px 0; }
