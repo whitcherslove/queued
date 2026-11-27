@@ -1457,3 +1457,22 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .fot-row .tier-under + .tier-under { margin-left: 4px; }
 .now-row .stack-0 { min-width: 0; }
 .now-row .prog-line { margin-top: 6px; }
+
+/* Steam in a game's card */
+.steam-card { display: flex; flex-direction: column; gap: 10px; position: relative; text-align: left; color: var(--ink); }
+.steam-card.link-only { flex-direction: row; align-items: center; gap: 10px; }
+.steam-mark { font-size: 11px; font-weight: 900; letter-spacing: 2px; padding: 3px 8px; border-radius: 6px; background: #1B2838; color: #C7D5E0; flex: none; }
+.steam-linked { text-align: left; font-weight: 700; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.steam-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.steam-facts > span { display: flex; flex-direction: column; gap: 2px; }
+.steam-facts b { font-size: 16px; }
+.steam-facts .mini-bar { margin-top: 3px; }
+.steam-more { border-top: 1px solid var(--line); padding-top: 10px; }
+.steam-pace { font-weight: 700; font-size: 14px; display: flex; flex-direction: column; gap: 2px; }
+.steam-nudge-dot { position: absolute; top: 12px; right: 12px; width: 8px; height: 8px; border-radius: 999px; background: var(--accent); }
+.sheet.steam-link { display: flex; flex-direction: column; max-height: 86vh; overflow: hidden; }
+.sheet.steam-link > .steam-list { flex: 1 1 auto; flex-shrink: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; }
+.steam-pick { display: flex; align-items: center; gap: 10px; padding: 8px 0; border: 0; border-top: 1px solid var(--line); background: transparent; color: var(--ink); text-align: left; }
+.steam-pick img { width: 64px; height: 24px; object-fit: cover; border-radius: 4px; flex: none; }
+.steam-pick.on { color: var(--accent); }
+.steam-account { padding: 12px 0; border-top: 1px solid var(--line); }

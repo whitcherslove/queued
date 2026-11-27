@@ -23,6 +23,7 @@ import { FORMATS, formatLabel, positionMinutes, readHours } from '../lib/formats
 import { Ico, ListRow, RatingTiles, ScoreStepper } from '../components/Rate';
 import { ChevBtn, IconBack, MoreBtn, ReplayIcon } from '../components/Icons';
 import FriendsOnTitle from '../components/FriendsOnTitle';
+import SteamCard from '../components/SteamCard';
 import { useBackLayer } from '../lib/back';
 import { usePress } from '../lib/press';
 
@@ -567,6 +568,12 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
         </section>
 
 
+        {/* Steam: right under the status block, for games you play on PC or Steam Deck */}
+        {game && (item.section === 'pc' || ['pc', 'steam-deck'].includes(String((item as { platform?: string | null }).platform ?? ''))) && (
+          <SteamCard libraryId={item.id} status={item.status} progress={(item as { progress?: number | null }).progress ?? null} ttbMain={ttb?.main}
+            firstRun={!item.rewatch && logs.filter((l) => !l.dropped).length === (item.status === 'done' ? 1 : 0)}
+            onStart={() => startPlaying()} />
+        )}
         {/* Lower part (details, collection, viewings, AI) appears in one piece once the full card is loaded */}
         {!full ? <div className="card-wait" aria-live="polite"><span className="spinner" aria-hidden="true" /><span className="sr">Loading</span></div> : (
         <div className="card-lower shown">

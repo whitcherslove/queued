@@ -1,3 +1,4 @@
+import SteamAccount from '../components/SteamAccount';
 import HomeEditor from '../components/HomeEditor';
 import { setPageHidden } from '../lib/profile';
 import { initTips } from '../lib/tips';
@@ -106,6 +107,7 @@ export default function ProfileScreen({ profile, onBack, onProfile, onSettings }
             <span className={'switch' + (pushOn ? ' on' : '')}><span /></span>
           </button>
           {pushNote && <span className="muted small">{pushNote}</span>}
+          <SteamAccount profile={profile} onProfile={onProfile} />
           {/* my friend page: hide it (friends see only name and avatar; Activity stays) */}
           <button className="switch-row flat" role="switch" aria-checked={!!pageHidden} onClick={async () => {
             const v = !pageHidden; setPageHiddenState(v);

@@ -1,9 +1,18 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.24';
+export const APP_VERSION = '4.25';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.25',
+    title: 'Steam',
+    items: [
+      { icon: '🎮', title: 'Connect Steam', text: 'Profile and settings → Steam: paste your profile link. PC and Steam Deck games show hours (and hours on Deck), achievements and when you last played.' },
+      { icon: '🏃', title: 'Your pace', text: 'Unfold the Steam card: how your hours and progress compare with HowLongToBeat — on pace, taking your time, or faster than most.' },
+      { icon: '🔗', title: 'The right game', text: 'Tap the game’s name in the Steam card to pick it from your Steam library, paste a Store link, or mark it “Not on Steam”.' }
+    ]
+  },
   {
     version: '4.24',
     title: 'Smoother',

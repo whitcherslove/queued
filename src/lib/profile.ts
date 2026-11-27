@@ -1,17 +1,17 @@
 import { supabase } from './supabase';
 import { DEFAULT_SETTINGS, Settings } from './theme';
 
-export interface Profile { id: string; email: string; avatar_url: string | null; settings: Settings; display_name?: string | null; handle?: string | null; invite_code?: string | null; telegram_off?: boolean; page_hidden?: boolean }
+export interface Profile { id: string; email: string; avatar_url: string | null; settings: Settings; display_name?: string | null; handle?: string | null; invite_code?: string | null; telegram_off?: boolean; page_hidden?: boolean; steam_name?: string | null; steam_synced_at?: string | null }
 
 export async function loadProfile(userId: string, email: string): Promise<Profile> {
-  const { data, error } = await supabase.from('profiles').select('id, avatar_url, settings, display_name, handle, invite_code, telegram_off, page_hidden').eq('id', userId).maybeSingle();
+  const { data, error } = await supabase.from('profiles').select('id, avatar_url, settings, display_name, handle, invite_code, telegram_off, page_hidden, steam_name, steam_synced_at').eq('id', userId).maybeSingle();
   if (error) throw error;
   return {
     id: userId,
     email,
     avatar_url: data?.avatar_url ?? null,
     settings: { ...DEFAULT_SETTINGS, ...(data?.settings ?? {}) },
-    display_name: data?.display_name ?? null, handle: data?.handle ?? null, invite_code: data?.invite_code ?? null, telegram_off: data?.telegram_off ?? true, page_hidden: !!data?.page_hidden
+    display_name: data?.display_name ?? null, handle: data?.handle ?? null, invite_code: data?.invite_code ?? null, telegram_off: data?.telegram_off ?? true, page_hidden: !!data?.page_hidden, steam_name: data?.steam_name ?? null, steam_synced_at: data?.steam_synced_at ?? null
   };
 }
 
