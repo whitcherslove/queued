@@ -37,7 +37,7 @@ export default function SteamCard({ item, ready, ttbMain, firstRun, lastFinished
   useEffect(() => {
     if (!on || !ready || asked.current) return;   // wait for the full game: it may already know its Steam link
     if (appid === null || appid === undefined) { asked.current = true; steamResolve(item.id).then(apply).catch(() => setAppid(0)); return; }   // not linked yet
-    if (appid > 0 && s && (Date.now() - new Date(s.updated_at).getTime() > 3 * 3600e3 || (s.playtime_min > 0 && !s.ach_checked_at) || (!!s.ach_rarest && s.ach_rarest.desc === undefined))) {
+    if (appid > 0 && s && (Date.now() - new Date(s.updated_at).getTime() > 3 * 3600e3 || (s.playtime_min > 0 && !s.ach_checked_at) || (!!s.ach_rarest && s.ach_rarest.desc === undefined) || (!s.deck && !!s.ach_checked_at))) {
       asked.current = true; setBusy(true); steamRefresh(item.id).then(apply).catch(() => undefined).finally(() => setBusy(false));   // quietly, in the background
     }
   }, [appid, s?.updated_at, ready]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -74,7 +74,7 @@ export default function SteamCard({ item, ready, ttbMain, firstRun, lastFinished
   const pct = s.ach_total ? Math.round((s.ach_done ?? 0) * 100 / s.ach_total) : null;
   const pace = firstRun && item.status === 'playing' ? paceLine(s.playtime_min / 60, ttbMain, item.progress ?? null, item.id) : null;
   const hint = steamHint(s, item.status, lastFinished, hintOff);
-  const showDeck = item.platform === 'steam-deck' && !!s.deck;
+  const showDeck = !!s.deck;   // for every game: maybe you'll want to play it on the Deck later
   const rare = s.ach_rarest;
   const pc = Math.max(0, s.playtime_min - s.playtime_deck_min), deck = s.playtime_deck_min;
   return (

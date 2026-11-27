@@ -103,7 +103,7 @@ async function deckStatus(appid: number): Promise<string> {
   const c = (await r.json().catch(() => null))?.results?.resolved_category;
   return c === 3 ? 'verified' : c === 2 ? 'playable' : c === 1 ? 'unsupported' : 'unknown';
 }
-/** full details for one of your games, and the "every achievement" mark on the game */
+/** full details for one of your games (achievements and Steam Deck status — for every game), and the "every achievement" mark */
 async function detailOne(db: any, uid: string, steamid: string, appid: number, withDeck: boolean) {
   const [a, deck] = await Promise.all([achievementsFull(steamid, appid), withDeck ? deckStatus(appid) : Promise.resolve(null)]);
   await db.from('steam_stats').update({ ...a, ...(deck ? { deck } : {}), ach_checked_at: new Date().toISOString() }).eq('user_id', uid).eq('appid', appid);
@@ -130,7 +130,7 @@ async function syncUser(db: any, uid: string, steamid: string, limit = 40) {
   const linked = pcs.map((l: any) => ({ appid: Number(l.overrides?.steam_appid ?? l.title?.data?.steam_appid ?? l.steam_appid ?? 0), deck: l.platform === 'steam-deck' })).filter((x: any) => x.appid > 0 && owned.has(x.appid));
   const due = linked.filter((x: any) => { const p = prev.get(x.appid), g = owned.get(x.appid);
     return !p?.ach_checked_at || (g.rtime_last_played && new Date(g.rtime_last_played * 1000) > new Date(p.ach_checked_at)); }).slice(0, limit);
-  for (const x of due) await detailOne(db, uid, steamid, x.appid, x.deck).catch(() => undefined);
+  for (const x of due) await detailOne(db, uid, steamid, x.appid, true).catch(() => undefined);
   await db.from('profiles').update({ steam_synced_at: new Date().toISOString() }).eq('id', uid);
   return { games: games.length, detailed: due.length };
 }
@@ -154,7 +154,7 @@ Deno.serve(async (req) => {
         const appid = await resolveLib(db, lib);
         if (appid && p?.steam_id) {
           const { data: st } = await db.from('steam_stats').select('appid').eq('user_id', lib.user_id).eq('appid', appid).maybeSingle();
-          if (st) await detailOne(db, lib.user_id, p.steam_id, appid, lib.platform === 'steam-deck').catch(() => undefined);
+          if (st) await detailOne(db, lib.user_id, p.steam_id, appid, true).catch(() => undefined);
         }
         return json({ ok: true, appid });
       }
@@ -227,7 +227,7 @@ Deno.serve(async (req) => {
           if (g.length) await saveOwned(db, uid, g);
         }
         const { data: st0 } = await db.from('steam_stats').select('appid').eq('user_id', uid).eq('appid', appid).maybeSingle();
-        if (st0) await detailOne(db, uid, me.steam_id, appid, lib.platform === 'steam-deck').catch(() => undefined);
+        if (st0) await detailOne(db, uid, me.steam_id, appid, true).catch(() => undefined);
       }
       const { data: st } = appid > 0 ? await db.from('steam_stats').select('*').eq('user_id', uid).eq('appid', appid).maybeSingle() : { data: null };
       const { data: l2 } = await db.from('library').select('steam_complete').eq('id', lib.id).maybeSingle();
