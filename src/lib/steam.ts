@@ -60,12 +60,16 @@ export function paceLine(hours: number, main: number | null | undefined, progres
   if (diff < 0) return pick(['Taking your time — the story will wait.', 'Exploring every corner, huh? The plot can wait.', 'Slow and thorough — the world is worth it.']);
   return pick(['Faster than most — speedrunner vibes.', 'Ahead of the pack — not stopping to smell the roses.', 'Moving quick — most players are behind you.']);
 }
-/** Steam says you've been playing it, and you haven't said "Not now" since */
-export function steamHint(s: SteamStats | null, status: string, lastFinished: string | null, offAt: string | null | undefined): 'start' | 'replay' | null {
-  if (!s || s.playtime_2w_min <= 0 || !s.last_played) return null;
-  if (offAt && new Date(s.last_played) <= new Date(offAt)) return null;
+/**
+ * Steam says you've played it in the last two weeks (the one thing Steam tells about everyone),
+ * and you haven't said "Not now" in the last two weeks.
+ */
+export function steamHint(s: SteamStats | null, status: string, lastFinished: string | null, offAt: string | null | undefined, now = Date.now()): 'start' | 'replay' | null {
+  if (!s || s.playtime_2w_min <= 0) return null;
+  const twoWeeks = 14 * 864e5;
+  if (offAt && now - new Date(offAt).getTime() < twoWeeks) return null;
   if (status === 'backlog') return 'start';
-  if (status === 'done' && (!lastFinished || new Date(s.last_played) > new Date(lastFinished))) return 'replay';
+  if (status === 'done' && (!lastFinished || now - new Date(lastFinished).getTime() > twoWeeks)) return 'replay';
   return null;
 }
 

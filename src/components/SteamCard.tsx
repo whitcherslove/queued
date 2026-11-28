@@ -91,12 +91,12 @@ export default function SteamCard({ item, ready, ttbMain, firstRun, lastFinished
           <button className="icon-btn sm" aria-label={open ? 'Less' : 'More'} onClick={() => setOpen(!open)}><ChevBtn open={open} size={28} /></button>
         </div>
         <div className="steam-facts">
-          <span><b>{hrs(s.playtime_min)}</b>
-            {pc >= 6 && <span className="muted tiny">{hrs(pc)} on PC</span>}
-            {deck >= 6 && <span className="muted tiny">{hrs(deck)} on Deck</span>}</span>
+          <span><b>{hrs(s.playtime_min)}</b><span className="muted tiny">played</span></span>
           {s.ach_total ? <span><b>{s.ach_done}/{s.ach_total}{s.ach_done === s.ach_total && <SteamPerfect size={16} />}</b><span className="muted tiny">achievements</span><span className="mini-bar"><span style={{ width: (pct ?? 0) + '%' }} /></span></span>
             : !s.ach_checked_at && s.playtime_min > 0 ? <span><b className="muted">…</b><span className="muted tiny">achievements</span></span> : <span />}
-          <span><b>{ago(s.last_played)}</b><span className="muted tiny">last played</span>{s.playtime_2w_min > 0 && <span className="muted tiny">{hrs(s.playtime_2w_min)} · 2 weeks</span>}</span>
+          {/* Steam tells everyone only whether a game was played in the last two weeks — no exact date */}
+          {s.playtime_2w_min > 0 ? <span><b>{hrs(s.playtime_2w_min)}</b><span className="muted tiny">last 2 weeks</span></span>
+            : <span><b className="muted">Not lately</b><span className="muted tiny">last 2 weeks</span></span>}
         </div>
         {hint && <div className="steam-hint">
           <span className="grow small">{hint === 'start' ? 'You’ve been playing this on Steam' : 'Playing again?'}</span>

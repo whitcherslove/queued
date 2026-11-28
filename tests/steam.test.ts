@@ -13,16 +13,18 @@ describe('steam helpers', () => {
     expect(paceLine(0.5, 10, 10, 'x')).toBeNull();
   });
 });
-describe('steam hints', () => {
-  const s = (last: string, w: number) => ({ playtime_2w_min: w, last_played: last }) as never;
-  it('backlog + played lately → start; Not now silences until you play again', () => {
-    expect(steamHint(s('2026-11-25T10:00:00Z', 60), 'backlog', null, null)).toBe('start');
-    expect(steamHint(s('2026-11-25T10:00:00Z', 60), 'backlog', null, '2026-11-26T00:00:00Z')).toBeNull();
-    expect(steamHint(s('2026-11-27T10:00:00Z', 60), 'backlog', null, '2026-11-26T00:00:00Z')).toBe('start');
+describe('steam hints (last two weeks — the only thing Steam tells about everyone)', () => {
+  const now = new Date('2026-11-28T12:00:00Z').getTime();
+  const s = (w: number) => ({ playtime_2w_min: w, last_played: null }) as never;
+  it('backlog + minutes in the last two weeks → start; Not now silences for two weeks', () => {
+    expect(steamHint(s(60), 'backlog', null, null, now)).toBe('start');
+    expect(steamHint(s(60), 'backlog', null, '2026-11-25T10:00:00Z', now)).toBeNull();
+    expect(steamHint(s(60), 'backlog', null, '2026-11-01T10:00:00Z', now)).toBe('start');
+    expect(steamHint(s(0), 'backlog', null, null, now)).toBeNull();
   });
-  it('finished + played after finishing → replay', () => {
-    expect(steamHint(s('2026-11-25T10:00:00Z', 60), 'done', '2026-11-20T10:00:00Z', null)).toBe('replay');
-    expect(steamHint(s('2026-11-19T10:00:00Z', 60), 'done', '2026-11-20T10:00:00Z', null)).toBeNull();
-    expect(steamHint(s('2026-11-25T10:00:00Z', 0), 'backlog', null, null)).toBeNull();
+  it('finished more than two weeks ago + playing again → replay; just finished → nothing', () => {
+    expect(steamHint(s(60), 'done', '2026-10-20T10:00:00Z', null, now)).toBe('replay');
+    expect(steamHint(s(60), 'done', '2026-11-25T10:00:00Z', null, now)).toBeNull();
+    expect(steamHint(s(60), 'playing', null, null, now)).toBeNull();
   });
 });

@@ -70,7 +70,13 @@ async function byName(db: any, uid: string, title: string | undefined): Promise<
 async function ownedGames(steamid: string) {
   const j = await steamGet('/IPlayerService/GetOwnedGames/v1/', { steamid, include_appinfo: '1', include_played_free_games: '1', skip_unvetted_apps: '0' });
   if (!j?.response || j.response.game_count === undefined) throw new Error('Steam shows no games — make “Game details” public in your Steam privacy settings');
-  return (j.response.games ?? []) as any[];
+  const games = (j.response.games ?? []) as any[];
+  // minutes in the last two weeks: Steam gives them to everyone only in "recently played"
+  // (the owned-games list carries them — and the last-played date — just for the API key's owner)
+  const rp = await steamGet('/IPlayerService/GetRecentlyPlayedGames/v1/', { steamid, count: '0' }).catch(() => null);
+  const recent = new Map<number, number>(((rp?.response?.games ?? []) as any[]).map((g) => [g.appid, g.playtime_2weeks ?? 0]));
+  for (const g of games) g.playtime_2weeks = recent.get(g.appid) ?? g.playtime_2weeks ?? 0;
+  return games;
 }
 async function saveOwned(db: any, uid: string, games: any[]) {
   const rows = games.map((x) => ({ user_id: uid, appid: x.appid, name: x.name ?? null, playtime_min: x.playtime_forever ?? 0, playtime_deck_min: x.playtime_deck_forever ?? 0,
@@ -120,7 +126,7 @@ async function detailOne(db: any, uid: string, steamid: string, appid: number, w
 /** everything for one person: hours for all owned games; links for PC games; details for what changed */
 async function syncUser(db: any, uid: string, steamid: string, limit = 40) {
   const games = await ownedGames(steamid);
-  const { data: before } = await db.from('steam_stats').select('appid, last_played, ach_checked_at').eq('user_id', uid);
+  const { data: before } = await db.from('steam_stats').select('appid, playtime_min, ach_checked_at').eq('user_id', uid);
   const prev = new Map<number, any>((before ?? []).map((r: any) => [r.appid, r]));
   await saveOwned(db, uid, games);
   // link PC games that aren't linked yet
@@ -135,8 +141,9 @@ async function syncUser(db: any, uid: string, steamid: string, limit = 40) {
   // details: linked games played since the last check, or never checked
   const owned = new Map<number, any>(games.map((g) => [g.appid, g]));
   const linked = pcs.map((l: any) => ({ appid: Number(l.overrides?.steam_appid ?? l.title?.data?.steam_appid ?? l.steam_appid ?? 0), deck: l.platform === 'steam-deck' })).filter((x: any) => x.appid > 0 && owned.has(x.appid));
+  // achievements again for games played lately: minutes in the last two weeks, or more hours than last time
   const due = linked.filter((x: any) => { const p = prev.get(x.appid), g = owned.get(x.appid);
-    return !p?.ach_checked_at || (g.rtime_last_played && new Date(g.rtime_last_played * 1000) > new Date(p.ach_checked_at)); }).slice(0, limit);
+    return !p?.ach_checked_at || (g.playtime_2weeks ?? 0) > 0 || (g.playtime_forever ?? 0) > (p.playtime_min ?? 0); }).slice(0, limit);
   for (const x of due) await detailOne(db, uid, steamid, x.appid, true).catch(() => undefined);
   await db.from('profiles').update({ steam_synced_at: new Date().toISOString() }).eq('id', uid);
   return { games: games.length, detailed: due.length };
