@@ -1529,3 +1529,6 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .auto-flag.on { color: #4CB2FF; }
 .steam-facts b .steam-perfect { margin-left: 4px; vertical-align: -2px; }
 .steam-perfect.off { opacity: .3; filter: grayscale(1); }
+
+/* a season that hasn't started airing */
+.season-chip.later { opacity: .4; border-style: dashed; cursor: not-allowed; }

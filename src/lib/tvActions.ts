@@ -28,7 +28,8 @@ export async function applyEpisodeMarks(item: LibItem, t: Title, eps: SeasonEps[
   const since = item.run_started_at ?? '';  // the entry written in this run, if any
   const runLog = logs.find((l) => since && l.watched_at >= since) ?? null;
   if (p.complete && !isDone) {
-    await insertLog(item.id, { ...logScope(planOf(item)), watched_at: p.lastSeen ?? now, tier: (item as LibItem & { tier?: string | null }).tier ?? null, score: item.score ?? null, rewatch: !!item.rewatch } as Partial<ItemLog>);
+    // the entry covers what you actually finished: the plan's seasons that are out (a season not out yet stays "for later")
+    await insertLog(item.id, { ...logScope(planOf(item) === null ? null : p.doneSeasons), watched_at: p.lastSeen ?? now, tier: (item as LibItem & { tier?: string | null }).tier ?? null, score: item.score ?? null, rewatch: !!item.rewatch } as Partial<ItemLog>);
     await updateItem(item.id, { status: 'done', up_next: false, rewatch: false });
     return { marks: next, finished: true };
   }

@@ -91,3 +91,37 @@ describe('show state', () => {
     expect(showState({ status: 'backlog', plan_seasons: [3] }, run, [log([1, 2])]).state).toBe('backlog');
   });
 });
+
+describe('tv progress — airing seasons and seasons not out yet', () => {
+  const t = show('Returning Series', [[1, '2026-01-10', 3], [2, '2027-04-01', 2]]);
+  const e = [eps(1, ['2026-01-10', '2026-01-17', '2026-01-24']), eps(2, ['2027-04-01', '2027-04-08'])];
+  it('a season airing week by week counts all its episodes: 1 of 3 → 33%, not 100%', () => {
+    const airing = [eps(1, ['2026-11-10', '2026-11-17', '2026-12-01'])];
+    const p = progress({ plan_seasons: [1], run_started_at: null }, show('Returning Series', [[1, '2026-11-10', 3]]), airing, [mark(1, 1), mark(1, 2)], '2026-11-20');
+    expect(p.pct).toBe(67); expect(p.total).toBe(3); expect(p.complete).toBe(false); expect(p.caughtUp).toBe(true);
+    expect(p.onBreak).toBe(false);   // next episode within two weeks → still "watching"
+  });
+  it('plan Seasons 1–2, only season 1 out: watching season 1 finishes the show "for now"', () => {
+    const p = progress({ plan_seasons: [1, 2], run_started_at: null }, t, e, [mark(1, 1), mark(1, 2), mark(1, 3)], '2026-11-20');
+    expect(p.pct).toBe(100); expect(p.total).toBe(3); expect(p.complete).toBe(true); expect(p.doneSeasons).toEqual([1]);
+    expect(p.nextFuture?.season).toBe(2);
+  });
+  it('…but if season 2 starts within two weeks, it stays in Watching', () => {
+    const p = progress({ plan_seasons: [1, 2], run_started_at: null }, t, e, [mark(1, 1), mark(1, 2), mark(1, 3)], '2027-03-25');
+    expect(p.complete).toBe(false); expect(p.caughtUp).toBe(true); expect(p.onBreak).toBe(false);
+  });
+  it('once season 2 airs it counts: 3 of 5 → 60%, next is S2 E1', () => {
+    const p = progress({ plan_seasons: [1, 2], run_started_at: null }, t, e, [mark(1, 1), mark(1, 2), mark(1, 3)], '2027-04-02');
+    expect(p.total).toBe(5); expect(p.pct).toBe(60); expect(p.nextEp?.season).toBe(2); expect(p.complete).toBe(false);
+  });
+  it('a season with a long break in the middle is "on a break", still not complete', () => {
+    const split = [eps(1, ['2026-09-01', '2026-09-08', '2027-02-01'])];
+    const p = progress({ plan_seasons: [1], run_started_at: null }, show('Returning Series', [[1, '2026-09-01', 3]]), split, [mark(1, 1), mark(1, 2)], '2026-11-20');
+    expect(p.complete).toBe(false); expect(p.onBreak).toBe(true); expect(p.pct).toBe(67);
+  });
+  it('an ended show watched in full completes as before', () => {
+    const ended = show('Ended', [[1, '2019-05-06', 2]]);
+    const p = progress({ plan_from: null, plan_to: null, run_started_at: null }, ended, [eps(1, ['2019-05-06', '2019-05-13'])], [mark(1, 1), mark(1, 2)], '2026-11-20');
+    expect(p.complete).toBe(true); expect(p.pct).toBe(100);
+  });
+});

@@ -403,7 +403,7 @@ export default function Movies({ settings, onSettings, onMenu, onBack, kind = 'm
       case 'newSeason': return { line: seasonsName(seasons) + (fresh ? ' · out now' : ' · available'), cap: 'Premiered on', date: when, isNew: fresh, bar: false };
       case 'lastChance': return { line: seasonsName(seasons) + ' · not watched yet', cap: 'Last watched', date: r.last, isNew: false, bar: false };
       case 'caughtUp': return it.status === 'playing'
-        ? { line: 'Caught up' + (p.nextFuture ? ' · next ' + epLabel(p.nextFuture) : ''), cap: 'Next episode', date: when, isNew: false, bar: true }
+        ? { line: p.onBreak ? 'On a break' : 'Caught up' + (p.nextFuture ? ' · next ' + epLabel(p.nextFuture) : ''), cap: p.onBreak ? 'Back on' : 'Next episode', date: when, isNew: false, bar: true }
         : { line: seasonsName(seasons) + (when ? ' · coming' : ' · announced'), cap: 'Premieres on', date: when, isNew: false, bar: false };
       default: return { line: 'Up to date · no new season yet', cap: 'Last watched', date: r.last, isNew: false, bar: false };
     }

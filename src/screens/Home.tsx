@@ -306,6 +306,7 @@ export default function Home({ settings, onSettings, onMenu, onStats, onBack, on
     const sh = shows.find((x) => x.it.id === it.id);
     if (sh && sh.st.state === 'newSeason') return seasonsName(sh.st.seasons) + ' is out';
     if (sh && sh.st.state === 'lastChance') return seasonsName(sh.st.seasons) + ' left · the show has ended';
+    if (sh && !sh.p?.nextEp && sh.p?.onBreak) { const d = sh.p.nextFuture?.air_date; return 'On a break' + (d ? ' · back ' + new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''); }
     if (sh && !sh.p?.nextEp && (sh.st.state === 'caughtUp' || p)) { const c = coming.find((x) => x.it.id === it.id); return c ? 'Next: ' + c.what + ' · ' + new Date(c.date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : p?.nextFuture?.air_date ? 'Next ep · ' + new Date(p.nextFuture.air_date).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }) : 'Caught up · waiting for news'; }
     if (p?.nextEp) return 'Next: ' + epLabel(p.nextEp) + (p.nextEp.name ? ' — ' + p.nextEp.name : '') + (p.nextEp.runtime ? ' · ' + epRuntime(p.nextEp.runtime) : '');
     const g = it as LibItem & { progress?: number | null; format?: string | null };

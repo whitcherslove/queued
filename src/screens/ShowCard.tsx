@@ -288,7 +288,7 @@ export default function ShowCard({ openPast, itemId, initial, initialLogs, setti
       case 'progress': return (item.rewatch ? 'Rewatching ' : 'Watching ') + planLabel;
       case 'newSeason': return seasonsName(st.seasons) + ' is out' + (stAir ? ' · premiered on ' + longDate(stAir) : '');
       case 'lastChance': return seasonsName(st.seasons) + ' not watched yet · show has ended';
-      case 'caughtUp': return isPlaying ? (p.nextFuture ? 'Next: ' + epLabel(p.nextFuture) + (p.nextFuture.air_date ? ' on ' + longDate(p.nextFuture.air_date) : '') : 'Waiting for new episodes') : seasonsName(st.seasons) + (stAir ? ' premieres on ' + longDate(stAir) : ' announced');
+      case 'caughtUp': return isPlaying ? (p.onBreak ? 'On a break' + (p.nextFuture?.air_date ? ' · back on ' + longDate(p.nextFuture.air_date) : '') : p.nextFuture ? 'Next: ' + epLabel(p.nextFuture) + (p.nextFuture.air_date ? ' on ' + longDate(p.nextFuture.air_date) : '') : 'Waiting for new episodes') : seasonsName(st.seasons) + (stAir ? ' premieres on ' + longDate(stAir) : ' announced');
       case 'upToDate': return 'All watched · no new season announced yet';
       case 'backlog': return (item.rewatch ? 'Rewatch · ' : '') + planLabel;
       case 'dropped': return 'Hidden from your lists · search still finds it';

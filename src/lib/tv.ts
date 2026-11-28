@@ -95,9 +95,22 @@ export interface Progress {
   aired: number; seen: number; total: number; pct: number;
   nextEp: EpRef | null; nextFuture: EpRef | null; lastSeen: string | null;
   complete: boolean; caughtUp: boolean; anySeen: boolean;
+  /** started seasons fully out and watched */ doneSeasons: number[];
+  /** all that's out is watched, and the next episode is more than two weeks away (or has no date) */ onBreak: boolean;
 }
 
 /** Progress over the planned seasons. During a rewatch, marks older than the rewatch start do not count. */
+/** a date N days from "today" (YYYY-MM-DD) */
+const plusDays = (iso: string, n: number) => { const d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return d.toISOString().slice(0, 10); };
+/** how soon the next episode has to be for a caught-up show to stay in Watching (otherwise it's "Up to date for now") */
+export const SOON_DAYS = 14;
+
+/**
+ * Where you are in your plan.
+ * - Seasons that have started airing count with ALL their episodes (aired or not): 3 of 8 → 37%, not 100%.
+ * - Seasons that haven't started yet (nothing aired) are "for later": they don't count, and don't keep the show open —
+ *   unless their first episode is coming within two weeks.
+ */
 export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_seasons' | 'run_started_at'> & { rewatch?: boolean; overrides?: unknown }, t: Title, eps0: SeasonEps[], marks: Mark[], today = todayIso()): Progress {
   const scope = scopeSeasons(item, t);
   const eps = mergeSpecials(eps0, specialsOf(item));   // season 0 counts only for the specials you picked
@@ -106,26 +119,40 @@ export function progress(item: Pick<LibItem, 'plan_from' | 'plan_to' | 'plan_sea
   const seenSet = new Set(marks.filter((m) => m.watched_at >= since).map((m) => m.season + ':' + m.episode));
   let aired = 0, seen = 0, total = 0, nextEp: EpRef | null = null, nextFuture: EpRef | null = null, lastSeen: string | null = null;
   const known = new Set(eps.map((e) => e.season));
+  const started: number[] = [], done: number[] = [];
+  let laterFirst: EpRef | null = null;   // the first episode of a season that hasn't started yet
   scope.forEach((sn) => {
-    const se = eps.find((e) => e.season === sn);
-    (se?.episodes ?? []).forEach((e) => {
+    const list = eps.find((e) => e.season === sn)?.episodes ?? [];
+    const isStarted = list.some((e) => !!e.air_date && e.air_date <= today);
+    if (!isStarted) {
+      const first = list.filter((e) => !!e.air_date).sort((a, b) => a.air_date!.localeCompare(b.air_date!))[0] ?? list[0];
+      if (first && !laterFirst) laterFirst = { season: first.s ?? sn, episode: first.n, name: first.name, air_date: first.air_date, runtime: first.runtime ?? null };
+      return;
+    }
+    started.push(sn);
+    let allOut = true, allSeen = true;
+    list.forEach((e) => {
       total++;
       const es = e.s ?? sn;   // a special placed in this season keeps its own season 0
       const ref = { season: es, episode: e.n, name: e.name, air_date: e.air_date, runtime: e.runtime ?? null };
-      const isAired = !!e.air_date && e.air_date <= today;
-      if (isAired) {
+      if (!!e.air_date && e.air_date <= today) {
         aired++;
         if (seenSet.has(es + ':' + e.n)) seen++;
-        else if (!nextEp) nextEp = ref;
-      } else if (!nextFuture) nextFuture = ref;
+        else { allSeen = false; if (!nextEp) nextEp = ref; }
+      } else { allOut = false; if (!nextFuture) nextFuture = ref; }
     });
+    if (allOut && allSeen) done.push(sn);
   });
+  if (!nextFuture) nextFuture = laterFirst;
   marks.forEach((m) => { if (m.watched_at >= since && (scope.includes(m.season) || m.season === 0) && (!lastSeen || m.watched_at > lastSeen)) lastSeen = m.watched_at; });
   const allKnown = scope.length > 0 && scope.every((n) => known.has(n));
-  const fullyAired = total > 0 && aired === total;
   const planEndsInPast = planOf(item) !== null || isEnded(t);
-  const complete = allKnown && fullyAired && seen === aired && planEndsInPast;
-  return { aired, seen, total, pct: aired ? Math.round((seen / aired) * 100) : 0, nextEp, nextFuture, lastSeen, complete, caughtUp: aired > 0 && seen === aired && !complete, anySeen: seen > 0 };
+  const nf = nextFuture as EpRef | null;
+  const soon = !!nf && !!nf.air_date && nf.air_date <= plusDays(today, SOON_DAYS);
+  // done "for now": every started season is fully out and watched, and nothing in the plan airs within two weeks
+  const complete = allKnown && started.length > 0 && done.length === started.length && planEndsInPast && !soon;
+  return { aired, seen, total, pct: total ? Math.round((seen / total) * 100) : 0, nextEp, nextFuture, lastSeen, complete,
+    caughtUp: aired > 0 && seen === aired && !complete, anySeen: seen > 0, doneSeasons: done, onBreak: !nextEp && !complete && !soon };
 }
 
 export function epLabel(e: { season: number; episode: number }): string {

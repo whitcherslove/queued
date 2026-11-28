@@ -1,9 +1,18 @@
 /** What's new — one entry per version, newest first. Shown once after an update (only the entries you haven't seen). */
-export const APP_VERSION = '4.27';
+export const APP_VERSION = '4.28';
 export interface ChangeItem { icon: string; title: string; text: string }
 export interface ChangeEntry { version: string; title: string; items: ChangeItem[] }
 
 export const CHANGELOG: ChangeEntry[] = [
+  {
+    version: '4.28',
+    title: 'Shows that are still airing',
+    items: [
+      { icon: '📺', title: 'Honest progress', text: 'A season that airs week by week counts all its episodes: 3 of 8 is 37%, not 100%. A long gap reads “On a break”.' },
+      { icon: '⏳', title: 'Seasons not out yet', text: 'They’re greyed out and can’t be picked. Once everything that’s out is watched, the show is Up to date — and New season out when the next one arrives.' },
+      { icon: '🎮', title: '100% achievements', text: 'A switch in My take, like Platinum — Steam turns it on by itself when everything is earned.' }
+    ]
+  },
   {
     version: '4.27',
     title: 'Steam, deeper',
