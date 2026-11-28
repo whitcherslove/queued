@@ -107,7 +107,14 @@ async function deckStatus(appid: number): Promise<string> {
 async function detailOne(db: any, uid: string, steamid: string, appid: number, withDeck: boolean) {
   const [a, deck] = await Promise.all([achievementsFull(steamid, appid), withDeck ? deckStatus(appid) : Promise.resolve(null)]);
   await db.from('steam_stats').update({ ...a, ...(deck ? { deck } : {}), ach_checked_at: new Date().toISOString() }).eq('user_id', uid).eq('appid', appid);
-  await db.from('library').update({ steam_complete: a.ach_total > 0 && a.ach_done === a.ach_total }).eq('user_id', uid).eq('steam_appid', appid);
+  // "100% achievements" is a switch: Steam turns it on when everything is earned (and says so), never over your own choice
+  const all = a.ach_total > 0 && a.ach_done === a.ach_total;
+  const { data: rows } = await db.from('library').select('id, steam_complete, overrides').eq('user_id', uid).eq('steam_appid', appid);
+  for (const r of rows ?? []) {
+    const ov = { ...(r.overrides ?? {}) } as any;
+    if (all && !r.steam_complete && !ov.steam_complete_off) { ov.steam_complete_by = 'steam'; await db.from('library').update({ steam_complete: true, overrides: ov }).eq('id', r.id); }
+    else if (!all && r.steam_complete && ov.steam_complete_by === 'steam') { delete ov.steam_complete_by; await db.from('library').update({ steam_complete: false, overrides: ov }).eq('id', r.id); }   // new achievements were added
+  }
 }
 
 /** everything for one person: hours for all owned games; links for PC games; details for what changed */

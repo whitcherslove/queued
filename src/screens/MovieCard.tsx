@@ -319,6 +319,14 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
   const setDlcHidden = (list: string[]) => { const ov = { ...(item.overrides ?? {}), dlc_hidden: list }; setItem({ ...item, overrides: ov } as never); updateItem(item.id, { overrides: ov } as never).catch(() => setError('Couldn’t save. Try again.')); };
   /** games: Backlog → Playing on the chosen platform */
   // the platform was picked when adding — start right away; ask only if the game has no platform yet
+  /** "100% achievements": a switch like Platinum; Steam may flip it on by itself (then it says "set by Steam") */
+  const toggleSteamComplete = guard(async () => {
+    const v = !item.steam_complete, ov = { ...((item.overrides as Record<string, unknown>) ?? {}) };
+    delete ov.steam_complete_by; if (v) delete ov.steam_complete_off; else ov.steam_complete_off = true;   // turned off by you: Steam won't turn it back on
+    if (v) ov.steam_complete_by = 'me';
+    setItem({ ...item, steam_complete: v, overrides: ov } as never);
+    await updateItem(item.id, { steam_complete: v, overrides: ov } as never);
+  });
   /** PlayStation platinum: one switch per game */
   const togglePlatinum = guard(async () => { const v = !item.platinum; setItem({ ...item, platinum: v }); await updateItem(item.id, { platinum: v } as never); });
   const startPlaying = () => (book
@@ -535,8 +543,11 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
                   {book && lengthRow()}
                   <ListRow icon={game ? <ReplayIcon size={18} /> : Ico.rewatch} label={W.rewatch} onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
                   {game && gameRow('coop', last)}
-                  {game && ((item as { steam_appid?: number | null }).steam_appid ?? 0) > 0 && (
-                    <ListRow icon={<SteamPerfect size={20} off={!item.steam_complete} />} label="100% achievements"><span className={'auto-flag' + (item.steam_complete ? ' on' : '')}>{item.steam_complete ? 'Done · Steam' : 'Not yet · Steam'}</span></ListRow>
+                  {game && (((item as { steam_appid?: number | null }).steam_appid ?? 0) > 0 || item.steam_complete) && (
+                    <ListRow icon={<SteamPerfect size={20} off={!item.steam_complete} />} label="100% achievements" onClick={toggleSteamComplete}>
+                      {item.steam_complete && (item.overrides as { steam_complete_by?: string } | null)?.steam_complete_by === 'steam' && <span className="auto-flag on">set by Steam</span>}
+                      <span className={'switch' + (item.steam_complete ? ' on' : '')}><span /></span>
+                    </ListRow>
                   )}
                   {game && (canPlatinum((last as { platform?: string | null }).platform ?? gItem.platform) || item.platinum) && (
                     <ListRow icon={<Platinum size={20} off={!item.platinum} />} label="Platinum" onClick={togglePlatinum}><span className={'switch' + (item.platinum ? ' on' : '')}><span /></span></ListRow>
@@ -959,7 +970,7 @@ export function EditDetails({ item, onClose, onSaved, onDeleted, kind = 'movie' 
     const ttbN = Number(String(f.ttb_main).replace(',', '.'));
     setBusy(true); await updateItem(item.id, { overrides: { ...diffOverrides(item.title, edited), ...(kind === 'tv' && showStatus && showStatus !== tmdbStatus ? { status: showStatus } : {}), ...(kind === 'game' && addonPick !== igdbAddon ? { addon: addonPick } : {}),
       ...(keep.overview ? { overview: keep.overview } : {}), ...(keep.pages ? { pages: keep.pages } : {}), ...(keep.audio_min ? { audio_min: keep.audio_min } : {}),
-      ...(kind === 'game' && keep.dlc_hidden ? { dlc_hidden: keep.dlc_hidden } : {}), ...(kind === 'game' && (keep as { steam_appid?: number }).steam_appid !== undefined && !steamReset ? { steam_appid: (keep as { steam_appid?: number }).steam_appid } : {}), ...(kind === 'game' && (keep as { franchise_hidden?: string[] }).franchise_hidden ? { franchise_hidden: (keep as { franchise_hidden?: string[] }).franchise_hidden } : {}), ...((kind === 'game' || kind === 'book') && f.ttb_main && ttbN > 0 ? { ttb_main: Math.round(ttbN * 10) / 10 } : {}) } as never }); setBusy(false); onSaved();
+      ...(kind === 'game' && keep.dlc_hidden ? { dlc_hidden: keep.dlc_hidden } : {}), ...(kind === 'game' && (keep as { steam_appid?: number }).steam_appid !== undefined && !steamReset ? { steam_appid: (keep as { steam_appid?: number }).steam_appid } : {}), ...Object.fromEntries(Object.entries(keep as Record<string, unknown>).filter(([k]) => ['steam_complete_by', 'steam_complete_off', 'steam_hint_off'].includes(k))), /* Steam's own notes survive Save */ ...(kind === 'game' && (keep as { franchise_hidden?: string[] }).franchise_hidden ? { franchise_hidden: (keep as { franchise_hidden?: string[] }).franchise_hidden } : {}), ...((kind === 'game' || kind === 'book') && f.ttb_main && ttbN > 0 ? { ttb_main: Math.round(ttbN * 10) / 10 } : {}) } as never }); setBusy(false); onSaved();
   };
   const refresh = async () => { setBusy(true); try { if (kind === 'game') await ensureGame(item.title.source_id, true); else if (kind === 'book') { const nt = await ensureBook(bookRef(item.title), true); if (nt.id !== item.title_id) await updateItem(item.id, { title_id: nt.id } as never); } else if (item.title.source === 'imdb') await ensureTitleByImdb(item.title.source_id, true); else await ensureTitle(kind, item.title.source_id, true); setNote('Info updated. Your own edits are kept.'); } catch { setNote('Couldn’t update right now. Try again later.'); } setBusy(false); };
   const clearEdits = async () => { await updateItem(item.id, { overrides: {} }); onSaved(); };
