@@ -1524,3 +1524,8 @@ button:active:not(:disabled), a.tile3:active, a.btn:active, label.btn:active { t
 .steam-rare .ach-icon { width: 44px; height: 44px; border-radius: 8px; object-fit: cover; flex: none; background: var(--surface); }
 .steam-rare-name { font-weight: 800; }
 .steam-tiles .steam-tile { width: 84px; }
+
+.auto-flag { font-size: 12px; font-weight: 700; color: var(--muted); }
+.auto-flag.on { color: #4CB2FF; }
+.steam-facts b .steam-perfect { margin-left: 4px; vertical-align: -2px; }
+.steam-perfect.off { opacity: .3; filter: grayscale(1); }

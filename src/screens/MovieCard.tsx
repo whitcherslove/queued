@@ -535,6 +535,9 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
                   {book && lengthRow()}
                   <ListRow icon={game ? <ReplayIcon size={18} /> : Ico.rewatch} label={W.rewatch} onClick={toggleRew}><span className={'switch' + (rewOn ? ' on-green' : '')}><span /></span></ListRow>
                   {game && gameRow('coop', last)}
+                  {game && ((item as { steam_appid?: number | null }).steam_appid ?? 0) > 0 && (
+                    <ListRow icon={<SteamPerfect size={20} off={!item.steam_complete} />} label="100% achievements"><span className={'auto-flag' + (item.steam_complete ? ' on' : '')}>{item.steam_complete ? 'Done · Steam' : 'Not yet · Steam'}</span></ListRow>
+                  )}
                   {game && (canPlatinum((last as { platform?: string | null }).platform ?? gItem.platform) || item.platinum) && (
                     <ListRow icon={<Platinum size={20} off={!item.platinum} />} label="Platinum" onClick={togglePlatinum}><span className={'switch' + (item.platinum ? ' on' : '')}><span /></span></ListRow>
                   )}
@@ -577,13 +580,14 @@ export default function MovieCard({ game, book, openPast, itemId, onPrev, onNext
 
 
         {/* Steam: right under the status block — for every game in PC games */}
-        {game && (item.section === 'pc' || ['pc', 'steam-deck'].includes(String((item as { platform?: string | null }).platform ?? ''))) && (   // every game in PC games (PC, Steam Deck, PS VR2 on PC…)
+        {game && (item.section === 'pc' || ['pc', 'steam-deck'].includes(String((item as { platform?: string | null }).platform ?? '')) || logs.some((l) => ['pc', 'steam-deck'].includes(String((l as { platform?: string | null }).platform ?? '')))) && (   // every game in PC games (PC, Steam Deck, PS VR2 on PC…)
           <SteamCard item={item as never} ready={full} ttbMain={ttb?.main}
             firstRun={!item.rewatch && logs.filter((l) => !l.dropped).length === (item.status === 'done' ? 1 : 0)}
             lastFinished={logs.filter((l) => !l.dropped).map((l) => l.watched_at).sort().slice(-1)[0] ?? null}
             onStart={() => startPlaying()}
             onReplay={guard(async () => { const now = new Date().toISOString(); await updateItem(item.id, { status: 'playing', rewatch: true, progress: 0, run_started_at: now, started_on: localDay(now), up_next: false } as never); })}
-            onPatch={(patch) => { const was = item as { steam_complete?: boolean; steam_appid?: number | null }; setItem({ ...item, ...patch } as never);
+            onPatch={(patch) => { const was = item as { steam_complete?: boolean; steam_appid?: number | null }; const { _local, ...rest } = patch as Record<string, unknown> & { _local?: boolean }; void _local; setItem({ ...item, ...rest } as never);
+              if (patch._local) { onChanged(); return; }
               if (patch.overrides) updateItem(item.id, { overrides: patch.overrides } as never).then(onChanged).catch(() => undefined);
               else if (!!patch.steam_complete !== !!was.steam_complete || (patch.steam_appid ?? null) !== (was.steam_appid ?? null)) onChanged(); }} />
         )}

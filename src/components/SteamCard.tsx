@@ -7,10 +7,10 @@ import { useBackLayer } from '../lib/back';
 import { useVisibleBox } from '../lib/useVisibleBox';
 
 const hrs = (min: number) => (min >= 600 ? Math.round(min / 60) : Math.round(min / 6) / 10) + ' h';
-const ago = (iso: string | null) => { if (!iso) return 'never'; const d = Math.floor((Date.now() - new Date(iso).getTime()) / 864e5);
-  return d <= 0 ? 'today' : d === 1 ? 'yesterday' : d < 30 ? d + ' days ago' : d < 365 ? Math.round(d / 30) + ' months ago' : new Date(iso).getFullYear() + ''; };
+const ago = (iso: string | null) => { if (!iso) return 'Never'; const d = Math.floor((Date.now() - new Date(iso).getTime()) / 864e5);
+  return d <= 0 ? 'Today' : d === 1 ? 'Yesterday' : d < 30 ? d + ' days ago' : d < 365 ? Math.round(d / 30) + ' months ago' : new Date(iso).getFullYear() + ''; };
 const SteamLogo = () => <img className="plat-logo steam-logo" src="/steam-logo.png" alt="Steam" />;
-export const SteamPerfect = ({ size = 16 }: { size?: number }) => <img className="steam-perfect" src="/steam-perfect.png" width={size} height={size} alt="Every Steam achievement" title="Every Steam achievement" />;
+export const SteamPerfect = ({ size = 16, off }: { size?: number; off?: boolean }) => <img className={'steam-perfect' + (off ? ' off' : '')} src="/steam-perfect.png" width={size} height={size} alt={off ? '' : '100% achievements'} title={off ? undefined : '100% achievements'} />;
 const DECK: Record<string, string> = { verified: 'Verified', playable: 'Playable', unsupported: 'Unsupported', unknown: 'Unknown' };
 
 export interface SteamItem { id: string; status: string; platform?: string | null; steam_appid?: number | null; steam_complete?: boolean; overrides?: unknown; progress?: number | null }
@@ -45,7 +45,9 @@ export default function SteamCard({ item, ready, ttbMain, firstRun, lastFinished
   const saidNo = (item.overrides as { steam_appid?: number } | null)?.steam_appid === 0;
   if (!on || saidNo) return null;   // no Steam, or you said "Not on Steam"
   const refresh = async () => { setBusy(true); try { apply(await steamRefresh(item.id)); } catch (e) { notify((e as Error).message); } setBusy(false); };
-  const setLink = async (a: number | null) => { setLinking(false); setBusy(true); try { apply(await steamLink(item.id, a)); } catch (e) { notify((e as Error).message); } setBusy(false); };
+  const setLink = async (a: number | null) => { setLinking(false); setBusy(true);
+    const ov = { ...((item.overrides as Record<string, unknown>) ?? {}) }; if (a === null) delete ov.steam_appid; else ov.steam_appid = a;
+    try { const r = await steamLink(item.id, a); setAppid(r.appid); onPatch({ steam_appid: r.appid, steam_complete: r.complete, overrides: ov, _local: true }); if (a === 0) notify('Marked “Not on Steam” — undo in Edit details'); } catch (e) { notify((e as Error).message); } setBusy(false); };
   const hintOff = (item.overrides as { steam_hint_off?: string } | null)?.steam_hint_off;
   const notNow = () => onPatch({ overrides: { ...((item.overrides as object) ?? {}), steam_hint_off: new Date().toISOString() } });
   const sheet = linking && <LinkSheet current={appid ?? null} onClose={() => setLinking(false)} onPick={setLink} />;
@@ -92,7 +94,7 @@ export default function SteamCard({ item, ready, ttbMain, firstRun, lastFinished
           <span><b>{hrs(s.playtime_min)}</b>
             {pc >= 6 && <span className="muted tiny">{hrs(pc)} on PC</span>}
             {deck >= 6 && <span className="muted tiny">{hrs(deck)} on Deck</span>}</span>
-          {s.ach_total ? <span><b>{s.ach_done}/{s.ach_total}</b><span className="muted tiny">achievements</span><span className="mini-bar"><span style={{ width: (pct ?? 0) + '%' }} /></span></span>
+          {s.ach_total ? <span><b>{s.ach_done}/{s.ach_total}{s.ach_done === s.ach_total && <SteamPerfect size={16} />}</b><span className="muted tiny">achievements</span><span className="mini-bar"><span style={{ width: (pct ?? 0) + '%' }} /></span></span>
             : !s.ach_checked_at && s.playtime_min > 0 ? <span><b className="muted">…</b><span className="muted tiny">achievements</span></span> : <span />}
           <span><b>{ago(s.last_played)}</b><span className="muted tiny">last played</span>{s.playtime_2w_min > 0 && <span className="muted tiny">{hrs(s.playtime_2w_min)} · 2 weeks</span>}</span>
         </div>
